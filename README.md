@@ -21,7 +21,7 @@ feature/frontend-작업내용
 ### Pull Request(PR) 규칙
 1. 작업 완료 후 `main` 브랜치로 **Pull Request 생성**
 2. PR에는 어떤 작업을 했는지 **짧은 코멘트**
-3. **최소 1명 승인 후 merge**
+3. PR 후 merge 버튼 눌러서 승인
 
 ---
 
