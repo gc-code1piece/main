@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import PageHeader from '@/components/layout/PageHeader';
 import SearchBar from '@/components/common/SearchBar';
@@ -9,10 +9,21 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/utils/format';
 import { REPORT_REASON_LABELS, REPORT_STATUS_LABELS, REPORT_STATUS_COLORS } from '@/lib/constants';
-import { Eye, RefreshCw, Download, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
+import { RefreshCw, Download, Eye, AlertTriangle, Clock, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// Extended mock data
+// 기능명세서 9.1 심각도 가중치
+const SEVERITY_WEIGHTS: Record<string, number> = {
+  OBSCENE: 5,
+  PERSONAL_INFO: 4,
+  HARASSMENT: 3,
+  PROFANITY: 2,
+  FAKE_PROFILE: 2,
+  SPAM: 2,
+  OTHER: 1,
+};
+
+// Mock 신고 데이터 (기능명세서 9.1 기준: 우선순위 점수 + SLA)
 const MOCK_REPORTS = [
   {
     id: 1,
@@ -20,15 +31,25 @@ const MOCK_REPORTS = [
     targetNickname: '달빛청년',
     reason: 'PROFANITY' as const,
     status: 'PENDING' as const,
-    createdAt: '2024-03-20T10:00:00',
+    accumulatedReportCount: 3,
+    slaDeadline: '2024-03-26T10:00:00',
+    slaProgress: 0.45,
+    priorityScore: 0,
+    assignedTo: null,
+    createdAt: '2024-03-23T10:00:00',
   },
   {
     id: 2,
     reporterNickname: '햇살가득',
     targetNickname: '바람처럼',
     reason: 'OBSCENE' as const,
-    status: 'IN_PROGRESS' as const,
-    createdAt: '2024-03-19T15:30:00',
+    status: 'UNDER_REVIEW' as const,
+    accumulatedReportCount: 2,
+    slaDeadline: '2024-03-24T15:00:00',
+    slaProgress: 0.88,
+    priorityScore: 0,
+    assignedTo: 'admin@ember.com',
+    createdAt: '2024-03-23T15:00:00',
   },
   {
     id: 3,
@@ -36,7 +57,12 @@ const MOCK_REPORTS = [
     targetNickname: '푸른바다',
     reason: 'SPAM' as const,
     status: 'RESOLVED' as const,
-    createdAt: '2024-03-18T09:00:00',
+    accumulatedReportCount: 1,
+    slaDeadline: '2024-03-25T09:00:00',
+    slaProgress: 0.3,
+    priorityScore: 0,
+    assignedTo: 'admin@ember.com',
+    createdAt: '2024-03-22T09:00:00',
   },
   {
     id: 4,
@@ -44,64 +70,95 @@ const MOCK_REPORTS = [
     targetNickname: '달콤한하루',
     reason: 'HARASSMENT' as const,
     status: 'PENDING' as const,
-    createdAt: '2024-03-20T08:30:00',
+    accumulatedReportCount: 5,
+    slaDeadline: '2024-03-25T14:00:00',
+    slaProgress: 0.72,
+    priorityScore: 0,
+    assignedTo: null,
+    createdAt: '2024-03-22T14:00:00',
   },
   {
     id: 5,
     reporterNickname: '행복한날',
     targetNickname: '자유로운영혼',
-    reason: 'FAKE_PROFILE' as const,
-    status: 'IN_PROGRESS' as const,
-    createdAt: '2024-03-19T12:00:00',
+    reason: 'PERSONAL_INFO' as const,
+    status: 'UNDER_REVIEW' as const,
+    accumulatedReportCount: 1,
+    slaDeadline: '2024-03-24T10:00:00',
+    slaProgress: 1.15,
+    priorityScore: 0,
+    assignedTo: 'super@ember.com',
+    createdAt: '2024-03-23T10:00:00',
   },
   {
     id: 6,
     reporterNickname: '봄날의꿈',
     targetNickname: '여름밤',
     reason: 'OTHER' as const,
-    status: 'RESOLVED' as const,
-    createdAt: '2024-03-17T14:00:00',
+    status: 'DISMISSED' as const,
+    accumulatedReportCount: 1,
+    slaDeadline: '2024-03-26T09:00:00',
+    slaProgress: 0.2,
+    priorityScore: 0,
+    assignedTo: 'admin@ember.com',
+    createdAt: '2024-03-23T09:00:00',
   },
-];
+].map((r) => ({
+  ...r,
+  // 기능명세서 9.1: priorityScore = 심각도 × 누적신고수 × (1 + SLA진행률)
+  priorityScore: SEVERITY_WEIGHTS[r.reason] * r.accumulatedReportCount * (1 + r.slaProgress),
+}));
+
+function getSlaColor(progress: number) {
+  if (progress >= 1.0) return 'bg-red-500';
+  if (progress >= 0.8) return 'bg-yellow-500';
+  return 'bg-green-500';
+}
+
+function getSlaLabel(progress: number) {
+  if (progress >= 1.0) return { text: '초과', className: 'bg-red-100 text-red-800' };
+  if (progress >= 0.8) return { text: '접근 중', className: 'bg-yellow-100 text-yellow-800' };
+  return null;
+}
 
 export default function ReportsPage() {
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [reasonFilter, setReasonFilter] = useState<string>('ALL');
 
   const handleRefresh = () => {
     toast.success('신고 목록을 새로고침했습니다.');
   };
 
-  const handleExport = () => {
-    toast.success('신고 내역을 다운로드합니다.');
-  };
+  // 필터링 + 우선순위 정렬
+  const filteredReports = useMemo(() => {
+    return MOCK_REPORTS
+      .filter((r) => {
+        const matchesKeyword = !keyword || r.reporterNickname.includes(keyword) || r.targetNickname.includes(keyword);
+        const matchesStatus = statusFilter === 'ALL' || r.status === statusFilter;
+        const matchesReason = reasonFilter === 'ALL' || r.reason === reasonFilter;
+        return matchesKeyword && matchesStatus && matchesReason;
+      })
+      .sort((a, b) => b.priorityScore - a.priorityScore);
+  }, [keyword, statusFilter, reasonFilter]);
 
-  // Filter reports
-  const filteredReports = MOCK_REPORTS.filter((report) => {
-    const matchesKeyword =
-      !keyword ||
-      report.reporterNickname.includes(keyword) ||
-      report.targetNickname.includes(keyword);
-    const matchesStatus = statusFilter === 'ALL' || report.status === statusFilter;
-    return matchesKeyword && matchesStatus;
-  });
-
-  const pendingCount = MOCK_REPORTS.filter((r) => r.status === 'PENDING').length;
-  const inProgressCount = MOCK_REPORTS.filter((r) => r.status === 'IN_PROGRESS').length;
-  const resolvedCount = MOCK_REPORTS.filter((r) => r.status === 'RESOLVED').length;
+  // 기능명세서 9.1 요약 카드
+  const unresolvedCount = MOCK_REPORTS.filter((r) => r.status === 'PENDING' || r.status === 'UNDER_REVIEW').length;
+  const slaApproachingCount = MOCK_REPORTS.filter((r) => r.slaProgress >= 0.8 && r.slaProgress < 1.0 && r.status !== 'RESOLVED' && r.status !== 'DISMISSED').length;
+  const slaExceededCount = MOCK_REPORTS.filter((r) => r.slaProgress >= 1.0 && r.status !== 'RESOLVED' && r.status !== 'DISMISSED').length;
 
   return (
     <div>
       <PageHeader
         title="신고 관리"
-        description="사용자 신고 목록 및 처리"
+        description="신고 목록 조회 및 처리"
         actions={
           <div className="flex gap-2">
             <Button variant="outline" onClick={handleRefresh}>
               <RefreshCw className="mr-2 h-4 w-4" />
               새로고침
             </Button>
-            <Button onClick={handleExport}>
+            <Button variant="outline">
               <Download className="mr-2 h-4 w-4" />
               내보내기
             </Button>
@@ -109,63 +166,65 @@ export default function ReportsPage() {
         }
       />
 
-      {/* Status Summary Cards */}
-      <div className="mb-6 grid gap-4 md:grid-cols-4">
-        <Card
-          className={`cursor-pointer transition-colors ${statusFilter === 'ALL' ? 'border-primary' : ''}`}
-          onClick={() => setStatusFilter('ALL')}
-        >
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold">{MOCK_REPORTS.length}</div>
-            <p className="text-sm text-muted-foreground">전체 신고</p>
-          </CardContent>
-        </Card>
-        <Card
-          className={`cursor-pointer transition-colors ${statusFilter === 'PENDING' ? 'border-primary' : ''}`}
-          onClick={() => setStatusFilter('PENDING')}
-        >
+      {/* 요약 카드 (기능명세서 9.1) */}
+      <div className="mb-6 grid gap-4 md:grid-cols-3">
+        <Card className="cursor-pointer" onClick={() => setStatusFilter('ALL')}>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-yellow-500" />
-              <div className="text-2xl font-bold text-yellow-600">{pendingCount}</div>
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              <span className="text-sm text-muted-foreground">미처리 전체</span>
             </div>
-            <p className="text-sm text-muted-foreground">대기중</p>
+            <div className="mt-1 text-2xl font-bold">{unresolvedCount}</div>
           </CardContent>
         </Card>
-        <Card
-          className={`cursor-pointer transition-colors ${statusFilter === 'IN_PROGRESS' ? 'border-primary' : ''}`}
-          onClick={() => setStatusFilter('IN_PROGRESS')}
-        >
+        <Card className="cursor-pointer border-yellow-200">
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-blue-500" />
-              <div className="text-2xl font-bold text-blue-600">{inProgressCount}</div>
+              <Clock className="h-5 w-5 text-yellow-500" />
+              <span className="text-sm text-muted-foreground">SLA 접근 중 (80%)</span>
             </div>
-            <p className="text-sm text-muted-foreground">처리중</p>
+            <div className="mt-1 text-2xl font-bold text-yellow-600">{slaApproachingCount}</div>
           </CardContent>
         </Card>
-        <Card
-          className={`cursor-pointer transition-colors ${statusFilter === 'RESOLVED' ? 'border-primary' : ''}`}
-          onClick={() => setStatusFilter('RESOLVED')}
-        >
+        <Card className="cursor-pointer border-red-200">
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-green-500" />
-              <div className="text-2xl font-bold text-green-600">{resolvedCount}</div>
+              <ShieldAlert className="h-5 w-5 text-red-500" />
+              <span className="text-sm text-muted-foreground">SLA 초과</span>
             </div>
-            <p className="text-sm text-muted-foreground">처리완료</p>
+            <div className="mt-1 text-2xl font-bold text-red-600">{slaExceededCount}</div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="mb-6">
-        <SearchBar
-          value={keyword}
-          onChange={setKeyword}
-          placeholder="신고자 또는 피신고자 닉네임 검색"
-        />
+      {/* 필터 */}
+      <div className="mb-6 flex flex-wrap gap-4">
+        <div className="flex-1 min-w-[250px]">
+          <SearchBar value={keyword} onChange={setKeyword} placeholder="신고자 또는 피신고자 검색" />
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="rounded-md border px-3 py-2 text-sm"
+        >
+          <option value="ALL">전체 상태</option>
+          {Object.entries(REPORT_STATUS_LABELS).map(([key, label]) => (
+            <option key={key} value={key}>{label}</option>
+          ))}
+        </select>
+        <select
+          value={reasonFilter}
+          onChange={(e) => setReasonFilter(e.target.value)}
+          className="rounded-md border px-3 py-2 text-sm"
+        >
+          <option value="ALL">전체 사유</option>
+          {Object.entries(REPORT_REASON_LABELS).map(([key, label]) => (
+            <option key={key} value={key}>{label}</option>
+          ))}
+        </select>
       </div>
 
+      {/* 신고 목록 테이블 */}
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -176,38 +235,67 @@ export default function ReportsPage() {
                   <th className="px-4 py-3 text-left text-sm font-medium">신고자</th>
                   <th className="px-4 py-3 text-left text-sm font-medium">피신고자</th>
                   <th className="px-4 py-3 text-left text-sm font-medium">사유</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">누적</th>
                   <th className="px-4 py-3 text-left text-sm font-medium">상태</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">신고일</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">SLA 진행</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">우선순위</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">담당자</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">접수일</th>
                   <th className="px-4 py-3 text-left text-sm font-medium">액션</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredReports.map((report) => (
-                  <tr key={report.id} className="hover:bg-muted/30">
-                    <td className="px-4 py-3 text-sm font-medium">#{report.id}</td>
-                    <td className="px-4 py-3 text-sm">{report.reporterNickname}</td>
-                    <td className="px-4 py-3 text-sm">{report.targetNickname}</td>
-                    <td className="px-4 py-3 text-sm">
-                      {REPORT_REASON_LABELS[report.reason]}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge className={REPORT_STATUS_COLORS[report.status]}>
-                        {REPORT_STATUS_LABELS[report.status]}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">
-                      {formatDateTime(report.createdAt)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link href={`/admin/reports/${report.id}`}>
-                        <Button variant="ghost" size="sm">
-                          <Eye className="mr-1 h-4 w-4" />
-                          상세
-                        </Button>
-                      </Link>
+                {filteredReports.length === 0 ? (
+                  <tr>
+                    <td colSpan={11} className="px-4 py-8 text-center text-muted-foreground">
+                      검색 결과가 없습니다.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredReports.map((report) => {
+                    const slaLabel = getSlaLabel(report.slaProgress);
+                    return (
+                      <tr key={report.id} className="hover:bg-muted/30">
+                        <td className="px-4 py-3 text-sm font-medium">#{report.id}</td>
+                        <td className="px-4 py-3 text-sm">{report.reporterNickname}</td>
+                        <td className="px-4 py-3 text-sm font-medium">{report.targetNickname}</td>
+                        <td className="px-4 py-3">
+                          <Badge variant="outline">{REPORT_REASON_LABELS[report.reason]}</Badge>
+                        </td>
+                        <td className="px-4 py-3 text-sm font-medium text-red-600">{report.accumulatedReportCount}</td>
+                        <td className="px-4 py-3">
+                          <Badge className={REPORT_STATUS_COLORS[report.status]}>
+                            {REPORT_STATUS_LABELS[report.status]}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-16 rounded-full bg-gray-200">
+                              <div
+                                className={`h-2 rounded-full ${getSlaColor(report.slaProgress)}`}
+                                style={{ width: `${Math.min(report.slaProgress * 100, 100)}%` }}
+                              />
+                            </div>
+                            {slaLabel && (
+                              <Badge className={`text-xs ${slaLabel.className}`}>{slaLabel.text}</Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-sm font-bold">{report.priorityScore.toFixed(1)}</td>
+                        <td className="px-4 py-3 text-sm text-muted-foreground">{report.assignedTo || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-muted-foreground">{formatDateTime(report.createdAt)}</td>
+                        <td className="px-4 py-3">
+                          <Link href={`/admin/reports/${report.id}`}>
+                            <Button variant="ghost" size="sm">
+                              <Eye className="mr-1 h-4 w-4" />
+                              상세
+                            </Button>
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>

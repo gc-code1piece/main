@@ -5,7 +5,14 @@ export interface ApiResponse<T> {
   data: T;
 }
 
-// 페이징 응답
+// 기능명세서 기준 커서 기반 페이징 응답
+export interface CursorResponse<T> {
+  items: T[];
+  nextCursor: string | null;
+  totalCount: number;
+}
+
+// Spring Data JPA 오프셋 기반 (관리자 계정 등 소규모 데이터용)
 export interface PageResponse<T> {
   content: T[];
   pageable: {

@@ -303,7 +303,7 @@ export default function SuspiciousAccountsPage() {
                   </div>
                 </div>
                 <div className="flex gap-1 ml-4">
-                  <Link href={`/admin/users/${account.userId}`}>
+                  <Link href={`/admin/members/${account.userId}`}>
                     <Button variant="ghost" size="sm">
                       <Eye className="h-4 w-4" />
                     </Button>

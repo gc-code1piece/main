@@ -12,10 +12,10 @@ import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/stores/authStore';
 import { formatDateTime } from '@/lib/utils/format';
 import { REPORT_REASON_LABELS, REPORT_STATUS_LABELS, REPORT_STATUS_COLORS } from '@/lib/constants';
-import { ArrowLeft, User, FileText, AlertTriangle, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { ArrowLeft, User, FileText, AlertTriangle, CheckCircle, XCircle, Clock, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// Mock 신고 데이터
+// Mock 신고 데이터 (기능명세서 9.2 기준)
 const MOCK_REPORTS: Record<string, any> = {
   '1': {
     id: 1,
@@ -29,10 +29,16 @@ const MOCK_REPORTS: Record<string, any> = {
     detail: '교환일기에서 욕설을 사용했습니다. "XX" 같은 표현이 포함되어 있었습니다.',
     evidenceContent: '오늘 정말 XX 같은 하루였어. 왜 이렇게 재수가 없는지...',
     status: 'PENDING',
+    priorityScore: 6.0,
+    slaDeadline: '2024-03-23T10:30:00',
+    slaProgress: 0.65,
+    assignedTo: null,
+    accumulatedReportCount: 2,
     createdAt: '2024-03-20T10:30:00',
     resolvedAt: null,
     resolvedBy: null,
     resolveNote: null,
+    sanctionType: null,
     targetPreviousReports: [
       { reason: 'SPAM', createdAt: '2024-02-15T08:00:00', status: 'DISMISSED' },
     ],
@@ -48,11 +54,17 @@ const MOCK_REPORTS: Record<string, any> = {
     reason: 'OBSCENE',
     detail: '프로필 사진에 부적절한 이미지가 있습니다.',
     evidenceContent: '[프로필 이미지 - 노출이 심한 사진]',
-    status: 'IN_PROGRESS',
+    status: 'UNDER_REVIEW',
+    priorityScore: 10.0,
+    slaDeadline: '2024-03-20T15:45:00',
+    slaProgress: 0.92,
+    assignedTo: 'admin@ember.com',
+    accumulatedReportCount: 1,
     createdAt: '2024-03-19T15:45:00',
     resolvedAt: null,
     resolvedBy: null,
     resolveNote: null,
+    sanctionType: null,
     targetPreviousReports: [],
   },
   '3': {
@@ -67,51 +79,63 @@ const MOCK_REPORTS: Record<string, any> = {
     detail: '계속 같은 내용의 일기를 반복해서 올리고 있습니다.',
     evidenceContent: '오늘도 좋은 하루! (같은 내용 10회 이상 반복)',
     status: 'RESOLVED',
+    priorityScore: 4.0,
+    slaDeadline: '2024-03-21T09:00:00',
+    slaProgress: 0.3,
+    assignedTo: 'admin@ember.com',
+    accumulatedReportCount: 1,
     createdAt: '2024-03-18T09:00:00',
     resolvedAt: '2024-03-18T14:30:00',
     resolvedBy: 'admin@ember.com',
     resolveNote: '경고 처리 완료. 재발 시 정지 예정.',
+    sanctionType: 'WARNING',
     targetPreviousReports: [],
   },
 };
+
+function getSlaColor(progress: number) {
+  if (progress >= 1.0) return 'bg-red-500';
+  if (progress >= 0.8) return 'bg-yellow-500';
+  return 'bg-green-500';
+}
+
+function getSlaLabel(progress: number) {
+  if (progress >= 1.0) return { text: 'SLA 초과', className: 'bg-red-100 text-red-800' };
+  if (progress >= 0.8) return { text: 'SLA 접근 중', className: 'bg-yellow-100 text-yellow-800' };
+  return { text: 'SLA 정상', className: 'bg-green-100 text-green-800' };
+}
 
 export default function ReportDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { hasPermission } = useAuthStore();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [actionNote, setActionNote] = useState('');
-  const [selectedAction, setSelectedAction] = useState<string>('');
+  const [adminMemo, setAdminMemo] = useState('');
+  const [sanctionType, setSanctionType] = useState<string>('NONE');
 
   const reportId = params.id as string;
   const report = MOCK_REPORTS[reportId] || MOCK_REPORTS['1'];
+  const slaLabel = getSlaLabel(report.slaProgress);
 
-  const handleResolve = async (action: string) => {
-    if (!actionNote.trim()) {
-      toast.error('처리 사유를 입력해주세요.');
+  const handleProcess = async (result: 'RESOLVED' | 'DISMISSED') => {
+    if (adminMemo.trim().length < 10) {
+      toast.error('처리 사유를 최소 10자 이상 입력해주세요.');
       return;
     }
     setIsProcessing(true);
     await new Promise((r) => setTimeout(r, 500));
 
-    const actionMessages: Record<string, string> = {
-      warning: '경고 처리되었습니다.',
-      suspend_7d: '7일 정지 처리되었습니다.',
-      ban: '영구 정지 처리되었습니다.',
-    };
-    toast.success(actionMessages[action] || '처리되었습니다.');
-    setIsProcessing(false);
-    router.push('/admin/reports');
-  };
-
-  const handleDismiss = async () => {
-    if (!actionNote.trim()) {
-      toast.error('기각 사유를 입력해주세요.');
-      return;
+    if (result === 'DISMISSED') {
+      toast.success('신고가 기각되었습니다.');
+    } else {
+      const msgs: Record<string, string> = {
+        NONE: '처리 완료되었습니다.',
+        WARNING: '경고 처리되었습니다.',
+        SUSPEND_7D: '7일 정지 처리되었습니다.',
+        BANNED: '영구 정지 처리되었습니다.',
+      };
+      toast.success(msgs[sanctionType] || '처리되었습니다.');
     }
-    setIsProcessing(true);
-    await new Promise((r) => setTimeout(r, 500));
-    toast.success('신고가 기각되었습니다.');
     setIsProcessing(false);
     router.push('/admin/reports');
   };
@@ -130,7 +154,7 @@ export default function ReportDetailPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
-        {/* 신고 내용 */}
+        {/* 신고 내용 + SLA */}
         <Card className="md:col-span-2">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -138,12 +162,50 @@ export default function ReportDetailPage() {
                 <AlertTriangle className="h-5 w-5 text-yellow-500" />
                 신고 내용
               </CardTitle>
-              <Badge className={REPORT_STATUS_COLORS[report.status]}>
-                {REPORT_STATUS_LABELS[report.status]}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge className={slaLabel.className}>{slaLabel.text}</Badge>
+                <Badge className={REPORT_STATUS_COLORS[report.status]}>
+                  {REPORT_STATUS_LABELS[report.status]}
+                </Badge>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* SLA 진행바 */}
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-muted-foreground">SLA 진행률</span>
+                <span className="font-medium">{Math.round(report.slaProgress * 100)}%</span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-gray-200">
+                <div
+                  className={`h-2 rounded-full transition-all ${getSlaColor(report.slaProgress)}`}
+                  style={{ width: `${Math.min(report.slaProgress * 100, 100)}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                마감: {formatDateTime(report.slaDeadline)} | 우선순위 점수: {report.priorityScore.toFixed(1)}
+              </p>
+            </div>
+
+            <Separator />
+
+            {/* 담당자 */}
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-muted-foreground">담당자</Label>
+                <p className="font-medium">{report.assignedTo || '미배정'}</p>
+              </div>
+              {hasPermission('ADMIN') && (
+                <Button variant="outline" size="sm">
+                  <Shield className="mr-1 h-4 w-4" />
+                  담당자 변경
+                </Button>
+              )}
+            </div>
+
+            <Separator />
+
             <div>
               <Label className="text-muted-foreground">신고 사유</Label>
               <p className="font-medium">{REPORT_REASON_LABELS[report.reason]}</p>
@@ -169,15 +231,12 @@ export default function ReportDetailPage() {
                     <CheckCircle className="h-5 w-5" />
                     <span className="font-medium">처리 완료</span>
                   </div>
-                  <p className="mt-2 text-sm text-green-700">
-                    처리자: {report.resolvedBy}
-                  </p>
-                  <p className="text-sm text-green-700">
-                    처리 시간: {formatDateTime(report.resolvedAt)}
-                  </p>
-                  <p className="mt-2 text-sm text-green-600">
-                    처리 내용: {report.resolveNote}
-                  </p>
+                  <p className="mt-2 text-sm text-green-700">처리자: {report.resolvedBy}</p>
+                  <p className="text-sm text-green-700">처리 시간: {formatDateTime(report.resolvedAt)}</p>
+                  <p className="mt-2 text-sm text-green-600">처리 내용: {report.resolveNote}</p>
+                  {report.sanctionType && report.sanctionType !== 'NONE' && (
+                    <p className="text-sm text-green-600">제재: {report.sanctionType}</p>
+                  )}
                 </div>
               </>
             )}
@@ -203,7 +262,7 @@ export default function ReportDetailPage() {
                 <span className="text-sm">{report.reporterEmail}</span>
               </div>
               <Button variant="outline" size="sm" className="mt-2 w-full" asChild>
-                <a href={`/admin/users/${report.reporterId}`}>프로필 보기</a>
+                <a href={`/admin/members/${report.reporterId}`}>프로필 보기</a>
               </Button>
             </CardContent>
           </Card>
@@ -225,11 +284,15 @@ export default function ReportDetailPage() {
                 <span className="text-sm">{report.targetEmail}</span>
               </div>
               <div className="flex justify-between">
+                <span className="text-muted-foreground">누적 신고</span>
+                <span className="font-medium text-red-600">{report.accumulatedReportCount}건</span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-muted-foreground">이전 신고</span>
                 <span className="font-medium">{report.targetPreviousReports.length}건</span>
               </div>
               <Button variant="outline" size="sm" className="mt-2 w-full" asChild>
-                <a href={`/admin/users/${report.targetId}`}>프로필 보기</a>
+                <a href={`/admin/members/${report.targetId}`}>프로필 보기</a>
               </Button>
             </CardContent>
           </Card>
@@ -244,7 +307,7 @@ export default function ReportDetailPage() {
                   <div key={idx} className="flex items-center justify-between text-sm">
                     <span>{REPORT_REASON_LABELS[prev.reason]}</span>
                     <Badge variant="secondary">
-                      {prev.status === 'DISMISSED' ? '기각' : '처리됨'}
+                      {REPORT_STATUS_LABELS[prev.status] || prev.status}
                     </Badge>
                   </div>
                 ))}
@@ -253,7 +316,7 @@ export default function ReportDetailPage() {
           )}
         </div>
 
-        {/* 처리 액션 (ADMIN 이상) */}
+        {/* 처리 액션 (ADMIN 이상, 기능명세서 9.2 기준) */}
         {hasPermission('ADMIN') && report.status !== 'RESOLVED' && report.status !== 'DISMISSED' && (
           <Card className="md:col-span-3">
             <CardHeader>
@@ -264,46 +327,68 @@ export default function ReportDetailPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
+                {/* 제재 유형 선택 (4종) */}
                 <div>
-                  <Label htmlFor="actionNote">처리/기각 사유</Label>
-                  <Input
-                    id="actionNote"
-                    placeholder="처리 또는 기각 사유를 입력하세요..."
-                    value={actionNote}
-                    onChange={(e) => setActionNote(e.target.value)}
-                    className="mt-1"
-                  />
+                  <Label>제재 유형</Label>
+                  <div className="mt-2 flex flex-wrap gap-3">
+                    {[
+                      { value: 'NONE', label: '없음', icon: null },
+                      { value: 'WARNING', label: '경고', icon: <AlertTriangle className="h-4 w-4 text-yellow-500" /> },
+                      { value: 'SUSPEND_7D', label: '7일 정지', icon: <Clock className="h-4 w-4 text-orange-500" /> },
+                      { value: 'BANNED', label: '영구 정지', icon: <XCircle className="h-4 w-4 text-red-500" /> },
+                    ].map((option) => (
+                      <label
+                        key={option.value}
+                        className={`flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2 transition-colors ${
+                          sanctionType === option.value
+                            ? 'border-primary bg-primary/5 font-medium'
+                            : 'border-gray-200 hover:bg-muted'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="sanctionType"
+                          value={option.value}
+                          checked={sanctionType === option.value}
+                          onChange={(e) => setSanctionType(e.target.value)}
+                          className="sr-only"
+                        />
+                        {option.icon}
+                        {option.label}
+                      </label>
+                    ))}
+                  </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
+                {/* 처리 사유 (최소 10자) */}
+                <div>
+                  <Label htmlFor="adminMemo">처리 사유 (최소 10자)</Label>
+                  <Input
+                    id="adminMemo"
+                    placeholder="처리 또는 기각 사유를 상세히 입력하세요..."
+                    value={adminMemo}
+                    onChange={(e) => setAdminMemo(e.target.value)}
+                    className="mt-1"
+                  />
+                  {adminMemo.length > 0 && adminMemo.length < 10 && (
+                    <p className="mt-1 text-xs text-red-500">
+                      {10 - adminMemo.length}자 더 입력해주세요
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
                   <Button
-                    variant="outline"
-                    onClick={() => handleResolve('warning')}
-                    disabled={isProcessing}
+                    onClick={() => handleProcess('RESOLVED')}
+                    disabled={isProcessing || adminMemo.length < 10}
                   >
-                    <AlertTriangle className="mr-2 h-4 w-4 text-yellow-500" />
-                    경고 처리
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => handleResolve('suspend_7d')}
-                    disabled={isProcessing}
-                  >
-                    <Clock className="mr-2 h-4 w-4 text-orange-500" />
-                    7일 정지
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => handleResolve('ban')}
-                    disabled={isProcessing}
-                  >
-                    <XCircle className="mr-2 h-4 w-4" />
-                    영구 정지
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    처리 완료
                   </Button>
                   <Button
                     variant="secondary"
-                    onClick={handleDismiss}
-                    disabled={isProcessing}
+                    onClick={() => handleProcess('DISMISSED')}
+                    disabled={isProcessing || adminMemo.length < 10}
                   >
                     기각
                   </Button>

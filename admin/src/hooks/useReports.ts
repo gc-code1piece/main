@@ -18,28 +18,28 @@ export function useReportDetail(id: number) {
   });
 }
 
-export function useResolveReport() {
+export function useProcessReport() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, action, note }: { id: number; action: string; note: string }) =>
-      reportsApi.resolve(id, action, note),
-    onSuccess: () => {
+    mutationFn: ({
+      id,
+      result,
+      adminMemo,
+      sanctionType,
+    }: {
+      id: number;
+      result: 'RESOLVED' | 'DISMISSED';
+      adminMemo: string;
+      sanctionType?: 'NONE' | 'WARNING' | 'SUSPEND_7D' | 'BANNED';
+    }) => reportsApi.process(id, { result, adminMemo, sanctionType }),
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['reports'] });
-      toast.success('신고가 처리되었습니다.');
-    },
-  });
-}
-
-export function useDismissReport() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
-      reportsApi.dismiss(id, reason),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reports'] });
-      toast.success('신고가 기각되었습니다.');
+      toast.success(
+        variables.result === 'RESOLVED'
+          ? '신고가 처리되었습니다.'
+          : '신고가 기각되었습니다.'
+      );
     },
   });
 }

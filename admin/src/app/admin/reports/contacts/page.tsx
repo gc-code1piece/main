@@ -31,7 +31,7 @@ const MOCK_CONTACT_DETECTIONS = [
     nickname: '수상한사용자',
     contentType: 'DIARY',
     contentId: 456,
-    detectedPattern: '010-1234-5678',
+    detectedText: '010-1234-5678',
     patternType: 'PHONE',
     context: '...연락해줘요 010-1234-5678 으로...',
     status: 'PENDING',
@@ -46,7 +46,7 @@ const MOCK_CONTACT_DETECTIONS = [
     nickname: '연락처공유자',
     contentType: 'EXCHANGE_DIARY',
     contentId: 789,
-    detectedPattern: 'kakao: friend123',
+    detectedText: 'kakao: friend123',
     patternType: 'KAKAO',
     context: '...카톡으로 연락해 kakao: friend123...',
     status: 'CONFIRMED',
@@ -61,7 +61,7 @@ const MOCK_CONTACT_DETECTIONS = [
     nickname: '인스타유저',
     contentType: 'CHAT',
     contentId: 101,
-    detectedPattern: '@instagram_user',
+    detectedText: '@instagram_user',
     patternType: 'INSTAGRAM',
     context: '...인스타로 연락주세요 @instagram_user...',
     status: 'PENDING',
@@ -76,7 +76,7 @@ const MOCK_CONTACT_DETECTIONS = [
     nickname: '이메일공유자',
     contentType: 'DIARY',
     contentId: 303,
-    detectedPattern: 'test@email.com',
+    detectedText: 'test@email.com',
     patternType: 'EMAIL',
     context: '...이메일로 연락해 test@email.com...',
     status: 'FALSE_POSITIVE',
@@ -91,7 +91,7 @@ const MOCK_CONTACT_DETECTIONS = [
     nickname: '링크공유자',
     contentType: 'EXCHANGE_DIARY',
     contentId: 505,
-    detectedPattern: 'open.kakao.com/xxx',
+    detectedText: 'open.kakao.com/xxx',
     patternType: 'LINK',
     context: '...오픈채팅방 open.kakao.com/xxx 에서...',
     status: 'CONFIRMED',
@@ -190,7 +190,7 @@ export default function ExternalContactsPage() {
   const filteredDetections = MOCK_CONTACT_DETECTIONS.filter(detection => {
     const matchesKeyword = !keyword ||
       detection.nickname.includes(keyword) ||
-      detection.detectedPattern.includes(keyword);
+      detection.detectedText.includes(keyword);
     const matchesType = typeFilter === 'ALL' || detection.patternType === typeFilter;
     const matchesStatus = statusFilter === 'ALL' || detection.status === statusFilter;
     return matchesKeyword && matchesType && matchesStatus;
@@ -360,12 +360,12 @@ export default function ExternalContactsPage() {
                     </span>
                   </div>
                   <div className="mt-2">
-                    <Link href={`/admin/users/${detection.userId}`} className="font-semibold text-blue-600 hover:underline">
+                    <Link href={`/admin/members/${detection.userId}`} className="font-semibold text-blue-600 hover:underline">
                       {detection.nickname}
                     </Link>
                   </div>
                   <div className="mt-2 p-2 bg-muted rounded text-sm font-mono">
-                    <span className="text-red-600 font-bold">{detection.detectedPattern}</span>
+                    <span className="text-red-600 font-bold">{detection.detectedText}</span>
                     <p className="mt-1 text-muted-foreground">{detection.context}</p>
                   </div>
                 </div>

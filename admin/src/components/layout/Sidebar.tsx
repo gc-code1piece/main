@@ -53,11 +53,11 @@ const navItems: NavItem[] = [
   { title: '대시보드', href: '/admin/dashboard', icon: LayoutDashboard },
   {
     title: '회원 관리',
-    href: '/admin/users',
+    href: '/admin/members',
     icon: Users,
     subItems: [
-      { title: '회원 목록', href: '/admin/users' },
-      { title: '의심 계정 탐지', href: '/admin/users/suspicious' },
+      { title: '회원 목록', href: '/admin/members' },
+      { title: '의심 계정 탐지', href: '/admin/members/suspicious' },
     ],
   },
   {

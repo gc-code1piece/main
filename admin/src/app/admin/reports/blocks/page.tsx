@@ -15,9 +15,9 @@ import toast from 'react-hot-toast';
 const MOCK_BLOCK_HISTORY = [
   {
     id: 1,
-    blockerUserId: 123,
+    blockerId: 123,
     blockerNickname: '별빛소녀',
-    blockedUserId: 456,
+    blockedId: 456,
     blockedNickname: '달빛청년',
     reason: 'HARASSMENT',
     status: 'ACTIVE',
@@ -27,9 +27,9 @@ const MOCK_BLOCK_HISTORY = [
   },
   {
     id: 2,
-    blockerUserId: 789,
+    blockerId: 789,
     blockerNickname: '햇살가득',
-    blockedUserId: 101,
+    blockedId: 101,
     blockedNickname: '바람처럼',
     reason: 'SPAM',
     status: 'ACTIVE',
@@ -39,9 +39,9 @@ const MOCK_BLOCK_HISTORY = [
   },
   {
     id: 3,
-    blockerUserId: 202,
+    blockerId: 202,
     blockerNickname: '꽃구름',
-    blockedUserId: 303,
+    blockedId: 303,
     blockedNickname: '푸른바다',
     reason: 'INAPPROPRIATE',
     status: 'UNBLOCKED',
@@ -51,9 +51,9 @@ const MOCK_BLOCK_HISTORY = [
   },
   {
     id: 4,
-    blockerUserId: 404,
+    blockerId: 404,
     blockerNickname: '밤하늘별',
-    blockedUserId: 505,
+    blockedId: 505,
     blockedNickname: '달콤한하루',
     reason: 'OFFENSIVE',
     status: 'ACTIVE',
@@ -63,9 +63,9 @@ const MOCK_BLOCK_HISTORY = [
   },
   {
     id: 5,
-    blockerUserId: 606,
+    blockerId: 606,
     blockerNickname: '행복한날',
-    blockedUserId: 707,
+    blockedId: 707,
     blockedNickname: '자유로운영혼',
     reason: 'OTHER',
     status: 'ADMIN_CANCELLED',
@@ -75,9 +75,9 @@ const MOCK_BLOCK_HISTORY = [
   },
   {
     id: 6,
-    blockerUserId: 808,
+    blockerId: 808,
     blockerNickname: '봄날의꿈',
-    blockedUserId: 909,
+    blockedId: 909,
     blockedNickname: '여름밤',
     reason: 'HARASSMENT',
     status: 'ACTIVE',
@@ -244,12 +244,12 @@ export default function BlockHistoryPage() {
                 {filteredBlocks.map(block => (
                   <tr key={block.id} className="hover:bg-muted/30">
                     <td className="px-4 py-3">
-                      <Link href={`/admin/users/${block.blockerUserId}`} className="text-blue-600 hover:underline">
+                      <Link href={`/admin/members/${block.blockerId}`} className="text-blue-600 hover:underline">
                         {block.blockerNickname}
                       </Link>
                     </td>
                     <td className="px-4 py-3">
-                      <Link href={`/admin/users/${block.blockedUserId}`} className="text-blue-600 hover:underline">
+                      <Link href={`/admin/members/${block.blockedId}`} className="text-blue-600 hover:underline">
                         {block.blockedNickname}
                       </Link>
                     </td>
@@ -268,7 +268,7 @@ export default function BlockHistoryPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
-                        <Link href={`/admin/users/${block.blockerUserId}`}>
+                        <Link href={`/admin/members/${block.blockerId}`}>
                           <Button variant="ghost" size="sm">
                             <Eye className="h-4 w-4" />
                           </Button>

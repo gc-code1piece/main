@@ -26,7 +26,7 @@ const MOCK_NOTIFICATIONS = [
     type: 'WARNING',
     title: '의심 계정 탐지',
     message: '새로운 의심 계정 3건이 탐지되었습니다.',
-    link: '/admin/users/suspicious',
+    link: '/admin/members/suspicious',
     createdAt: '2024-03-23T09:15:00',
     isRead: false,
   },
