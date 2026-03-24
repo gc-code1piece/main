@@ -27,6 +27,10 @@ build/
 # Jupyter
 .ipynb_checkpoints/
 
+# Claude Code
+.claude/
+.mcp.json
+
 # Misc
 *.tmp
 *.swp
