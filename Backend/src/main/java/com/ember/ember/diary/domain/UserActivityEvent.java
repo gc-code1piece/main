@@ -1,0 +1,38 @@
+package com.ember.ember.diary.domain;
+
+import com.ember.ember.user.domain.User;
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "user_activity_events",
+        indexes = @Index(name = "idx_activity_user_occurred", columnList = "user_id, occurred_at"))
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class UserActivityEvent {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    @Column(name = "event_type", nullable = false, length = 30)
+    private String eventType;
+
+    @Column(name = "target_type", length = 30)
+    private String targetType;
+
+    @Column(name = "target_id")
+    private Long targetId;
+
+    @Column(columnDefinition = "TEXT")
+    private String detail;
+
+    @Column(name = "occurred_at", nullable = false)
+    private LocalDateTime occurredAt;
+}
