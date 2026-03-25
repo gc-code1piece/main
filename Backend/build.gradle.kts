@@ -1,0 +1,87 @@
+plugins {
+    java
+    id("org.springframework.boot") version "3.4.1"
+    id("io.spring.dependency-management") version "1.1.7"
+}
+
+group = "com.ember"
+version = "0.0.1-SNAPSHOT"
+description = "Ember - 교환일기 기반 소개팅 앱 백엔드"
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom(configurations.annotationProcessor.get())
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Spring Boot Starters
+    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("org.springframework.boot:spring-boot-starter-security")
+    implementation("org.springframework.boot:spring-boot-starter-validation")
+    implementation("org.springframework.boot:spring-boot-starter-data-redis")
+    implementation("org.springframework.boot:spring-boot-starter-websocket")
+
+    // WebClient (AI 서버 통신)
+    implementation("org.springframework.boot:spring-boot-starter-webflux")
+
+    // Swagger (SpringDoc)
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.0")
+
+    // JWT
+    implementation("io.jsonwebtoken:jjwt-api:0.12.3")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.3")
+    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.3")
+
+    // Firebase (FCM 푸시 알림)
+    implementation("com.google.firebase:firebase-admin:9.2.0")
+
+    // Database
+    runtimeOnly("org.postgresql:postgresql")
+    runtimeOnly("com.h2database:h2")
+
+    // Lombok
+    compileOnly("org.projectlombok:lombok")
+    annotationProcessor("org.projectlombok:lombok")
+
+    // Test
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.security:spring-security-test")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
+}
+
+tasks.jar {
+    enabled = false
+}
+
+// .env 파일 로드 (bootRun 시)
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+    doFirst {
+        val envFile = file("../.env")
+        if (envFile.exists()) {
+            envFile.readLines().forEach { line ->
+                if (line.isNotBlank() && !line.startsWith("#")) {
+                    val parts = line.split("=", limit = 2)
+                    if (parts.size == 2) {
+                        environment(parts[0].trim(), parts[1].trim())
+                    }
+                }
+            }
+        }
+    }
+}

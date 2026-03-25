@@ -24,8 +24,16 @@ target/
 .gradle/
 build/
 
+# Firebase (민감 정보)
+firebase-service-account.json
+**/firebase-service-account.json
+
 # Jupyter
 .ipynb_checkpoints/
+
+# Claude Code
+.claude/
+.mcp.json
 
 # Misc
 *.tmp
