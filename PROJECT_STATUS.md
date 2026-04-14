@@ -124,7 +124,8 @@ DB → Supabase Cloud (PostgreSQL)
 ### 인스턴스 재시작 방법
 1. AWS 콘솔 로그인 → EC2 → 인스턴스 선택
 2. **인스턴스 상태** → **시작**
-3. Running 후 약 5분 대기 (DuckDNS가 새 IP 자동 반영)
+3. Running 후 약 1~2분 대기 (DuckDNS가 1분 주기로 새 IP 자동 반영)
+4. Docker 컨테이너 자동 기동 → Backend 부팅에 추가 15~20초 소요
 
 > Dynamic DNS(DuckDNS) 설정 완료 — IP가 바뀌어도 `ember-app.duckdns.org` 주소는 그대로.
 > GitHub Secrets, Vercel, Flutter 주소 변경 불필요.
