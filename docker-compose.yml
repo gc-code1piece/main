@@ -31,6 +31,7 @@ services:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       AI_SERVICE_URL: http://ai:8000
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
     depends_on:
       redis:
         condition: service_started
