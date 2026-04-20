@@ -7,8 +7,19 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 
+/**
+ * 사용자 이상형 키워드 Repository - main + feature 메서드 합산.
+ */
 public interface UserIdealKeywordRepository extends JpaRepository<UserIdealKeyword, Long> {
 
+    /**
+     * userId에 해당하는 이상형 키워드 단순 조회.
+     */
+    List<UserIdealKeyword> findByUserId(Long userId);
+
+    /**
+     * userId에 해당하는 이상형 키워드 Keyword 엔티티 Join Fetch 조회.
+     */
     @Query("SELECT uik FROM UserIdealKeyword uik JOIN FETCH uik.keyword WHERE uik.user.id = :userId")
     List<UserIdealKeyword> findByUserIdWithKeyword(Long userId);
 

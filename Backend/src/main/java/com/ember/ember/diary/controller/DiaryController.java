@@ -14,6 +14,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * 일기 API 컨트롤러.
+ * 결정 6: main 버전 베이스 채택 (7개 엔드포인트, Swagger 포함).
+ * createDiary 메서드는 3필드 포함된 DiaryCreateRequest 사용.
+ */
 @RestController
 @RequiredArgsConstructor
 @Tag(name = "Diary", description = "일기 API")

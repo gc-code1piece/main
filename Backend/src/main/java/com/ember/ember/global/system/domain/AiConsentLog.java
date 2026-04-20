@@ -6,6 +6,11 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 
+/**
+ * AI 동의 이력 엔티티 - 결정 4: main 버전 유지
+ * acted_at 컬럼, action/consentType String 필드 사용.
+ * feature가 도입한 ConsentType/ConsentAction Enum 제거.
+ */
 @Entity
 @Table(name = "ai_consent_log")
 @Getter

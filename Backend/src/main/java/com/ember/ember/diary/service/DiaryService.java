@@ -1,14 +1,21 @@
 package com.ember.ember.diary.service;
 
+import com.ember.ember.content.service.ContentScanResult;
+import com.ember.ember.content.service.ContentScanService;
 import com.ember.ember.diary.domain.*;
 import com.ember.ember.diary.dto.*;
 import com.ember.ember.diary.repository.*;
 import com.ember.ember.global.exception.BusinessException;
 import com.ember.ember.global.response.ErrorCode;
+import com.ember.ember.messaging.event.DiaryAnalyzeRequestedEvent;
+import com.ember.ember.messaging.outbox.entity.OutboxEvent;
+import com.ember.ember.messaging.outbox.repository.OutboxEventRepository;
 import com.ember.ember.topic.domain.WeeklyTopic;
 import com.ember.ember.topic.repository.WeeklyTopicRepository;
 import com.ember.ember.user.domain.User;
 import com.ember.ember.user.repository.UserRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -20,8 +27,14 @@ import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * 일기 도메인 서비스.
+ * 결정 6: main 베이스 + feature AI 훅 주입 (ContentScan → DB INSERT → OutboxEvent).
+ * main의 동기 summary/category 반환 로직 제거.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -35,6 +48,10 @@ public class DiaryService {
     private final WeeklyTopicRepository weeklyTopicRepository;
     private final UserRepository userRepository;
     private final UserActivityEventRepository userActivityEventRepository;
+    // feature AI 훅 의존성
+    private final ContentScanService contentScanService;
+    private final OutboxEventRepository outboxEventRepository;
+    private final ObjectMapper objectMapper;
 
     private static final DateTimeFormatter ISO_KST = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
@@ -47,40 +64,59 @@ public class DiaryService {
                 .orElse(new DiaryTodayResponse(false, null));
     }
 
-    /** 일기 작성 */
+    /**
+     * 일기 작성 - 결정 6 정밀 실행.
+     *
+     * 처리 순서:
+     *   1. 사용자 조회
+     *   2. 하루 1회 제한 검증
+     *   3. topicId 검증 (nullable)
+     *   4. ContentScanService.scan(content) 호출 (차단 시 BusinessException)
+     *   5. Diary 저장 (analysisStatus = PENDING 초기화)
+     *   6. 임시저장 자동 삭제 + 활동 로그 기록
+     *   7. OutboxEvent 저장 (DIARY_ANALYZE_REQUESTED)
+     *   8. DiaryCreateResponse.of(diary) 반환 (diaryId + status + analysisStatus만)
+     */
     @Transactional
     public DiaryCreateResponse createDiary(Long userId, DiaryCreateRequest request) {
+        // 1. 사용자 조회
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
 
         LocalDate today = LocalDate.now(KST);
 
-        // 당일 1회 제한 검증
+        // 2. 당일 1회 제한 검증
         if (diaryRepository.existsByUserIdAndDate(userId, today)) {
             throw new BusinessException(ErrorCode.DIARY_DAILY_LIMIT);
         }
 
-        // topicId 검증
+        // 3. topicId 검증 (nullable)
         WeeklyTopic topic = null;
         if (request.topicId() != null) {
             topic = weeklyTopicRepository.findById(request.topicId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.TOPIC_NOT_FOUND));
         }
 
+        // 4. ContentScan 검열 — 차단 시 예외
+        ContentScanResult scanResult = contentScanService.scan(request.content());
+        if (!scanResult.isAllowed()) {
+            log.warn("[DiaryService] 컨텐츠 검열 차단 — userId={}, reason={}", userId, scanResult.reason());
+            throw new BusinessException(ErrorCode.CONTENT_FILTERED);
+        }
+
+        // 5. Diary 저장 (analysisStatus = PENDING 초기화)
         Diary diary = Diary.builder()
                 .user(user)
                 .content(request.content())
                 .date(today)
                 .topic(topic)
                 .build();
-
         diaryRepository.save(diary);
 
-        // 제출 완료 시 임시저장 자동 삭제
+        // 6. 임시저장 자동 삭제 + 활동 로그 기록
         diaryDraftRepository.findByUserIdAndDeletedAtIsNullOrderBySavedDateDesc(userId)
                 .forEach(DiaryDraft::softDelete);
 
-        // 활동 로그 기록
         userActivityEventRepository.save(UserActivityEvent.builder()
                 .user(user)
                 .eventType("DIARY_WRITE")
@@ -89,17 +125,30 @@ public class DiaryService {
                 .detail("{\"topicId\":" + request.topicId() + ",\"wordCount\":" + request.content().length() + "}")
                 .build());
 
-        log.info("일기 작성 완료: userId={}, diaryId={}", userId, diary.getId());
+        // 7. OutboxEvent 저장 (DIARY_ANALYZE_REQUESTED)
+        String messageId = UUID.randomUUID().toString();
+        String publishedAt = ZonedDateTime.now(KST).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
 
-        // TODO: AI 분석 MQ 이벤트 발행
-
-        return new DiaryCreateResponse(
+        DiaryAnalyzeRequestedEvent analyzeEvent = new DiaryAnalyzeRequestedEvent(
+                messageId,
+                DiaryAnalyzeRequestedEvent.VERSION,
                 diary.getId(),
-                diary.getContent(),
-                diary.getCreatedAt().format(ISO_KST),
-                null,
-                null
+                userId,
+                request.content(),
+                publishedAt,
+                null  // traceparent: Micrometer Tracing이 자동 주입
         );
+
+        String payload = serializeToJson(analyzeEvent);
+        OutboxEvent outboxEvent = OutboxEvent.of("DIARY", diary.getId(),
+                "DIARY_ANALYZE_REQUESTED", payload);
+        outboxEventRepository.save(outboxEvent);
+
+        log.info("[DiaryService] 일기 생성 완료 — diaryId={}, userId={}, outboxEventId={}",
+                diary.getId(), userId, outboxEvent.getId());
+
+        // 8. 응답 반환 (diaryId + status + analysisStatus만)
+        return DiaryCreateResponse.of(diary);
     }
 
     /** 일기 목록 조회 (페이징) */
@@ -292,5 +341,18 @@ public class DiaryService {
                 .filter(k -> k.getTagType() == type)
                 .map(k -> new DiaryDetailResponse.TagItem(k.getLabel(), k.getScore().doubleValue()))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 객체를 JSON 문자열로 직렬화.
+     * 직렬화 실패 시 내부 서버 에러로 처리.
+     */
+    private String serializeToJson(Object obj) {
+        try {
+            return objectMapper.writeValueAsString(obj);
+        } catch (JsonProcessingException e) {
+            log.error("[DiaryService] OutboxEvent 페이로드 직렬화 실패 — 이유={}", e.getMessage());
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR);
+        }
     }
 }
