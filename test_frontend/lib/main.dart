@@ -34,6 +34,8 @@ class ApiTestPage extends StatefulWidget {
 }
 
 class _ApiTestPageState extends State<ApiTestPage> {
+  // 배포 서버: https://ember-app.duckdns.org
+  // 에뮬레이터 로컬: http://10.0.2.2:8080
   final String baseUrl = 'https://ember-app.duckdns.org';
 
   final Dio dio = Dio();
@@ -50,6 +52,17 @@ class _ApiTestPageState extends State<ApiTestPage> {
     });
   }
 
+  /// 에러 메시지 추출 (서버 에러코드 포함)
+  String errMsg(dynamic e) {
+    if (e is DioException && e.response?.data != null) {
+      final data = e.response!.data;
+      if (data is Map) {
+        return '[${data['code']}] ${data['message']}';
+      }
+    }
+    return '$e';
+  }
+
   // 1. 카카오 SDK 로그인 → Access Token 획득
   Future<void> kakaoLogin() async {
     try {
@@ -64,7 +77,7 @@ class _ApiTestPageState extends State<ApiTestPage> {
       kakaoAccessToken = token.accessToken;
       log('카카오 AT: ${kakaoAccessToken!.substring(0, 20)}...');
     } catch (e) {
-      log('카카오 로그인 실패: $e');
+      log('카카오 로그인 실패: ${errMsg(e)}');
     }
   }
 
@@ -98,7 +111,7 @@ class _ApiTestPageState extends State<ApiTestPage> {
         log('-> 온보딩 완료 -> 홈');
       }
     } catch (e) {
-      log('서버 로그인 실패: $e');
+      log('서버 로그인 실패: ${errMsg(e)}');
     }
   }
 
@@ -111,7 +124,7 @@ class _ApiTestPageState extends State<ApiTestPage> {
       );
       log('서비스 이용약관 동의 완료');
     } catch (e) {
-      log('약관 동의 실패: $e');
+      log('약관 동의 실패: ${errMsg(e)}');
     }
   }
 
@@ -123,7 +136,7 @@ class _ApiTestPageState extends State<ApiTestPage> {
       );
       log('AI 분석 동의 완료');
     } catch (e) {
-      log('AI 동의 실패: $e');
+      log('AI 동의 실패: ${errMsg(e)}');
     }
   }
 
@@ -134,7 +147,7 @@ class _ApiTestPageState extends State<ApiTestPage> {
       generatedNickname = res.data['data']['nickname'];
       log('닉네임 생성: $generatedNickname');
     } catch (e) {
-      log('닉네임 생성 실패: $e');
+      log('닉네임 생성 실패: ${errMsg(e)}');
     }
   }
 
@@ -159,7 +172,7 @@ class _ApiTestPageState extends State<ApiTestPage> {
       );
       log('프로필 등록 성공: nickname=${res.data['data']['nickname']}');
     } catch (e) {
-      log('프로필 등록 실패: $e');
+      log('프로필 등록 실패: ${errMsg(e)}');
     }
   }
 
@@ -170,7 +183,7 @@ class _ApiTestPageState extends State<ApiTestPage> {
       final keywords = res.data['data']['keywords'] as List;
       log('키워드 ${keywords.length}개: ${keywords.map((k) => k['label']).join(', ')}');
     } catch (e) {
-      log('키워드 조회 실패: $e');
+      log('키워드 조회 실패: ${errMsg(e)}');
     }
   }
 
@@ -191,7 +204,7 @@ class _ApiTestPageState extends State<ApiTestPage> {
       );
       log('이상형 설정 완료: ${res.data['data']['keywords']}');
     } catch (e) {
-      log('이상형 설정 실패: $e');
+      log('이상형 설정 실패: ${errMsg(e)}');
     }
   }
 
@@ -207,7 +220,7 @@ class _ApiTestPageState extends State<ApiTestPage> {
           'completed=${data['onboardingCompleted']}, '
           'keywords=${data['idealKeywords']?.length ?? 0}개');
     } catch (e) {
-      log('프로필 조회 실패: $e');
+      log('프로필 조회 실패: ${errMsg(e)}');
     }
   }
 
@@ -221,7 +234,7 @@ class _ApiTestPageState extends State<ApiTestPage> {
       refreshToken = res.data['data']['refreshToken'];
       log('토큰 갱신 성공!');
     } catch (e) {
-      log('토큰 갱신 실패: $e');
+      log('토큰 갱신 실패: ${errMsg(e)}');
     }
   }
 
@@ -236,17 +249,135 @@ class _ApiTestPageState extends State<ApiTestPage> {
       refreshToken = null;
       kakaoAccessToken = null;
     } catch (e) {
-      log('로그아웃 실패: $e');
+      log('로그아웃 실패: ${errMsg(e)}');
     }
   }
 
-  // 11. 헬스체크
+  // ── 일기 API ──
+
+  // 11. 당일 일기 확인
+  Future<void> checkTodayDiary() async {
+    try {
+      final res = await dio.get('$baseUrl/api/diaries/today',
+        options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+      );
+      final data = res.data['data'];
+      log('당일 일기: exists=${data['exists']}, diaryId=${data['diaryId']}');
+    } catch (e) {
+      log('당일 일기 확인 실패: ${errMsg(e)}');
+    }
+  }
+
+  // 12. 일기 작성
+  Future<void> createDiary() async {
+    try {
+      final res = await dio.post('$baseUrl/api/diaries',
+        data: {
+          'content': '오늘은 정말 좋은 날이었다. 아침에 일어나서 커피를 마시고 산책을 했다. 날씨가 정말 좋아서 기분이 상쾌했다. 공원에서 새소리를 들으며 걷다 보니 마음이 편안해졌다. 요즘 바쁜 일상에서 이런 여유를 즐길 수 있어서 감사하다. 저녁에는 친구와 맛있는 저녁을 먹으며 이런저런 이야기를 나눴다. 서로의 근황을 공유하고 함께 웃는 시간이 참 소중하게 느껴졌다. 매일 이렇게 소소한 행복을 느끼며 살 수 있다면 정말 좋겠다.',
+        },
+        options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+      );
+      final data = res.data['data'];
+      log('일기 작성 성공: diaryId=${data['diaryId']}');
+    } catch (e) {
+      log('일기 작성 실패: ${errMsg(e)}');
+    }
+  }
+
+  // 13. 일기 목록 조회
+  Future<void> getDiaries() async {
+    try {
+      final res = await dio.get('$baseUrl/api/diaries',
+        options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+      );
+      final data = res.data['data'];
+      final diaries = data['diaries'] as List;
+      log('일기 ${data['totalCount']}건: ${diaries.map((d) => 'id=${d['diaryId']}').join(', ')}');
+    } catch (e) {
+      log('일기 목록 실패: ${errMsg(e)}');
+    }
+  }
+
+  // 14. 일기 상세 조회
+  Future<void> getDiaryDetail() async {
+    try {
+      // 먼저 당일 일기 ID 확인
+      final todayRes = await dio.get('$baseUrl/api/diaries/today',
+        options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+      );
+      final diaryId = todayRes.data['data']['diaryId'];
+      if (diaryId == null) {
+        log('조회할 일기 없음 (먼저 작성하세요)');
+        return;
+      }
+      final res = await dio.get('$baseUrl/api/diaries/$diaryId',
+        options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+      );
+      final data = res.data['data'];
+      log('일기 상세: id=${data['diaryId']}, '
+          '${data['content'].toString().substring(0, 20)}..., '
+          'editable=${data['isEditable']}');
+    } catch (e) {
+      log('일기 상세 실패: ${errMsg(e)}');
+    }
+  }
+
+  // 15. 일기 수정
+  Future<void> updateDiary() async {
+    try {
+      final todayRes = await dio.get('$baseUrl/api/diaries/today',
+        options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+      );
+      final diaryId = todayRes.data['data']['diaryId'];
+      if (diaryId == null) {
+        log('수정할 일기 없음');
+        return;
+      }
+      final res = await dio.patch('$baseUrl/api/diaries/$diaryId',
+        data: {
+          'content': '수정된 일기 내용입니다. 오늘 하루를 돌아보니 참 많은 일이 있었다. 아침에는 프로젝트 회의가 있었고 점심에는 팀원들과 맛있는 걸 먹었다. 오후에는 코딩에 집중했는데 새로운 기능이 잘 동작해서 기분이 좋았다. 저녁에는 운동을 하고 집에 와서 일기를 쓰고 있다. 내일도 좋은 하루가 되길 바란다. 이런 하루하루가 쌓여서 좋은 추억이 될 것이다. 돌아보면 오늘도 참 감사한 하루였다고 생각한다.',
+        },
+        options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+      );
+      log('일기 수정 성공: diaryId=${res.data['data']['diaryId']}');
+    } catch (e) {
+      log('일기 수정 실패: ${errMsg(e)}');
+    }
+  }
+
+  // 16. 임시저장 생성
+  Future<void> createDraft() async {
+    try {
+      final res = await dio.post('$baseUrl/api/diaries/draft',
+        data: {'content': '임시저장 테스트 내용입니다.'},
+        options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+      );
+      log('임시저장 성공: draftId=${res.data['data']['draftId']}');
+    } catch (e) {
+      log('임시저장 실패: ${errMsg(e)}');
+    }
+  }
+
+  // 17. 임시저장 목록
+  Future<void> getDrafts() async {
+    try {
+      final res = await dio.get('$baseUrl/api/diaries/drafts',
+        options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+      );
+      final data = res.data['data'];
+      log('임시저장 ${data['totalCount']}건');
+    } catch (e) {
+      log('임시저장 목록 실패: ${errMsg(e)}');
+    }
+  }
+
+  // 18. 헬스체크
   Future<void> healthCheck() async {
     try {
       final res = await dio.get('$baseUrl/api/health');
       log('헬스체크: ${res.data['data']['status']}');
     } catch (e) {
-      log('헬스체크 실패: $e');
+      log('헬스체크 실패: ${errMsg(e)}');
     }
   }
 
@@ -297,6 +428,15 @@ class _ApiTestPageState extends State<ApiTestPage> {
                   _btn('키워드 목록', getKeywords, Colors.cyan),
                   _btn('이상형 설정', saveIdealType, Colors.pink),
                   _btn('내 프로필', getMyProfile, Colors.indigo),
+                  // 일기 API
+                  _btn('당일일기확인', checkTodayDiary, Colors.green),
+                  _btn('일기 작성', createDiary, Colors.green.shade700),
+                  _btn('일기 목록', getDiaries, Colors.green.shade800),
+                  _btn('일기 상세', getDiaryDetail, Colors.lightGreen),
+                  _btn('일기 수정', updateDiary, Colors.lime.shade700),
+                  _btn('임시저장', createDraft, Colors.brown),
+                  _btn('임시저장목록', getDrafts, Colors.brown.shade700),
+                  // 기타
                   _btn('토큰 갱신', refreshTokenApi, Colors.amber),
                   _btn('로그아웃', logout, Colors.red),
                 ],

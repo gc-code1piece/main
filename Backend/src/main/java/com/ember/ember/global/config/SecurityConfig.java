@@ -43,6 +43,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/users/ideal-type/keyword-list").permitAll()
                         // 앱 버전 체크 (인증 불필요)
                         .requestMatchers("/api/system/version").permitAll()
+                        // 수요일 주제 조회 (인증 불필요)
+                        .requestMatchers("/api/diaries/weekly-topic").permitAll()
                         // WebSocket
                         .requestMatchers("/ws/**").permitAll()
                         // Swagger
