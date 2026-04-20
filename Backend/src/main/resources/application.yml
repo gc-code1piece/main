@@ -30,6 +30,8 @@ spring:
     baseline-on-migrate: true
     baseline-version: 1
     locations: classpath:db/migration
+    # 실패한 마이그레이션 자동 복구 (체크섬 불일치/실패 레코드 정리)
+    repair-on-migrate: true
 
   # RabbitMQ Listener 공통 설정 (프로파일별 host/port는 아래에서 오버라이드)
   rabbitmq:

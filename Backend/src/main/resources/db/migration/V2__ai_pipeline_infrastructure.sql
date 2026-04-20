@@ -28,14 +28,14 @@ COMMENT ON COLUMN diaries.analysis_status IS
 -- 기존 PENDING 행은 CONSENT_REQUIRED로 업데이트 후 컬럼 크기 확장
 -- -----------------------------------------------------------------------------
 
+-- 컬럼 길이를 20으로 확장 (CONSENT_REQUIRED = 16자, 먼저 실행해야 UPDATE 가능)
+ALTER TABLE exchange_reports
+    ALTER COLUMN status TYPE VARCHAR(20);
+
 -- 기존 PENDING 행을 CONSENT_REQUIRED로 업데이트
 UPDATE exchange_reports
 SET status = 'CONSENT_REQUIRED'
 WHERE status = 'PENDING';
-
--- 컬럼 길이를 20으로 확장 (CONSENT_REQUIRED = 16자)
-ALTER TABLE exchange_reports
-    ALTER COLUMN status TYPE VARCHAR(20);
 
 -- 체크 제약 추가 (허용 값 명시)
 ALTER TABLE exchange_reports
