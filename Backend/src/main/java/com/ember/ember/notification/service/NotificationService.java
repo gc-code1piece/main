@@ -3,11 +3,11 @@ package com.ember.ember.notification.service;
 import com.ember.ember.global.exception.BusinessException;
 import com.ember.ember.global.response.ErrorCode;
 import com.ember.ember.notification.domain.Notification;
-import com.ember.ember.notification.domain.NotificationSetting;
 import com.ember.ember.notification.dto.*;
 import com.ember.ember.notification.repository.NotificationRepository;
-import com.ember.ember.notification.repository.NotificationSettingRepository;
+import com.ember.ember.user.repository.UserNotificationSettingRepository;
 import com.ember.ember.user.domain.User;
+import com.ember.ember.user.domain.UserNotificationSetting;
 import com.ember.ember.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +26,7 @@ public class NotificationService {
     private static final int RETENTION_DAYS = 30;
 
     private final NotificationRepository notificationRepository;
-    private final NotificationSettingRepository notificationSettingRepository;
+    private final UserNotificationSettingRepository notificationSettingRepository;
     private final UserRepository userRepository;
 
     /** 알림 목록 조회 (최근 30일) */
@@ -62,7 +62,7 @@ public class NotificationService {
 
     /** 알림 설정 조회 */
     public NotificationSettingResponse getNotificationSettings(Long userId) {
-        NotificationSetting setting = notificationSettingRepository.findByUserId(userId)
+        UserNotificationSetting setting = notificationSettingRepository.findByUserId(userId)
                 .orElseGet(() -> createDefaultSetting(userId));
 
         return NotificationSettingResponse.from(setting);
@@ -71,7 +71,7 @@ public class NotificationService {
     /** 알림 설정 수정 (Upsert, null이 아닌 필드만 변경) */
     @Transactional
     public NotificationSettingResponse updateNotificationSettings(Long userId, NotificationSettingRequest request) {
-        NotificationSetting setting = notificationSettingRepository.findByUserId(userId)
+        UserNotificationSetting setting = notificationSettingRepository.findByUserId(userId)
                 .orElseGet(() -> createAndSaveDefaultSetting(userId));
 
         setting.updateIfPresent(
@@ -85,17 +85,17 @@ public class NotificationService {
     }
 
     /** 기본 설정 생성 (저장 없이 반환, 조회 전용) */
-    private NotificationSetting createDefaultSetting(Long userId) {
+    private UserNotificationSetting createDefaultSetting(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
-        return NotificationSetting.createDefault(user);
+        return UserNotificationSetting.createDefault(user);
     }
 
     /** 기본 설정 생성 + DB 저장 */
-    private NotificationSetting createAndSaveDefaultSetting(Long userId) {
+    private UserNotificationSetting createAndSaveDefaultSetting(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
-        NotificationSetting setting = NotificationSetting.createDefault(user);
+        UserNotificationSetting setting = UserNotificationSetting.createDefault(user);
         return notificationSettingRepository.save(setting);
     }
 }

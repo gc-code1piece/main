@@ -1,6 +1,6 @@
 package com.ember.ember.notification.dto;
 
-import com.ember.ember.notification.domain.NotificationSetting;
+import com.ember.ember.user.domain.UserNotificationSetting;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;
@@ -18,10 +18,10 @@ public record NotificationSettingResponse(
         @Schema(description = "설정 변경 일시")
         LocalDateTime updatedAt
 ) {
-    public static NotificationSettingResponse from(NotificationSetting s) {
+    public static NotificationSettingResponse from(UserNotificationSetting s) {
         return new NotificationSettingResponse(
-                s.getMatching(), s.getDiaryTurn(), s.getChat(),
-                s.getAiAnalysis(), s.getCouple(), s.getSystem(),
+                s.getMatchingEnabled(), s.getDiaryTurnEnabled(), s.getChatEnabled(),
+                s.getAiAnalysisEnabled(), s.getCoupleEnabled(), s.getSystemEnabled(),
                 s.getModifiedAt()
         );
     }

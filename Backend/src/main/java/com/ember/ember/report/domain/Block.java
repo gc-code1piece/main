@@ -45,4 +45,9 @@ public class Block extends BaseEntity {
     public void unblock() {
         this.status = BlockStatus.UNBLOCKED;
     }
+
+    /** 재차단 (해제 후 다시 차단) */
+    public void reblock() {
+        this.status = BlockStatus.ACTIVE;
+    }
 }

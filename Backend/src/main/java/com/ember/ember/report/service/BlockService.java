@@ -58,8 +58,11 @@ public class BlockService {
         User blocked = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
 
-        // 차단 레코드 생성
-        Block block = Block.create(blocker, blocked);
+        // 기존 UNBLOCKED 레코드가 있으면 재활용, 없으면 신규 생성
+        Block block = blockRepository.findByBlockerUserIdAndBlockedUserIdAndStatus(
+                        blockerId, targetUserId, Block.BlockStatus.UNBLOCKED)
+                .map(existing -> { existing.reblock(); return existing; })
+                .orElseGet(() -> Block.create(blocker, blocked));
         blockRepository.save(block);
 
         // 연쇄 종료: 매칭(CANCELLED), 교환일기(TERMINATED), 채팅(TERMINATED)
