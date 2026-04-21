@@ -56,4 +56,30 @@ public class ExchangeDiary extends BaseEntity {
     public enum Reaction {
         HEART, SAD, HAPPY, FIRE
     }
+
+    /** 교환일기 작성 */
+    public static ExchangeDiary create(ExchangeRoom room, User author, String content,
+                                        int turnNumber, ExchangeDiary parentDiary) {
+        ExchangeDiary diary = new ExchangeDiary();
+        diary.room = room;
+        diary.author = author;
+        diary.content = content;
+        diary.turnNumber = turnNumber;
+        diary.parentDiary = parentDiary;
+        diary.status = ExchangeDiaryStatus.SUBMITTED;
+        diary.submittedAt = LocalDateTime.now();
+        return diary;
+    }
+
+    /** 리액션 설정 (상대방만) */
+    public void setReaction(Reaction reaction) {
+        this.reaction = reaction;
+    }
+
+    /** 읽음 처리 */
+    public void markRead() {
+        if (this.readAt == null) {
+            this.readAt = LocalDateTime.now();
+        }
+    }
 }

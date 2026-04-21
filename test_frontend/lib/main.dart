@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
+import 'package:stomp_dart_client/stomp_dart_client.dart';
+import 'dart:convert';
 
 void main() {
   KakaoSdk.init(nativeAppKey: '033bc5c71a42c748495bf1ec7b0ef77e');
@@ -34,6 +36,7 @@ class AppState {
 
   // 배포 서버: https://ember-app.duckdns.org
   // 에뮬레이터 로컬: http://10.0.2.2:8080
+  // 폰+에뮬 동시: PC 로컬 IP (http://192.168.35.32:8080)
   final String baseUrl = 'https://ember-app.duckdns.org';
   final Dio dio = Dio();
 
@@ -235,8 +238,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: double.infinity,
                 height: 48,
                 child: OutlinedButton(
-                  onPressed: loading ? null : () => _devLogin(1),
-                  child: const Text('Dev 로그인 (User 1)', style: TextStyle(fontSize: 14)),
+                  onPressed: loading ? null : () => _devLogin(8),
+                  child: const Text('Dev 로그인 (건강한하늘)', style: TextStyle(fontSize: 14)),
                 ),
               ),
               const SizedBox(height: 8),
@@ -244,8 +247,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: double.infinity,
                 height: 48,
                 child: OutlinedButton(
-                  onPressed: loading ? null : () => _devLogin(2),
-                  child: const Text('Dev 로그인 (User 2)', style: TextStyle(fontSize: 14)),
+                  onPressed: loading ? null : () => _devLogin(9),
+                  child: const Text('Dev 로그인 (맑은바다)', style: TextStyle(fontSize: 14)),
                 ),
               ),
               if (message != null) ...[
@@ -695,7 +698,8 @@ class TutorialScreen extends StatelessWidget {
 // 홈 화면 (도메인 4: 일기)
 // ══════════════════════════════════════
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final int initialTab;
+  const HomeScreen({super.key, this.initialTab = 0});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -703,7 +707,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final app = AppState();
-  int _currentTab = 0;
+  late int _currentTab = widget.initialTab;
 
   @override
   Widget build(BuildContext context) {
@@ -711,6 +715,8 @@ class _HomeScreenState extends State<HomeScreen> {
       const DiaryWriteTab(),
       const DiaryHistoryTab(),
       const ExploreTab(),
+      const ExchangeTab(),
+      const ChatTab(),
       const DraftTab(),
       const SettingsTab(),
     ];
@@ -721,10 +727,14 @@ class _HomeScreenState extends State<HomeScreen> {
         currentIndex: _currentTab,
         onTap: (i) => setState(() => _currentTab = i),
         type: BottomNavigationBarType.fixed,
+        selectedFontSize: 11,
+        unselectedFontSize: 10,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.edit), label: '일기 쓰기'),
+          BottomNavigationBarItem(icon: Icon(Icons.edit), label: '일기'),
           BottomNavigationBarItem(icon: Icon(Icons.list), label: '히스토리'),
           BottomNavigationBarItem(icon: Icon(Icons.explore), label: '탐색'),
+          BottomNavigationBarItem(icon: Icon(Icons.swap_horiz), label: '교환일기'),
+          BottomNavigationBarItem(icon: Icon(Icons.chat), label: '채팅'),
           BottomNavigationBarItem(icon: Icon(Icons.drafts), label: '임시저장'),
           BottomNavigationBarItem(icon: Icon(Icons.settings), label: '설정'),
         ],
@@ -821,7 +831,7 @@ class _DiaryWriteTabState extends State<DiaryWriteTab> {
       } else {
         // 작성
         final res = await app.dio.post('${app.baseUrl}/api/diaries',
-          data: {'content': contentCtrl.text}, options: app.authHeaders);
+          data: {'content': contentCtrl.text, 'visibility': 'PRIVATE'}, options: app.authHeaders);
         setState(() {
           message = '일기 작성 완료! (id=${res.data['data']['diaryId']})';
           todayExists = true;
@@ -1318,9 +1328,13 @@ class _ReceivedRequestsScreenState extends State<ReceivedRequestsScreen> {
       final data = res.data['data'];
       setState(() => requests.removeAt(index));
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('매칭 성사! 교환일기 방: ${data['roomUuid']}'),
-          duration: const Duration(seconds: 3)));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('매칭 성사! 교환일기 방으로 이동합니다.'),
+          duration: Duration(seconds: 2)));
+        // 매칭 성사 시 교환일기 탭으로 이동 (홈 재진입)
+        Navigator.pushAndRemoveUntil(context,
+          MaterialPageRoute(builder: (_) => const HomeScreen(initialTab: 3)),
+          (_) => false);
       }
     } catch (e) {
       if (context.mounted) {
@@ -1415,12 +1429,19 @@ class ExploreDetailScreen extends StatelessWidget {
                     options: app.authHeaders);
                   final data = res.data['data'];
                   if (context.mounted) {
-                    Navigator.pop(context);
-                    final msg = data['isMatched'] == true
-                      ? '매칭 성사! 교환일기 방이 생성되었어요 (${data['roomUuid']})'
-                      : '교환 신청 완료! 상대방 응답을 기다려주세요 (id: ${data['matchingId']})';
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text(msg), duration: const Duration(seconds: 4)));
+                    if (data['isMatched'] == true) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text('매칭 성사! 교환일기 방으로 이동합니다.'),
+                        duration: Duration(seconds: 2)));
+                      Navigator.pushAndRemoveUntil(context,
+                        MaterialPageRoute(builder: (_) => const HomeScreen()),
+                        (_) => false);
+                    } else {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text('교환 신청 완료! 상대방 응답을 기다려주세요 (id: ${data['matchingId']})'),
+                        duration: const Duration(seconds: 3)));
+                    }
                   }
                 } catch (e) {
                   if (context.mounted) {
@@ -1600,5 +1621,756 @@ class SettingsTab extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// ══════════════════════════════════════
+// 6. 교환일기 탭
+// ══════════════════════════════════════
+class ExchangeTab extends StatefulWidget {
+  const ExchangeTab({super.key});
+
+  @override
+  State<ExchangeTab> createState() => _ExchangeTabState();
+}
+
+class _ExchangeTabState extends State<ExchangeTab> {
+  final app = AppState();
+  List<dynamic> rooms = [];
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => loading = true);
+    try {
+      final res = await app.dio.get('${app.baseUrl}/api/exchange-rooms', options: app.authHeaders);
+      setState(() {
+        rooms = res.data['data']['rooms'] ?? [];
+        loading = false;
+      });
+    } catch (e) {
+      setState(() => loading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('교환일기')),
+      body: loading
+        ? const Center(child: CircularProgressIndicator())
+        : rooms.isEmpty
+          ? const Center(child: Text('진행 중인 교환일기가 없습니다.\n탐색 탭에서 매칭을 시작해보세요!',
+              textAlign: TextAlign.center, style: TextStyle(color: Colors.white54)))
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView.builder(
+                itemCount: rooms.length,
+                itemBuilder: (_, i) => _buildRoomCard(rooms[i]),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildRoomCard(Map<String, dynamic> room) {
+    final status = room['status'] as String;
+    final isMyTurn = room['isMyTurn'] == true;
+    final turn = room['currentTurn'] ?? 0;
+    final partner = room['partnerNickname'] ?? '???';
+
+    Color statusColor = Colors.grey;
+    String statusText = status;
+    if (status == 'ACTIVE') {
+      statusColor = isMyTurn ? Colors.orangeAccent : Colors.blueAccent;
+      statusText = isMyTurn ? '내 차례' : '상대 차례';
+    } else if (status == 'COMPLETED') {
+      statusColor = Colors.greenAccent;
+      statusText = '완주! 관계 확장 선택';
+    } else if (status == 'EXPIRED') {
+      statusColor = Colors.redAccent;
+      statusText = '만료됨';
+    } else if (status == 'CHAT_CONNECTED') {
+      statusColor = Colors.purpleAccent;
+      statusText = '채팅 연결됨';
+    }
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: statusColor.withOpacity(0.2),
+          child: Text('$turn/4', style: TextStyle(color: statusColor, fontWeight: FontWeight.bold)),
+        ),
+        title: Text(partner, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(statusText, style: TextStyle(color: statusColor, fontSize: 13)),
+        trailing: room['deadline'] != null
+          ? Text(_formatDeadline(room['deadline']), style: const TextStyle(fontSize: 11, color: Colors.white54))
+          : null,
+        onTap: () => Navigator.push(context,
+          MaterialPageRoute(builder: (_) => ExchangeRoomScreen(roomId: room['roomId']))),
+      ),
+    );
+  }
+
+  String _formatDeadline(String deadline) {
+    try {
+      final dt = DateTime.parse(deadline);
+      final diff = dt.difference(DateTime.now());
+      if (diff.isNegative) return '만료';
+      if (diff.inHours > 0) return '${diff.inHours}시간 남음';
+      return '${diff.inMinutes}분 남음';
+    } catch (_) {
+      return '';
+    }
+  }
+}
+
+// ── 교환일기 방 상세 화면 ──
+class ExchangeRoomScreen extends StatefulWidget {
+  final int roomId;
+  const ExchangeRoomScreen({super.key, required this.roomId});
+
+  @override
+  State<ExchangeRoomScreen> createState() => _ExchangeRoomScreenState();
+}
+
+class _ExchangeRoomScreenState extends State<ExchangeRoomScreen> {
+  final app = AppState();
+  Map<String, dynamic>? room;
+  bool loading = true;
+  final contentCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final res = await app.dio.get('${app.baseUrl}/api/exchange-rooms/${widget.roomId}', options: app.authHeaders);
+      setState(() { room = res.data['data']; loading = false; });
+    } catch (e) {
+      setState(() => loading = false);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
+    }
+  }
+
+  Future<void> _writeDiary() async {
+    final content = contentCtrl.text.trim();
+    if (content.length < 200) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('200자 이상 작성해주세요.')));
+      return;
+    }
+    try {
+      final res = await app.dio.post('${app.baseUrl}/api/exchange-rooms/${widget.roomId}/diaries',
+        data: {'content': content}, options: app.authHeaders);
+      final data = res.data['data'];
+      contentCtrl.clear();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(data['isCompleted'] == true
+            ? '4턴 완주! 관계 확장을 선택해주세요.'
+            : '교환일기 작성 완료! (턴 ${data['nextTurn']})')));
+      }
+      _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
+    }
+  }
+
+  Future<void> _addReaction(int diaryId, String reaction) async {
+    try {
+      await app.dio.post('${app.baseUrl}/api/exchange-rooms/${widget.roomId}/diaries/$diaryId/reaction',
+        data: {'reaction': reaction}, options: app.authHeaders);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$reaction 리액션 완료!')));
+      _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
+    }
+  }
+
+  Future<void> _chooseNextStep(String choice) async {
+    try {
+      final res = await app.dio.post('${app.baseUrl}/api/exchange-rooms/${widget.roomId}/next-step',
+        data: {'choice': choice}, options: app.authHeaders);
+      final data = res.data['data'];
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('결과: ${data['status']}')));
+      }
+      _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
+    }
+  }
+
+  Future<void> _viewReport() async {
+    try {
+      final res = await app.dio.get('${app.baseUrl}/api/exchange-rooms/${widget.roomId}/report', options: app.authHeaders);
+      final data = res.data['data'];
+      if (mounted) {
+        showDialog(context: context, builder: (_) => AlertDialog(
+          title: const Text('AI 공통점 리포트'),
+          content: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('상태: ${data['status']}', style: const TextStyle(fontWeight: FontWeight.bold)),
+            if (data['commonKeywords'] != null) ...[
+              const SizedBox(height: 8),
+              const Text('공통 키워드:', style: TextStyle(fontWeight: FontWeight.bold)),
+              Wrap(children: (data['commonKeywords'] as List).map((k) =>
+                Chip(label: Text(k), backgroundColor: Colors.orange.withOpacity(0.2))).toList()),
+            ],
+            if (data['emotionSimilarity'] != null)
+              Text('감정 유사도: ${(data['emotionSimilarity'] * 100).toStringAsFixed(0)}%'),
+            if (data['aiDescription'] != null) ...[
+              const SizedBox(height: 8),
+              Text(data['aiDescription']),
+            ],
+          ])),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))],
+        ));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
+    }
+  }
+
+  Future<void> _checkNextStepStatus() async {
+    try {
+      final res = await app.dio.get('${app.baseUrl}/api/exchange-rooms/${widget.roomId}/next-step/status',
+        options: app.authHeaders);
+      final data = res.data['data'];
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('내 선택: ${data['myChoice'] ?? '미선택'} | 상대: ${data['partnerChose'] == true ? '완료' : '대기중'} | 상태: ${data['status']}')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) return Scaffold(appBar: AppBar(), body: const Center(child: CircularProgressIndicator()));
+    if (room == null) return Scaffold(appBar: AppBar(), body: const Center(child: Text('방 정보 로드 실패')));
+
+    final diaries = (room!['diaries'] as List?) ?? [];
+    final status = room!['status'] as String;
+    final isMyTurn = room!['isMyTurn'] == true;
+    final partner = room!['partner'];
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('${partner['nickname']}님과의 교환일기'),
+        actions: [
+          if (status == 'COMPLETED' || status == 'CHAT_CONNECTED' || status == 'ARCHIVED')
+            IconButton(icon: const Icon(Icons.analytics), onPressed: _viewReport, tooltip: '리포트'),
+          if (status == 'COMPLETED')
+            IconButton(icon: const Icon(Icons.info_outline), onPressed: _checkNextStepStatus, tooltip: '선택 상태'),
+        ],
+      ),
+      body: Column(children: [
+        // 상태 바
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          color: status == 'COMPLETED' ? Colors.green.withOpacity(0.15) : Colors.orange.withOpacity(0.1),
+          child: Row(children: [
+            Text('라운드 ${room!['roundNumber']} | 턴 ${room!['currentTurn']}/4', style: const TextStyle(fontWeight: FontWeight.bold)),
+            const Spacer(),
+            Text(status, style: TextStyle(
+              color: status == 'COMPLETED' ? Colors.greenAccent : Colors.orangeAccent,
+              fontWeight: FontWeight.bold)),
+          ]),
+        ),
+
+        // 일기 목록
+        Expanded(child: diaries.isEmpty
+          ? const Center(child: Text('아직 작성된 일기가 없습니다.', style: TextStyle(color: Colors.white54)))
+          : ListView.builder(
+              itemCount: diaries.length,
+              itemBuilder: (_, i) {
+                final d = diaries[i];
+                final isMe = d['authorId'] == app.userId;
+                return Card(
+                  margin: EdgeInsets.fromLTRB(isMe ? 48 : 8, 4, isMe ? 8 : 48, 4),
+                  color: isMe ? Colors.orange.withOpacity(0.15) : Colors.blue.withOpacity(0.15),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(children: [
+                        Text('턴 ${d['turnNumber']}', style: TextStyle(
+                          fontWeight: FontWeight.bold, color: isMe ? Colors.orangeAccent : Colors.blueAccent)),
+                        const Spacer(),
+                        Text(isMe ? '나' : partner['nickname'], style: const TextStyle(fontSize: 12, color: Colors.white54)),
+                      ]),
+                      const SizedBox(height: 8),
+                      Text(d['content'] ?? '', style: const TextStyle(fontSize: 14, height: 1.5)),
+                      const SizedBox(height: 8),
+                      Row(children: [
+                        if (d['reaction'] != null)
+                          Chip(label: Text(_reactionEmoji(d['reaction'])), backgroundColor: Colors.orange.withOpacity(0.2)),
+                        const Spacer(),
+                        if (!isMe && d['reaction'] == null)
+                          PopupMenuButton<String>(
+                            icon: const Icon(Icons.emoji_emotions, size: 20),
+                            onSelected: (r) => _addReaction(d['diaryId'], r),
+                            itemBuilder: (_) => [
+                              const PopupMenuItem(value: 'HEART', child: Text('HEART')),
+                              const PopupMenuItem(value: 'SAD', child: Text('SAD')),
+                              const PopupMenuItem(value: 'HAPPY', child: Text('HAPPY')),
+                              const PopupMenuItem(value: 'FIRE', child: Text('FIRE')),
+                            ],
+                          ),
+                      ]),
+                    ]),
+                  ),
+                );
+              },
+            )),
+
+        // 하단 액션 영역
+        if (status == 'ACTIVE' && isMyTurn)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.grey[900], border: Border(top: BorderSide(color: Colors.grey[800]!))),
+            child: Column(children: [
+              TextField(
+                controller: contentCtrl,
+                maxLines: 4,
+                decoration: InputDecoration(
+                  hintText: '교환일기를 작성해주세요 (200~1,000자)',
+                  border: const OutlineInputBorder(),
+                  suffixText: '${contentCtrl.text.length}자',
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(width: double.infinity, child: ElevatedButton(
+                onPressed: _writeDiary,
+                child: const Text('교환일기 제출'),
+              )),
+            ]),
+          ),
+
+        // 관계 확장 선택 (COMPLETED 상태)
+        if (status == 'COMPLETED' && room!['nextStepRequired'] == true)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.green.withOpacity(0.1),
+              border: Border(top: BorderSide(color: Colors.green.withOpacity(0.3)))),
+            child: Column(children: [
+              const Text('교환일기가 완료되었습니다! 다음 단계를 선택해주세요.',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              Row(children: [
+                Expanded(child: ElevatedButton.icon(
+                  onPressed: () => _chooseNextStep('CHAT'),
+                  icon: const Icon(Icons.chat),
+                  label: const Text('채팅 시작'),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+                )),
+                const SizedBox(width: 8),
+                Expanded(child: OutlinedButton.icon(
+                  onPressed: () => _chooseNextStep('CONTINUE'),
+                  icon: const Icon(Icons.swap_horiz),
+                  label: const Text('교환 계속'),
+                )),
+              ]),
+            ]),
+          ),
+      ]),
+    );
+  }
+
+  String _reactionEmoji(String reaction) {
+    switch (reaction) {
+      case 'HEART': return 'HEART';
+      case 'SAD': return 'SAD';
+      case 'HAPPY': return 'HAPPY';
+      case 'FIRE': return 'FIRE';
+      default: return reaction;
+    }
+  }
+}
+
+// ══════════════════════════════════════
+// 7~8. 채팅 + 커플 탭
+// ══════════════════════════════════════
+class ChatTab extends StatefulWidget {
+  const ChatTab({super.key});
+
+  @override
+  State<ChatTab> createState() => _ChatTabState();
+}
+
+class _ChatTabState extends State<ChatTab> {
+  final app = AppState();
+  List<dynamic> chatRooms = [];
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => loading = true);
+    try {
+      final res = await app.dio.get('${app.baseUrl}/api/chat-rooms', options: app.authHeaders);
+      setState(() {
+        chatRooms = res.data['data']['chatRooms'] ?? [];
+        loading = false;
+      });
+    } catch (e) {
+      setState(() => loading = false);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('채팅')),
+      body: loading
+        ? const Center(child: CircularProgressIndicator())
+        : chatRooms.isEmpty
+          ? const Center(child: Text('채팅방이 없습니다.\n교환일기 완료 후 채팅이 시작됩니다.',
+              textAlign: TextAlign.center, style: TextStyle(color: Colors.white54)))
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView.builder(
+                itemCount: chatRooms.length,
+                itemBuilder: (_, i) => _buildChatRoomCard(chatRooms[i]),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildChatRoomCard(Map<String, dynamic> room) {
+    final status = room['status'] as String;
+    Color statusColor = Colors.blueAccent;
+    if (status == 'COUPLE_CONFIRMED') statusColor = Colors.pinkAccent;
+    if (status == 'CHAT_LEFT') statusColor = Colors.grey;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: statusColor.withOpacity(0.2),
+          child: Icon(status == 'COUPLE_CONFIRMED' ? Icons.favorite : Icons.chat, color: statusColor, size: 20),
+        ),
+        title: Text(room['partnerNickname'] ?? '???', style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(room['lastMessage'] ?? '대화를 시작해보세요', maxLines: 1, overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Colors.white54, fontSize: 13)),
+        trailing: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          if (room['lastMessageAt'] != null)
+            Text(_formatTime(room['lastMessageAt']), style: const TextStyle(fontSize: 11, color: Colors.white38)),
+          if ((room['unreadCount'] ?? 0) > 0) ...[
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(color: Colors.orangeAccent, borderRadius: BorderRadius.circular(10)),
+              child: Text('${room['unreadCount']}', style: const TextStyle(fontSize: 11, color: Colors.black)),
+            ),
+          ],
+        ]),
+        onTap: () => Navigator.push(context,
+          MaterialPageRoute(builder: (_) => ChatRoomScreen(chatRoomId: room['chatRoomId'], partnerName: room['partnerNickname'] ?? '???'))),
+      ),
+    );
+  }
+
+  String _formatTime(String time) {
+    try {
+      final dt = DateTime.parse(time);
+      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (_) { return ''; }
+  }
+}
+
+// ── 채팅방 상세 화면 ──
+class ChatRoomScreen extends StatefulWidget {
+  final int chatRoomId;
+  final String partnerName;
+  const ChatRoomScreen({super.key, required this.chatRoomId, required this.partnerName});
+
+  @override
+  State<ChatRoomScreen> createState() => _ChatRoomScreenState();
+}
+
+class _ChatRoomScreenState extends State<ChatRoomScreen> {
+  final app = AppState();
+  final msgCtrl = TextEditingController();
+  final scrollCtrl = ScrollController();
+  List<dynamic> messages = [];
+  bool loading = true;
+  bool hasMore = false;
+  bool sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMessages();
+    _startPolling();
+  }
+
+  @override
+  void dispose() {
+    _polling = false;
+    super.dispose();
+  }
+
+  bool _polling = true;
+
+  void _startPolling() async {
+    while (_polling && mounted) {
+      await Future.delayed(const Duration(seconds: 3));
+      if (_polling && mounted && !sending) {
+        _loadMessages();
+      }
+    }
+  }
+
+  void _scrollToBottom() {
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (scrollCtrl.hasClients) {
+        scrollCtrl.animateTo(scrollCtrl.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+      }
+    });
+  }
+
+  Future<void> _loadMessages({int? before}) async {
+    try {
+      final params = <String, dynamic>{'size': 30};
+      if (before != null) params['before'] = before;
+      final res = await app.dio.get('${app.baseUrl}/api/chat-rooms/${widget.chatRoomId}/messages',
+        queryParameters: params, options: app.authHeaders);
+      final data = res.data['data'];
+      setState(() {
+        if (before != null) {
+          messages.insertAll(0, data['messages'] ?? []);
+        } else {
+          messages = List.from(data['messages'] ?? []);
+        }
+        hasMore = data['hasMore'] == true;
+        loading = false;
+      });
+      _scrollToBottom();
+    } catch (e) {
+      setState(() => loading = false);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
+    }
+  }
+
+  Future<void> _send() async {
+    final content = msgCtrl.text.trim();
+    if (content.isEmpty || sending) return;
+    setState(() => sending = true);
+
+    try {
+      // REST로 메시지 전송 (DB 저장 + sequenceId 발급)
+      await app.dio.post('${app.baseUrl}/api/chat-rooms/${widget.chatRoomId}/messages',
+        data: {'content': content, 'type': 'TEXT'}, options: app.authHeaders);
+      msgCtrl.clear();
+      // 항상 새로고침
+      await _loadMessages();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
+    }
+    setState(() => sending = false);
+  }
+
+  Future<void> _showPartnerProfile() async {
+    try {
+      final res = await app.dio.get('${app.baseUrl}/api/chat-rooms/${widget.chatRoomId}/profile',
+        options: app.authHeaders);
+      final p = res.data['data'];
+      if (mounted) {
+        showDialog(context: context, builder: (_) => AlertDialog(
+          title: Text(p['nickname'] ?? '???'),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('성별: ${p['gender'] ?? '비공개'}'),
+            Text('생년월일: ${p['birthDate'] ?? '비공개'}'),
+            Text('지역: ${p['sido'] ?? '비공개'}'),
+          ]),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))],
+        ));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
+    }
+  }
+
+  Future<void> _sendCoupleRequest() async {
+    try {
+      final res = await app.dio.post('${app.baseUrl}/api/chat-rooms/${widget.chatRoomId}/couple-request',
+        options: app.authHeaders);
+      final data = res.data['data'];
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('커플 요청 전송! (만료: ${data['expiresAt']})')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
+    }
+  }
+
+  Future<void> _acceptCouple() async {
+    try {
+      final res = await app.dio.post('${app.baseUrl}/api/chat-rooms/${widget.chatRoomId}/couple-accept',
+        options: app.authHeaders);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('커플이 되었습니다!')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
+    }
+  }
+
+  Future<void> _rejectCouple() async {
+    try {
+      await app.dio.post('${app.baseUrl}/api/chat-rooms/${widget.chatRoomId}/couple-reject',
+        options: app.authHeaders);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('커플 요청을 거절했습니다.')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
+    }
+  }
+
+  Future<void> _leaveChatRoom() async {
+    final confirmed = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('채팅방 나가기'),
+      content: const Text('나가면 다시 돌아올 수 없습니다. 정말 나가시겠어요?'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+        TextButton(onPressed: () => Navigator.pop(context, true),
+          child: const Text('나가기', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+    if (confirmed != true) return;
+
+    try {
+      await app.dio.post('${app.baseUrl}/api/chat-rooms/${widget.chatRoomId}/leave', options: app.authHeaders);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('채팅방을 나갔습니다.')));
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.partnerName),
+        actions: [
+          IconButton(icon: const Icon(Icons.person), onPressed: _showPartnerProfile, tooltip: '프로필'),
+          PopupMenuButton<String>(
+            onSelected: (v) {
+              if (v == 'couple_request') _sendCoupleRequest();
+              if (v == 'couple_accept') _acceptCouple();
+              if (v == 'couple_reject') _rejectCouple();
+              if (v == 'leave') _leaveChatRoom();
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'couple_request', child: Text('커플 요청')),
+              const PopupMenuItem(value: 'couple_accept', child: Text('커플 수락')),
+              const PopupMenuItem(value: 'couple_reject', child: Text('커플 거절')),
+              const PopupMenuItem(value: 'leave', child: Text('나가기', style: TextStyle(color: Colors.red))),
+            ],
+          ),
+        ],
+      ),
+      body: Column(children: [
+        // 메시지 목록
+        Expanded(
+          child: loading
+            ? const Center(child: CircularProgressIndicator())
+            : messages.isEmpty
+              ? const Center(child: Text('대화를 시작해보세요!', style: TextStyle(color: Colors.white54)))
+              : ListView.builder(
+                  controller: scrollCtrl,
+                  itemCount: messages.length,
+                  itemBuilder: (_, i) {
+                    final msg = messages[i];
+                    final isMe = msg['senderId'] == app.userId;
+                    final isSystem = msg['type'] == 'SYSTEM';
+
+                    if (isSystem) {
+                      return Center(child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(msg['content'] ?? '', style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                      ));
+                    }
+
+                    return Align(
+                      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                      child: Container(
+                        margin: EdgeInsets.fromLTRB(isMe ? 64 : 8, 2, isMe ? 8 : 64, 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isMe ? Colors.orange.withOpacity(0.3) : Colors.grey[800],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(msg['content'] ?? '', style: const TextStyle(fontSize: 14)),
+                          const SizedBox(height: 2),
+                          Text(
+                            msg['createdAt'] != null ? _formatMsgTime(msg['createdAt']) : '',
+                            style: const TextStyle(fontSize: 10, color: Colors.white38),
+                          ),
+                          if (msg['isFlagged'] == true)
+                            const Text('! 외부연락처 감지', style: TextStyle(fontSize: 10, color: Colors.redAccent)),
+                        ]),
+                      ),
+                    );
+                  },
+                ),
+        ),
+
+        // 입력창
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.grey[900], border: Border(top: BorderSide(color: Colors.grey[800]!))),
+          child: Row(children: [
+            Expanded(child: TextField(
+              controller: msgCtrl,
+              decoration: const InputDecoration(
+                hintText: '메시지를 입력하세요',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              onSubmitted: (_) => _send(),
+            )),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: Icon(Icons.send, color: sending ? Colors.grey : Colors.orangeAccent),
+              onPressed: sending ? null : _send,
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  String _formatMsgTime(String time) {
+    try {
+      final dt = DateTime.parse(time);
+      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (_) { return ''; }
   }
 }

@@ -46,4 +46,36 @@ public class CoupleRequest extends BaseEntity {
     public enum CoupleRequestStatus {
         PENDING, ACCEPTED, REJECTED, EXPIRED, CANCELLED
     }
+
+    /** 커플 요청 생성 */
+    public static CoupleRequest create(ChatRoom chatRoom, User requester, User receiver) {
+        CoupleRequest req = new CoupleRequest();
+        req.chatRoom = chatRoom;
+        req.requester = requester;
+        req.receiver = receiver;
+        req.status = CoupleRequestStatus.PENDING;
+        req.expiresAt = LocalDateTime.now().plusHours(72);
+        req.reminderCount = 0;
+        return req;
+    }
+
+    /** 수락 */
+    public void accept() {
+        this.status = CoupleRequestStatus.ACCEPTED;
+    }
+
+    /** 거절 */
+    public void reject() {
+        this.status = CoupleRequestStatus.REJECTED;
+    }
+
+    /** 만료 */
+    public void expire() {
+        this.status = CoupleRequestStatus.EXPIRED;
+    }
+
+    /** 만료 확인 */
+    public boolean isExpired() {
+        return LocalDateTime.now().isAfter(this.expiresAt);
+    }
 }

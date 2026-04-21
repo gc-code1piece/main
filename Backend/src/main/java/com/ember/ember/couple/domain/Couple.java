@@ -44,4 +44,15 @@ public class Couple extends BaseEntity {
     public enum CoupleStatus {
         ACTIVE, DISSOLVED
     }
+
+    /** 커플 생성 */
+    public static Couple create(User userA, User userB, ChatRoom chatRoom) {
+        Couple couple = new Couple();
+        couple.userA = userA;
+        couple.userB = userB;
+        couple.chatRoom = chatRoom;
+        couple.status = CoupleStatus.ACTIVE;
+        couple.confirmedAt = LocalDateTime.now();
+        return couple;
+    }
 }

@@ -36,6 +36,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   dio: ^5.9.2
   kakao_flutter_sdk_user: ^1.9.7
+  stomp_dart_client: ^2.0.0
+  web_socket_channel: ^3.0.2
 
 dev_dependencies:
   flutter_test:
