@@ -1,13 +1,35 @@
 import * as React from 'react';
+import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
-const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn('rounded-lg border bg-card text-card-foreground shadow-sm', className)}
-      {...props}
-    />
+/**
+ * Ember Signal Card — Phase 2-C (2026-04-21)
+ * - variant='hero' 추가 (rounded-xl + shadow-md + primary 그라데이션) [Phase 1 §2.5, DESIGN.md §11]
+ * - default 는 기존 shadcn 표준 유지 (rounded-lg border shadow-sm)
+ */
+const cardVariants = cva(
+  'rounded-lg border bg-card text-card-foreground shadow-sm',
+  {
+    variants: {
+      variant: {
+        default: '',
+        // hero: 대시보드 상단 강조 카드. Ember 토큰 기반 그라데이션 (다크모드 자동 대응).
+        hero: 'rounded-xl border-primary/20 bg-gradient-to-br from-primary/5 via-card to-accent/30 shadow-md',
+      },
+    },
+    defaultVariants: {
+      variant: 'default',
+    },
+  },
+);
+
+export interface CardProps
+  extends React.HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof cardVariants> {}
+
+const Card = React.forwardRef<HTMLDivElement, CardProps>(
+  ({ className, variant, ...props }, ref) => (
+    <div ref={ref} className={cn(cardVariants({ variant }), className)} {...props} />
   ),
 );
 Card.displayName = 'Card';
@@ -45,4 +67,4 @@ const CardFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
 );
 CardFooter.displayName = 'CardFooter';
 
-export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent };
+export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent, cardVariants };

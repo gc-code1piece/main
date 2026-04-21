@@ -1,7 +1,8 @@
 # Design System — Ember Admin
 
 > 교환일기 기반 소개팅 앱 'Ember'의 관리자 대시보드 디자인 시스템
-> /design-consultation (Gstack) 로 구축 · v1.0.0 · 2026-04-20
+> /design-consultation (Gstack) 로 구축 · **v1.0.1 · 2026-04-21 (Phase 1 문구 패치)**
+> 패치 요약: Sidebar 폭 w-64 [D-02], Input radius md [D-01], Badge radius 이원화, KPI Card variant 스펙 명시
 
 ---
 
@@ -133,7 +134,7 @@ Primary accent는 관리자 툴에서 거의 안 쓰는 **orange**. 경고색은
 - **Approach**: grid-disciplined (관리 도구 정체성)
 - **Grid**: 12 col, 페이지 max-w `1440px`
 - **Breakpoints**: `sm 640` · `md 768` · `lg 1024` · `xl 1280` · `2xl 1536`
-- **Sidebar**: `w-60`(240px) 고정, 다크에서는 `stone-900`
+- **Sidebar**: **`w-64`(256px) 고정**, 다크에서는 `stone-900` · _[D-02 · 2026-04-21] w-60(240px)에서 변경. 한국어 네비 레이블·서브메뉴 7개 폭 수요 및 Vercel/shadcn 실무 표준(256px) 부합_
 - **Page padding**: `px-6 py-8`
 
 ## 7. Border Radius — 계층화 (AI slop 방지 핵심)
@@ -142,11 +143,23 @@ Primary accent는 관리자 툴에서 거의 안 쓰는 **orange**. 경고색은
 
 | Token | px | Usage |
 |-------|----|----|
-| `--radius-sm` | 4 | Badge · Input · 작은 버튼 |
-| `--radius-md` | 8 | Button · Card · Dropdown |
+| `--radius-sm` | 4 | Badge(기본) · 작은 칩 · 인라인 인디케이터 |
+| `--radius-md` | 8 | **Input · Button · Card · Dropdown** |
 | `--radius-lg` | 12 | Modal · Popover · Hero Card |
 | `--radius-xl` | 16 | KPI Hero Card |
-| `--radius-full` | 9999 | Avatar · Pill Badge |
+| `--radius-full` | 9999 | Avatar · Pill 변형 Badge |
+
+### 7.1 Input radius 기준 · [D-01 · 2026-04-21]
+
+- Input은 `radius-md`(8px) 사용. 초안 v1.0의 `radius-sm`(4px)에서 변경.
+- 근거: shadcn/ui 기본값 `rounded-md`, Linear/Vercel/Stripe Dashboard 실무 대역 6~8px. 4px은 샤프해서 현대 UI 트렌드에서 이탈. Button/Card와 동일 계층으로 시각 일관성 확보.
+- 실제 `Frontend/admin/src/components/ui/input.tsx`는 이미 `rounded-md`로 구현되어 있어 코드 변경 없음.
+
+### 7.2 Badge radius 이원화 · [2026-04-21]
+
+- **기본 Badge**: `radius-sm`(4px). 상태/카테고리/숫자 표기.
+- **Pill 변형 Badge**: `radius-full`. 필터 태그, 사용자 역할 라벨 등 부유감이 필요한 경우.
+- 현 `ui/badge.tsx`는 전량 `rounded-full` 사용 중 → Phase 1-C 코드 수정에서 `pill?: boolean` prop 추가 또는 variant 분기로 이원화.
 
 ## 8. Motion
 
@@ -185,10 +198,14 @@ Primary accent는 관리자 툴에서 거의 안 쓰는 **orange**. 경고색은
 ## 11. Components — 우선 적용 대상
 
 1. **KPI Card** — Instrument Serif 큰 숫자, Pretendard 레이블, tabular-nums
+   - **variant 명세** [2026-04-21 추가]
+     - `hero` (첫 줄 핵심 4장): `rounded-xl` (16px) · `shadow-md` · `p-8` · 숫자 `text-display`(64px)
+     - `compact` (보조 2열 그리드): `rounded-lg` (12px) · `shadow-sm` · `p-6` · 숫자 `text-4xl`(48px)
+   - 공통: 숫자는 `.kpi-number` class + `tabular-nums`, 레이블 `text-xs uppercase tracking-wider text-muted-foreground`
 2. **Page Header** — 좌측 타이틀(Pretendard 2xl/700) + 우측 액션 영역, 하단 1px border
 3. **Data Table** — JetBrains Mono 숫자 컬럼, 호버 시 `bg-muted/50`, SLA 뱃지 색상 계층
-4. **Status Badge** — 4단계 계층 (outline / soft / solid / destructive)
-5. **Sidebar Nav** — 좌측 orange active indicator(4px 세로 막대) + accent 배경
+4. **Status Badge** — 4단계 계층 (outline / soft / solid / destructive), 세만틱 토큰 기반 (`bg-success/10 text-success` 등 — Tailwind 팔레트 하드코딩 금지)
+5. **Sidebar Nav** — 좌측 orange active indicator(4px 세로 막대) + accent 배경, 폭 `w-64`(§6 참조)
 6. **Theme Toggle** — 헤더 우측, light/dark/system 3-way
 
 ## 12. Decisions Log
@@ -200,6 +217,10 @@ Primary accent는 관리자 툴에서 거의 안 쓰는 **orange**. 경고색은
 | 2026-04-20 | Pretendard 전면 적용 | Inter 제거, 한국어 제품 사실상 표준 |
 | 2026-04-20 | Warm stone 베이스 채택 | 일반 slate(cool) 대신 stone(warm), 장시간 시청 눈 피로도 |
 | 2026-04-20 | Radius 계층화 | sm4 / md8 / lg12 / xl16 / full — 동일 radius 금지 규칙 |
+| **2026-04-21** | **[D-01] Input radius `sm`→`md`** | shadcn/Linear/Vercel 실무 표준 6~8px. Button/Card와 통일. 코드는 기존에도 `rounded-md`라 변경 없음 |
+| **2026-04-21** | **[D-02] Sidebar 폭 `w-60`→`w-64`** | 한국어 레이블·서브메뉴 7개 폭 수요. Vercel/shadcn 256px 부합. 코드는 기존에도 `w-64`라 변경 없음 |
+| **2026-04-21** | **Badge radius 이원화 (sm 기본 / full pill 변형)** | 현 `rounded-full` 전량 사용과 §7 sm 명시의 충돌 해소. 상태 Badge=sm, 태그/역할 라벨=full |
+| **2026-04-21** | **KPI Card variant 2종(hero/compact) 명시** | 대시보드 첫 줄과 보조 그리드 시각 밀도 분리. hero는 radius-xl+shadow-md+display64, compact는 radius-lg+shadow-sm+4xl48 |
 
 ---
 

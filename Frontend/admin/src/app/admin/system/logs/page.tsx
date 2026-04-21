@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import PageHeader from '@/components/layout/PageHeader';
 import SearchBar from '@/components/common/SearchBar';
+import DataTable, { type DataTableColumn } from '@/components/common/DataTable';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -194,6 +195,68 @@ const ROLE_COLORS: Record<string, string> = {
   VIEWER: 'bg-gray-100 text-gray-800',
 };
 
+type LogRow = (typeof MOCK_ACTIVITY_LOGS)[number];
+
+const logColumns: DataTableColumn<LogRow>[] = [
+  {
+    key: 'createdAt',
+    header: '시간',
+    cell: (log) => (
+      <span className="whitespace-nowrap text-muted-foreground">
+        {formatDateTime(log.createdAt)}
+      </span>
+    ),
+  },
+  {
+    key: 'admin',
+    header: '관리자',
+    cell: (log) => (
+      <div className="flex flex-col">
+        <span className="font-medium">{log.adminName}</span>
+        <Badge className={`mt-1 w-fit text-xs ${ROLE_COLORS[log.adminRole]}`}>
+          {ROLE_LABELS[log.adminRole]}
+        </Badge>
+      </div>
+    ),
+  },
+  {
+    key: 'action',
+    header: '액션',
+    cell: (log) => (
+      <div className="flex items-center gap-2">
+        {getActionIcon(log.action)}
+        <Badge className={ACTION_COLORS[log.action] || 'bg-muted text-muted-foreground'}>
+          {ACTION_LABELS[log.action] || log.action}
+        </Badge>
+      </div>
+    ),
+  },
+  {
+    key: 'details',
+    header: '상세',
+    cellClassName: 'max-w-xs truncate',
+    cell: (log) => <span title={log.details}>{log.details}</span>,
+  },
+  {
+    key: 'target',
+    header: '대상',
+    cell: (log) =>
+      log.target && log.targetId ? (
+        <span className="cursor-pointer text-primary hover:underline">
+          {log.target} #{log.targetId}
+        </span>
+      ) : (
+        <span className="text-muted-foreground">-</span>
+      ),
+  },
+  {
+    key: 'ip',
+    header: 'IP 주소',
+    cellClassName: 'font-mono-data tabular-nums text-muted-foreground',
+    cell: (log) => log.ipAddress,
+  },
+];
+
 function getActionIcon(action: string) {
   if (action === 'LOGIN') return <LogIn className="h-4 w-4" />;
   if (action === 'LOGOUT') return <LogOut className="h-4 w-4" />;
@@ -337,64 +400,12 @@ export default function AdminActivityLogsPage() {
       </div>
 
       {/* Activity Log List */}
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="border-b bg-muted/50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium">시간</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">관리자</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">액션</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">상세</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">대상</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">IP 주소</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {filteredLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-muted/30">
-                    <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
-                      {formatDateTime(log.createdAt)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium">{log.adminName}</span>
-                        <Badge className={`mt-1 w-fit text-xs ${ROLE_COLORS[log.adminRole]}`}>
-                          {ROLE_LABELS[log.adminRole]}
-                        </Badge>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        {getActionIcon(log.action)}
-                        <Badge className={ACTION_COLORS[log.action] || 'bg-gray-100 text-gray-800'}>
-                          {ACTION_LABELS[log.action] || log.action}
-                        </Badge>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm max-w-xs truncate" title={log.details}>
-                      {log.details}
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      {log.target && log.targetId ? (
-                        <span className="text-blue-600 cursor-pointer hover:underline">
-                          {log.target} #{log.targetId}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground font-mono">
-                      {log.ipAddress}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      <DataTable
+        columns={logColumns}
+        data={filteredLogs}
+        rowKey={(log) => log.id}
+        emptyState="조건에 맞는 로그가 없습니다."
+      />
     </div>
   );
 }

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import PageHeader from '@/components/layout/PageHeader';
+import DataTable, { type DataTableColumn } from '@/components/common/DataTable';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -125,6 +126,87 @@ export default function SystemAccountsPage() {
   const handleResetPassword = (email: string) => {
     toast.success(`${email}로 비밀번호 재설정 링크가 전송되었습니다.`);
   };
+
+  type AdminRow = (typeof admins)[number];
+
+  const columns: DataTableColumn<AdminRow>[] = useMemo(
+    () => [
+      {
+        key: 'email',
+        header: '이메일',
+        cell: (admin) => <span className="font-medium">{admin.email}</span>,
+      },
+      { key: 'name', header: '이름', cell: (admin) => admin.name },
+      {
+        key: 'role',
+        header: '역할',
+        cell: (admin) => (
+          <Badge className={ROLE_COLORS[admin.role]}>{ADMIN_ROLE_LABELS[admin.role]}</Badge>
+        ),
+      },
+      {
+        key: 'status',
+        header: '상태',
+        cell: (admin) => (
+          <Badge variant={admin.isActive ? 'default' : 'secondary'}>
+            {admin.isActive ? '활성' : '비활성'}
+          </Badge>
+        ),
+      },
+      {
+        key: 'lastLoginAt',
+        header: '마지막 로그인',
+        cell: (admin) => (
+          <span className="text-muted-foreground">
+            {admin.lastLoginAt ? formatDateTime(admin.lastLoginAt) : '-'}
+          </span>
+        ),
+      },
+      {
+        key: 'createdAt',
+        header: '생성일',
+        cell: (admin) => (
+          <span className="text-muted-foreground">{formatDateTime(admin.createdAt)}</span>
+        ),
+      },
+      {
+        key: 'actions',
+        header: '액션',
+        cell: (admin) => (
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => handleResetPassword(admin.email)}
+              title="비밀번호 재설정"
+            >
+              <Key className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => handleToggleActive(admin.id)}
+              title={admin.isActive ? '비활성화' : '활성화'}
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+            {admin.role !== 'SUPER_ADMIN' && (
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => handleDelete(admin.id)}
+                title="삭제"
+              >
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            )}
+          </div>
+        ),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [admins],
+  );
 
   const activeCount = admins.filter((a) => a.isActive).length;
 
@@ -252,78 +334,13 @@ export default function SystemAccountsPage() {
           <CardTitle>관리자 목록</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="border-b bg-muted/50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium">이메일</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">이름</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">역할</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">상태</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">마지막 로그인</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">생성일</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">액션</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {admins.map((admin) => (
-                  <tr
-                    key={admin.id}
-                    className={`hover:bg-muted/30 ${!admin.isActive ? 'opacity-50' : ''}`}
-                  >
-                    <td className="px-4 py-3 text-sm font-medium">{admin.email}</td>
-                    <td className="px-4 py-3 text-sm">{admin.name}</td>
-                    <td className="px-4 py-3">
-                      <Badge className={ROLE_COLORS[admin.role]}>
-                        {ADMIN_ROLE_LABELS[admin.role]}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={admin.isActive ? 'default' : 'secondary'}>
-                        {admin.isActive ? '활성' : '비활성'}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">
-                      {admin.lastLoginAt ? formatDateTime(admin.lastLoginAt) : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">
-                      {formatDateTime(admin.createdAt)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleResetPassword(admin.email)}
-                          title="비밀번호 재설정"
-                        >
-                          <Key className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleToggleActive(admin.id)}
-                          title={admin.isActive ? '비활성화' : '활성화'}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        {admin.role !== 'SUPER_ADMIN' && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(admin.id)}
-                            title="삭제"
-                          >
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={columns}
+            data={admins}
+            rowKey={(admin) => admin.id}
+            wrapInCard={false}
+            rowClassName={(admin) => (!admin.isActive ? 'opacity-50' : undefined)}
+          />
         </CardContent>
       </Card>
     </div>
