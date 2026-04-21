@@ -31,4 +31,18 @@ public class Block extends BaseEntity {
     public enum BlockStatus {
         ACTIVE, UNBLOCKED, ADMIN_CANCELLED
     }
+
+    /** 차단 생성 */
+    public static Block create(User blocker, User blocked) {
+        Block block = new Block();
+        block.blockerUser = blocker;
+        block.blockedUser = blocked;
+        block.status = BlockStatus.ACTIVE;
+        return block;
+    }
+
+    /** 차단 해제 */
+    public void unblock() {
+        this.status = BlockStatus.UNBLOCKED;
+    }
 }
