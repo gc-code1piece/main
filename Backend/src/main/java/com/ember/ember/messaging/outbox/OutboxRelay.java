@@ -80,6 +80,7 @@ public class OutboxRelay {
      * fixedDelay: 이전 실행이 끝난 후 500ms 대기 (적체 시 추월 방지).
      */
     @Scheduled(fixedDelay = 500)
+    @Transactional
     public void relay() {
         List<OutboxEvent> pendingEvents =
                 outboxEventRepository.findTop100ByStatusOrderByCreatedAt(OutboxStatus.PENDING);

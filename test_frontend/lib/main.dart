@@ -1677,6 +1677,15 @@ class _SettingsTabState extends State<SettingsTab> {
             },
           ),
 
+          // ── AI 테스트 (Dev) ──
+          const Divider(),
+          const Padding(padding: EdgeInsets.all(12), child: Text('AI 파이프라인 (Dev)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.amber))),
+          ListTile(
+            title: const Text('AI 분석 시뮬레이션'), leading: const Icon(Icons.science, color: Colors.amber),
+            subtitle: const Text('diaryId 입력 -> 가짜 AI 결과 생성'),
+            onTap: () => _showAiSimulateDialog(),
+          ),
+
           // ── 앱 설정 ──
           const Divider(),
           const Padding(padding: EdgeInsets.all(12), child: Text('앱 설정', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
@@ -1770,6 +1779,15 @@ class _SettingsTabState extends State<SettingsTab> {
             },
           ),
           ListTile(
+            title: const Text('계정 복구 (탈퇴 유예 중일 때)'), leading: const Icon(Icons.restore),
+            onTap: () async {
+              try {
+                final res = await app.dio.post('${app.baseUrl}/api/users/me/restore', options: app.authHeaders);
+                _showJson('계정 복구', res.data['data']);
+              } catch (e) { _snack(app.errMsg(e)); }
+            },
+          ),
+          ListTile(
             title: const Text('회원 탈퇴 (30일 유예)', style: TextStyle(color: Colors.red)),
             leading: const Icon(Icons.delete_forever, color: Colors.red),
             onTap: () {
@@ -1838,6 +1856,30 @@ class _SettingsTabState extends State<SettingsTab> {
             _snack('차단 완료');
           } catch (e) { _snack(app.errMsg(e)); }
         }, child: const Text('차단', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+  }
+
+  void _showAiSimulateDialog() {
+    final diaryIdCtrl = TextEditingController();
+    showDialog(context: context, builder: (_) => AlertDialog(
+      title: const Text('AI 분석 시뮬레이션'),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: diaryIdCtrl, decoration: const InputDecoration(labelText: 'diaryId'), keyboardType: TextInputType.number),
+        const SizedBox(height: 8),
+        const Text('AI 서버 없이 가짜 분석 결과를 생성합니다.\n2~3초 후 일기 상세에서 AI 태그를 확인하세요.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+        TextButton(onPressed: () async {
+          Navigator.pop(context);
+          final diaryId = diaryIdCtrl.text.trim();
+          if (diaryId.isEmpty) return;
+          try {
+            final res = await app.dio.post('${app.baseUrl}/api/dev/ai/simulate/$diaryId');
+            _showJson('AI 시뮬레이션', res.data);
+          } catch (e) { _snack(app.errMsg(e)); }
+        }, child: const Text('실행', style: TextStyle(color: Colors.amber))),
       ],
     ));
   }
