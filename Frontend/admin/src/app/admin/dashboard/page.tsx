@@ -9,11 +9,11 @@ import {
   BookOpen,
   MessageCircle,
   AlertTriangle,
-  TrendingUp,
   TrendingDown,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import PageHeader from '@/components/layout/PageHeader';
+import KpiCard from '@/components/common/KpiCard';
 import {
   AreaChart,
   Area,
@@ -26,57 +26,6 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-
-interface KPICardProps {
-  title: string;
-  value: number | string;
-  description?: string;
-  icon: React.ComponentType<{ className?: string }>;
-  trend?: { value: number; isPositive: boolean };
-}
-
-/**
- * KPI Card — Ember Signal v1.0
- * - 큰 숫자는 Instrument Serif (kpi-number, AI slop 제거 RISK)
- * - 레이블/아이콘은 Pretendard + muted
- */
-function KPICard({ title, value, description, icon: Icon, trend }: KPICardProps) {
-  return (
-    <Card className="overflow-hidden transition-colors duration-short hover:bg-card/80">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          {title}
-        </CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="kpi-number text-4xl leading-none text-foreground">
-          {typeof value === 'number' ? value.toLocaleString() : value}
-        </div>
-        {description && (
-          <p className="mt-2 text-xs text-muted-foreground">{description}</p>
-        )}
-        {trend && (
-          <div
-            className={`mt-2 flex items-center gap-1 text-xs ${
-              trend.isPositive ? 'text-success' : 'text-destructive'
-            }`}
-          >
-            {trend.isPositive ? (
-              <TrendingUp className="h-3 w-3" />
-            ) : (
-              <TrendingDown className="h-3 w-3" />
-            )}
-            <span className="font-mono-data">
-              {trend.isPositive ? '+' : '−'}
-              {trend.value}% 전일 대비
-            </span>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
 
 const signupData = [
   { date: '3/17', users: 65 },
@@ -126,47 +75,47 @@ export default function DashboardPage() {
       />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <KPICard
+        <KpiCard
           title="누적 가입자"
           value={kpi.totalSignups}
           icon={Users}
           trend={{ value: 3.2, isPositive: true }}
         />
-        <KPICard
+        <KpiCard
           title="신규 가입자"
           value={kpi.newSignupsToday}
           icon={UserPlus}
           trend={{ value: 14.6, isPositive: true }}
           description="오늘"
         />
-        <KPICard
+        <KpiCard
           title="활성 매칭"
           value={kpi.activeMatching}
           icon={Heart}
           trend={{ value: 5.1, isPositive: true }}
           description="진행 중인 매칭"
         />
-        <KPICard
+        <KpiCard
           title="매칭 성공률"
           value={`${kpi.matchingSuccessRate}%`}
           icon={Percent}
           trend={{ value: 2.8, isPositive: true }}
         />
-        <KPICard
+        <KpiCard
           title="일기 작성 수"
           value={kpi.diaryCountToday}
           icon={BookOpen}
           trend={{ value: 8.4, isPositive: true }}
           description="오늘"
         />
-        <KPICard
+        <KpiCard
           title="교환일기 수"
           value={kpi.exchangeDiaryCountToday}
           icon={MessageCircle}
           trend={{ value: 11.2, isPositive: true }}
           description="오늘"
         />
-        <KPICard
+        <KpiCard
           title="7일 이탈률"
           value={`${kpi.churnRate7d}%`}
           icon={TrendingDown}

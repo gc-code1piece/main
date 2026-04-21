@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import PageHeader from '@/components/layout/PageHeader';
 import SearchBar from '@/components/common/SearchBar';
+import DataTable, { type DataTableColumn } from '@/components/common/DataTable';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -195,6 +196,114 @@ export default function ReportsPage() {
   const slaExceededCount = MOCK_REPORTS.filter((r) => r.slaStatus === 'OVERDUE' && r.status !== 'RESOLVED' && r.status !== 'DISMISSED').length;
   const unassignedCount = MOCK_REPORTS.filter((r) => r.assignedTo === null && (r.status === 'PENDING' || r.status === 'IN_REVIEW')).length;
 
+  // DataTable 컬럼 정의 (currentAdminId 에 의존하므로 컴포넌트 내부에서 useMemo)
+  const reportColumns: DataTableColumn<MockReport>[] = useMemo(
+    () => [
+      { key: 'id', header: 'ID', cell: (r) => <span className="font-medium">#{r.id}</span> },
+      { key: 'reporter', header: '신고자', cell: (r) => r.reporterNickname },
+      {
+        key: 'target',
+        header: '피신고자',
+        cell: (r) => <span className="font-medium">{r.targetNickname}</span>,
+      },
+      {
+        key: 'reason',
+        header: '사유',
+        cell: (r) => <Badge variant="outline">{REPORT_REASON_LABELS[r.reason]}</Badge>,
+      },
+      {
+        key: 'accumulated',
+        header: '누적',
+        align: 'right',
+        cell: (r) => (
+          <span className="font-medium text-destructive">{r.accumulatedReportCount}</span>
+        ),
+      },
+      {
+        key: 'status',
+        header: '상태',
+        cell: (r) => (
+          <Badge className={REPORT_STATUS_COLORS[r.status]}>
+            {REPORT_STATUS_LABELS[r.status]}
+          </Badge>
+        ),
+      },
+      {
+        key: 'slaProgress',
+        header: 'SLA 진행',
+        cell: (r) => (
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-16 rounded-full bg-muted">
+              <div
+                className={`h-2 rounded-full ${getSlaBarColor(r.slaStatus)}`}
+                style={{ width: `${Math.min(r.slaProgress * 100, 100)}%` }}
+              />
+            </div>
+            <span className="font-mono-data text-xs tabular-nums text-muted-foreground">
+              {Math.round(r.slaProgress * 100)}%
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'slaStatus',
+        header: 'SLA 상태',
+        cell: (r) => (
+          <Badge className={`text-xs ${SLA_STATUS_COLORS[r.slaStatus]}`}>
+            {SLA_STATUS_LABELS[r.slaStatus]}
+          </Badge>
+        ),
+      },
+      {
+        key: 'priority',
+        header: '우선순위',
+        align: 'right',
+        cell: (r) => <span className="font-bold">{r.priorityScore.toFixed(1)}</span>,
+      },
+      {
+        key: 'assignedTo',
+        header: '담당자',
+        cell: (r) => {
+          const isMyTask = r.assignedTo === currentAdminId;
+          return r.assignedAdminName ? (
+            <span className={isMyTask ? 'font-medium text-primary' : ''}>
+              {r.assignedAdminName}
+              {isMyTask && (
+                <Badge variant="outline" className="ml-2 text-[10px]">
+                  내 담당
+                </Badge>
+              )}
+            </span>
+          ) : (
+            <Badge variant="outline" className="text-muted-foreground">
+              미배정
+            </Badge>
+          );
+        },
+      },
+      {
+        key: 'createdAt',
+        header: '접수일',
+        cell: (r) => (
+          <span className="text-muted-foreground">{formatDateTime(r.createdAt)}</span>
+        ),
+      },
+      {
+        key: 'actions',
+        header: '액션',
+        cell: (r) => (
+          <Link href={`/admin/reports/${r.id}`}>
+            <Button variant="ghost" size="xs">
+              <Eye className="mr-1 h-4 w-4" />
+              상세
+            </Button>
+          </Link>
+        ),
+      },
+    ],
+    [currentAdminId],
+  );
+
   return (
     <div>
       <PageHeader
@@ -331,97 +440,13 @@ export default function ReportsPage() {
       </div>
 
       {/* 신고 목록 테이블 */}
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="border-b bg-muted/50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium">ID</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">신고자</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">피신고자</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">사유</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">누적</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">상태</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">SLA 진행</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">SLA 상태</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">우선순위</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">담당자</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">접수일</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">액션</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {filteredReports.length === 0 ? (
-                  <tr>
-                    <td colSpan={12} className="px-4 py-8 text-center text-muted-foreground">
-                      검색 결과가 없습니다.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredReports.map((report) => {
-                    const isMyTask = report.assignedTo === currentAdminId;
-                    return (
-                      <tr key={report.id} className={`hover:bg-muted/30 ${report.slaStatus === 'OVERDUE' ? 'bg-red-50/40' : ''}`}>
-                        <td className="px-4 py-3 text-sm font-medium">#{report.id}</td>
-                        <td className="px-4 py-3 text-sm">{report.reporterNickname}</td>
-                        <td className="px-4 py-3 text-sm font-medium">{report.targetNickname}</td>
-                        <td className="px-4 py-3">
-                          <Badge variant="outline">{REPORT_REASON_LABELS[report.reason]}</Badge>
-                        </td>
-                        <td className="px-4 py-3 text-sm font-medium text-red-600">{report.accumulatedReportCount}</td>
-                        <td className="px-4 py-3">
-                          <Badge className={REPORT_STATUS_COLORS[report.status]}>
-                            {REPORT_STATUS_LABELS[report.status]}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="h-2 w-16 rounded-full bg-gray-200">
-                              <div
-                                className={`h-2 rounded-full ${getSlaBarColor(report.slaStatus)}`}
-                                style={{ width: `${Math.min(report.slaProgress * 100, 100)}%` }}
-                              />
-                            </div>
-                            <span className="text-xs font-mono text-muted-foreground">
-                              {Math.round(report.slaProgress * 100)}%
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge className={`text-xs ${SLA_STATUS_COLORS[report.slaStatus]}`}>
-                            {SLA_STATUS_LABELS[report.slaStatus]}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3 text-sm font-bold">{report.priorityScore.toFixed(1)}</td>
-                        <td className="px-4 py-3 text-sm">
-                          {report.assignedAdminName ? (
-                            <span className={isMyTask ? 'font-medium text-primary' : ''}>
-                              {report.assignedAdminName}
-                              {isMyTask && <Badge variant="outline" className="ml-2 text-[10px]">내 담당</Badge>}
-                            </span>
-                          ) : (
-                            <Badge variant="outline" className="bg-gray-50 text-gray-600">미배정</Badge>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-muted-foreground">{formatDateTime(report.createdAt)}</td>
-                        <td className="px-4 py-3">
-                          <Link href={`/admin/reports/${report.id}`}>
-                            <Button variant="ghost" size="sm">
-                              <Eye className="mr-1 h-4 w-4" />
-                              상세
-                            </Button>
-                          </Link>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      <DataTable
+        columns={reportColumns}
+        data={filteredReports}
+        rowKey={(r) => r.id}
+        rowClassName={(r) => (r.slaStatus === 'OVERDUE' ? 'bg-destructive/5' : undefined)}
+        emptyState="검색 결과가 없습니다."
+      />
     </div>
   );
 }

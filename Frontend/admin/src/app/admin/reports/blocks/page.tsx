@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import PageHeader from '@/components/layout/PageHeader';
 import SearchBar from '@/components/common/SearchBar';
+import DataTable, { type DataTableColumn } from '@/components/common/DataTable';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -128,10 +129,84 @@ export default function BlockHistoryPage() {
   };
 
   const handleCancelBlock = (blockId: number) => {
+    void blockId; // Mock: 실제 API 연동 시 blockId 기반 취소 처리
     toast.success('차단을 취소했습니다.');
   };
 
-  // Filter blocks
+  type BlockRow = (typeof MOCK_BLOCK_HISTORY)[number];
+
+  // DataTable 컬럼 (handleCancelBlock 클로저 참조)
+  const columns: DataTableColumn<BlockRow>[] = useMemo(
+    () => [
+      {
+        key: 'blocker',
+        header: '차단자',
+        cell: (b) => (
+          <Link
+            href={`/admin/members/${b.blockerId}`}
+            className="text-primary hover:underline"
+          >
+            {b.blockerNickname}
+          </Link>
+        ),
+      },
+      {
+        key: 'blocked',
+        header: '피차단자',
+        cell: (b) => (
+          <Link
+            href={`/admin/members/${b.blockedId}`}
+            className="text-primary hover:underline"
+          >
+            {b.blockedNickname}
+          </Link>
+        ),
+      },
+      {
+        key: 'reason',
+        header: '사유',
+        cell: (b) => (
+          <Badge className={REASON_COLORS[b.reason]}>{REASON_LABELS[b.reason]}</Badge>
+        ),
+      },
+      {
+        key: 'status',
+        header: '상태',
+        cell: (b) => (
+          <Badge className={STATUS_COLORS[b.status]}>{STATUS_LABELS[b.status]}</Badge>
+        ),
+      },
+      {
+        key: 'createdAt',
+        header: '차단일',
+        cell: (b) => (
+          <span className="text-muted-foreground">{formatDateTime(b.createdAt)}</span>
+        ),
+      },
+      {
+        key: 'actions',
+        header: '액션',
+        cell: (b) => (
+          <div className="flex gap-1">
+            <Link href={`/admin/members/${b.blockerId}`}>
+              <Button variant="ghost" size="xs">
+                <Eye className="h-4 w-4" />
+              </Button>
+            </Link>
+            {b.status === 'ACTIVE' && (
+              <Button variant="ghost" size="xs" onClick={() => handleCancelBlock(b.id)}>
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        ),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  // 키워드/상태 필터링
   const filteredBlocks = MOCK_BLOCK_HISTORY.filter(block => {
     const matchesKeyword = !keyword ||
       block.blockerNickname.includes(keyword) ||
@@ -226,71 +301,12 @@ export default function BlockHistoryPage() {
       </div>
 
       {/* Block History List */}
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="border-b bg-muted/50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium">차단자</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">피차단자</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">사유</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">상태</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">차단일</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">액션</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {filteredBlocks.map(block => (
-                  <tr key={block.id} className="hover:bg-muted/30">
-                    <td className="px-4 py-3">
-                      <Link href={`/admin/members/${block.blockerId}`} className="text-blue-600 hover:underline">
-                        {block.blockerNickname}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link href={`/admin/members/${block.blockedId}`} className="text-blue-600 hover:underline">
-                        {block.blockedNickname}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge className={REASON_COLORS[block.reason]}>
-                        {REASON_LABELS[block.reason]}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge className={STATUS_COLORS[block.status]}>
-                        {STATUS_LABELS[block.status]}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">
-                      {formatDateTime(block.createdAt)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1">
-                        <Link href={`/admin/members/${block.blockerId}`}>
-                          <Button variant="ghost" size="sm">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </Link>
-                        {block.status === 'ACTIVE' && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleCancelBlock(block.id)}
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      <DataTable
+        columns={columns}
+        data={filteredBlocks}
+        rowKey={(b) => b.id}
+        emptyState="검색 결과가 없습니다."
+      />
     </div>
   );
 }

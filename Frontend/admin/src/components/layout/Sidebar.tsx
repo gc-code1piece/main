@@ -282,14 +282,18 @@ export default function Sidebar() {
       <Separator />
 
       {/* User Info & Logout */}
-      <div className="p-4">
-        <div className="mb-2 text-sm text-muted-foreground">
+      <div className="space-y-1 p-4">
+        <div className="mb-2 px-3 text-sm text-muted-foreground">
           <p className="font-medium text-foreground">{user?.email}</p>
           <p className="text-xs">{user?.role}</p>
         </div>
         <button
           onClick={logout}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground"
+          className={cn(
+            // Phase 2-C (2026-04-21): nav 아이템과 계층 일치. rounded-md + duration-short.
+            'flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-short',
+            'text-muted-foreground hover:bg-destructive hover:text-destructive-foreground',
+          )}
         >
           <LogOut className="h-5 w-5" />
           로그아웃

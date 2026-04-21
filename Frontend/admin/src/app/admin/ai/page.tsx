@@ -2,6 +2,7 @@
 
 import PageHeader from '@/components/layout/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import KpiCard from '@/components/common/KpiCard';
 import { Brain, Target, TrendingUp, Activity, Zap } from 'lucide-react';
 import {
   BarChart,
@@ -117,61 +118,44 @@ export default function AIMonitoringPage() {
       />
 
       {/* KPI Cards */}
+      {/*
+        Phase 2-C (2026-04-21): 5개 Card 블록을 공통 KpiCard로 통합. Phase 2-A 세만틱 토큰
+        준수 차원에서 purple/blue/green 하드코딩을 text-primary / text-info / text-success 로 치환.
+      */}
       <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">키워드 정확도</CardTitle>
-            <Brain className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-600">87.3%</div>
-            <p className="text-xs text-muted-foreground">KcELECTRA 평균</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">매칭 성공률</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">72.5%</div>
-            <p className="text-xs text-muted-foreground">교환일기 진행률</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">일일 분석량</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">1,234</div>
-            <p className="text-xs text-muted-foreground">오늘 처리된 일기</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">평균 유사도</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">0.68</div>
-            <p className="text-xs text-muted-foreground">KoSimCSE 스코어</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">추출 키워드</CardTitle>
-            <Zap className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">4,521</div>
-            <p className="text-xs text-muted-foreground">오늘 추출된 키워드</p>
-          </CardContent>
-        </Card>
+        <KpiCard
+          title="키워드 정확도"
+          value="87.3%"
+          description="KcELECTRA 평균"
+          icon={Brain}
+          valueClassName="text-primary"
+        />
+        <KpiCard
+          title="매칭 성공률"
+          value="72.5%"
+          description="교환일기 진행률"
+          icon={Target}
+          valueClassName="text-info"
+        />
+        <KpiCard
+          title="일일 분석량"
+          value={1234}
+          description="오늘 처리된 일기"
+          icon={TrendingUp}
+        />
+        <KpiCard
+          title="평균 유사도"
+          value="0.68"
+          description="KoSimCSE 스코어"
+          icon={Activity}
+          valueClassName="text-success"
+        />
+        <KpiCard
+          title="추출 키워드"
+          value={4521}
+          description="오늘 추출된 키워드"
+          icon={Zap}
+        />
       </div>
 
       {/* Charts Row 1 */}
