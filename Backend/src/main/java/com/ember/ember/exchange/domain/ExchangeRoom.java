@@ -67,6 +67,10 @@ public class ExchangeRoom extends BaseEntity {
         ACTIVE, EXPIRED, COMPLETED, TERMINATED, ARCHIVED, CHAT_CONNECTED, ENDED
     }
 
+    /** 다음 단계 선택 기한 (72시간) */
+    @Column(name = "next_step_deadline_at")
+    private LocalDateTime nextStepDeadlineAt;
+
     /** 매칭 성사 시 교환일기 방 생성 */
     public static ExchangeRoom create(User userA, User userB, Matching matching) {
         ExchangeRoom room = new ExchangeRoom();
@@ -79,5 +83,58 @@ public class ExchangeRoom extends BaseEntity {
         room.status = RoomStatus.ACTIVE;
         room.deadlineAt = LocalDateTime.now().plusHours(48);
         return room;
+    }
+
+    /** 참여자인지 확인 */
+    public boolean isParticipant(Long userId) {
+        return userA.getId().equals(userId) || userB.getId().equals(userId);
+    }
+
+    /** 상대방 조회 */
+    public User getPartner(Long userId) {
+        return userA.getId().equals(userId) ? userB : userA;
+    }
+
+    /** 턴 진행 (일기 작성 완료 시) */
+    public void advanceTurn() {
+        this.turnCount += 1;
+        int maxTurns = (this.roundCount == 1) ? 4 : 2; // 라운드1: 4턴, 라운드2(추가): 2턴
+        if (this.turnCount >= maxTurns) {
+            this.status = RoomStatus.COMPLETED;
+            this.nextStepDeadlineAt = LocalDateTime.now().plusHours(72);
+        } else {
+            this.currentTurnUser = getPartner(this.currentTurnUser.getId());
+            this.deadlineAt = LocalDateTime.now().plusHours(48);
+        }
+    }
+
+    /** 만료 처리 */
+    public void expire() {
+        this.status = RoomStatus.EXPIRED;
+    }
+
+    /** 채팅방 연결 */
+    public void connectChat(ChatRoom chatRoom) {
+        this.chatRoom = chatRoom;
+        this.status = RoomStatus.CHAT_CONNECTED;
+    }
+
+    /** 추가 1턴 연장 (라운드 2) */
+    public void extendRound() {
+        this.roundCount = 2;
+        this.turnCount = 0;
+        this.status = RoomStatus.ACTIVE;
+        this.deadlineAt = LocalDateTime.now().plusHours(48);
+        this.nextStepDeadlineAt = null;
+    }
+
+    /** 아카이브 처리 (매칭 종료) */
+    public void archive() {
+        this.status = RoomStatus.ARCHIVED;
+    }
+
+    /** 종료 처리 (차단/탈퇴) */
+    public void terminate() {
+        this.status = RoomStatus.TERMINATED;
     }
 }

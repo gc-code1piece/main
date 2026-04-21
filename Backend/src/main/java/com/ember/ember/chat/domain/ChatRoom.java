@@ -54,4 +54,44 @@ public class ChatRoom extends BaseEntity {
     public enum ChatRoomStatus {
         ACTIVE, COUPLE_CONFIRMED, CHAT_LEFT, TERMINATED
     }
+
+    /** 채팅방 생성 */
+    public static ChatRoom create(User userA, User userB, ExchangeRoom exchangeRoom) {
+        ChatRoom room = new ChatRoom();
+        room.userA = userA;
+        room.userB = userB;
+        room.exchangeRoom = exchangeRoom;
+        room.status = ChatRoomStatus.ACTIVE;
+        return room;
+    }
+
+    /** 참여자인지 확인 */
+    public boolean isParticipant(Long userId) {
+        return userA.getId().equals(userId) || userB.getId().equals(userId);
+    }
+
+    /** 상대방 조회 */
+    public User getPartner(Long userId) {
+        return userA.getId().equals(userId) ? userB : userA;
+    }
+
+    /** 커플 확정 상태로 변경 */
+    public void confirmCouple() {
+        this.status = ChatRoomStatus.COUPLE_CONFIRMED;
+    }
+
+    /** 나가기 처리 */
+    public void leave(Long userId) {
+        if (userA.getId().equals(userId)) {
+            this.userALeftAt = LocalDateTime.now();
+        } else {
+            this.userBLeftAt = LocalDateTime.now();
+        }
+        this.status = ChatRoomStatus.CHAT_LEFT;
+    }
+
+    /** 종료 처리 */
+    public void terminate() {
+        this.status = ChatRoomStatus.TERMINATED;
+    }
 }

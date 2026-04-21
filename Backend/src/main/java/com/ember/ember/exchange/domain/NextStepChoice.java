@@ -39,4 +39,15 @@ public class NextStepChoice extends BaseEntity {
     public enum Choice {
         CHAT, CONTINUE
     }
+
+    /** 관계 확장 선택 생성 */
+    public static NextStepChoice create(ExchangeRoom room, User user, int roundNumber, Choice choice) {
+        NextStepChoice nsc = new NextStepChoice();
+        nsc.room = room;
+        nsc.user = user;
+        nsc.roundNumber = roundNumber;
+        nsc.choice = choice;
+        nsc.chosenAt = LocalDateTime.now();
+        return nsc;
+    }
 }

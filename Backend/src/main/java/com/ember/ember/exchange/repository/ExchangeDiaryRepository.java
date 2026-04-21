@@ -32,4 +32,15 @@ public interface ExchangeDiaryRepository extends JpaRepository<ExchangeDiary, Lo
             @Param("authorId") Long authorId,
             @Param("status") ExchangeDiaryStatus status
     );
+
+    /** 교환방의 모든 제출된 일기 (턴 순) */
+    @Query("SELECT ed FROM ExchangeDiary ed WHERE ed.room.id = :roomId " +
+           "AND ed.status = 'SUBMITTED' ORDER BY ed.turnNumber ASC")
+    List<ExchangeDiary> findSubmittedByRoomId(@Param("roomId") Long roomId);
+
+    /** 이전 턴 일기 조회 */
+    @Query("SELECT ed FROM ExchangeDiary ed WHERE ed.room.id = :roomId " +
+           "AND ed.turnNumber = :turnNumber AND ed.status = 'SUBMITTED'")
+    java.util.Optional<ExchangeDiary> findByRoomIdAndTurnNumber(
+            @Param("roomId") Long roomId, @Param("turnNumber") int turnNumber);
 }

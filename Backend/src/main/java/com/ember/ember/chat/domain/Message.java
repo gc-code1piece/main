@@ -48,4 +48,40 @@ public class Message extends BaseEntity {
     public enum MessageType {
         TEXT, EMOJI, SYSTEM
     }
+
+    /** 메시지 생성 */
+    public static Message create(ChatRoom chatRoom, User sender, String content,
+                                  MessageType type, Long sequenceId) {
+        Message msg = new Message();
+        msg.chatRoom = chatRoom;
+        msg.sender = sender;
+        msg.content = content;
+        msg.type = type;
+        msg.sequenceId = sequenceId;
+        return msg;
+    }
+
+    /** 시스템 메시지 생성 */
+    public static Message createSystem(ChatRoom chatRoom, String content, Long sequenceId) {
+        Message msg = new Message();
+        msg.chatRoom = chatRoom;
+        msg.sender = null;
+        msg.content = content;
+        msg.type = MessageType.SYSTEM;
+        msg.sequenceId = sequenceId;
+        return msg;
+    }
+
+    /** 읽음 처리 */
+    public void markRead() {
+        if (!this.isRead) {
+            this.isRead = true;
+            this.readAt = LocalDateTime.now();
+        }
+    }
+
+    /** 외부 연락처 플래그 */
+    public void flag() {
+        this.isFlagged = true;
+    }
 }
