@@ -6,7 +6,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import SearchBar from '@/components/common/SearchBar';
 import Pagination from '@/components/common/Pagination';
 import StatusBadge from '@/components/common/StatusBadge';
-import { Card, CardContent } from '@/components/ui/card';
+import DataTable, { type DataTableColumn } from '@/components/common/DataTable';
 import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/utils/format';
 import { Eye } from 'lucide-react';
@@ -103,6 +103,50 @@ const MOCK_USERS = [
   },
 ];
 
+type MemberRow = (typeof MOCK_USERS)[number];
+
+// 숫자 컬럼(일기/매칭)은 DataTable 의 align='right' 로 font-mono-data tabular-nums 자동 적용.
+const columns: DataTableColumn<MemberRow>[] = [
+  {
+    key: 'nickname',
+    header: '닉네임',
+    cell: (user) => <span className="font-medium">{user.nickname}</span>,
+  },
+  { key: 'realName', header: '실명', cell: (user) => user.realName },
+  {
+    key: 'gender',
+    header: '성별',
+    cell: (user) => (user.gender === 'MALE' ? '남성' : '여성'),
+  },
+  { key: 'region', header: '지역', cell: (user) => user.region },
+  {
+    key: 'status',
+    header: '상태',
+    cell: (user) => <StatusBadge status={user.status} />,
+  },
+  { key: 'diaryCount', header: '일기', align: 'right', cell: (user) => user.diaryCount },
+  { key: 'matchCount', header: '매칭', align: 'right', cell: (user) => user.matchCount },
+  {
+    key: 'createdAt',
+    header: '가입일',
+    cell: (user) => (
+      <span className="text-muted-foreground">{formatDateTime(user.createdAt)}</span>
+    ),
+  },
+  {
+    key: 'actions',
+    header: '액션',
+    cell: (user) => (
+      <Link href={`/admin/members/${user.id}`}>
+        <Button variant="ghost" size="xs">
+          <Eye className="mr-1 h-4 w-4" />
+          상세
+        </Button>
+      </Link>
+    ),
+  },
+];
+
 export default function UsersPage() {
   const [page, setPage] = useState(0);
   const [keyword, setKeyword] = useState('');
@@ -111,7 +155,7 @@ export default function UsersPage() {
     setPage(0);
   };
 
-  // Filter users based on keyword
+  // 키워드 기반 필터링 (닉네임 또는 실명 포함 여부)
   const filteredUsers = keyword
     ? MOCK_USERS.filter(
         (user) =>
@@ -119,7 +163,6 @@ export default function UsersPage() {
       )
     : MOCK_USERS;
 
-  const users = filteredUsers;
   const totalPages = Math.ceil(filteredUsers.length / 20) || 1;
 
   return (
@@ -138,55 +181,12 @@ export default function UsersPage() {
         />
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="border-b bg-muted/50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium">닉네임</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">실명</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">성별</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">지역</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">상태</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">일기</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">매칭</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">가입일</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">액션</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {users.map((user) => (
-                  <tr key={user.id} className="hover:bg-muted/30">
-                    <td className="px-4 py-3 text-sm font-medium">{user.nickname}</td>
-                    <td className="px-4 py-3 text-sm">{user.realName}</td>
-                    <td className="px-4 py-3 text-sm">
-                      {user.gender === 'MALE' ? '남성' : '여성'}
-                    </td>
-                    <td className="px-4 py-3 text-sm">{user.region}</td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={user.status} />
-                    </td>
-                    <td className="px-4 py-3 text-sm">{user.diaryCount}</td>
-                    <td className="px-4 py-3 text-sm">{user.matchCount}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">
-                      {formatDateTime(user.createdAt)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link href={`/admin/members/${user.id}`}>
-                        <Button variant="ghost" size="sm">
-                          <Eye className="mr-1 h-4 w-4" />
-                          상세
-                        </Button>
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      <DataTable
+        columns={columns}
+        data={filteredUsers}
+        rowKey={(user) => user.id}
+        emptyState="검색 결과가 없습니다."
+      />
 
       <Pagination
         currentPage={page}

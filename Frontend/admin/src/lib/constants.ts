@@ -1,4 +1,24 @@
 // ────────────────────────────────────────────────────────
+// Ember Signal 세만틱 soft variant 프리셋
+// - DESIGN.md v1.0.1 §11: Status Badge 4단계 계층(outline/soft/solid/destructive), 세만틱 토큰 기반
+// - Tailwind 팔레트(bg-green-100 등) 하드코딩 금지. 모두 CSS variable + 알파 채널로 다크모드 자동 대응.
+// - Phase 2-A (2026-04-21) 일괄 전환
+// ────────────────────────────────────────────────────────
+export const SOFT = {
+  success: 'bg-success/10 text-success',
+  warning: 'bg-warning/15 text-warning',
+  info: 'bg-info/10 text-info',
+  primary: 'bg-primary/10 text-primary',
+  destructive: 'bg-destructive/10 text-destructive',
+  accent: 'bg-accent text-accent-foreground',
+  muted: 'bg-muted text-muted-foreground',
+  // outline 계열 — 배경 제거(Badge 기본 variant의 bg-primary 덮어쓰기), 테두리만
+  outlineNeutral: 'bg-transparent border-border text-muted-foreground',
+  outlineInfo: 'bg-transparent border-info text-info',
+  outlinePrimary: 'bg-transparent border-primary text-primary',
+} as const;
+
+// ────────────────────────────────────────────────────────
 // 회원 상태 (ERD v2.0 기준 6종)
 // ────────────────────────────────────────────────────────
 export const USER_STATUS_LABELS: Record<string, string> = {
@@ -11,12 +31,12 @@ export const USER_STATUS_LABELS: Record<string, string> = {
 };
 
 export const USER_STATUS_COLORS: Record<string, string> = {
-  ACTIVE: 'bg-green-100 text-green-800',
-  GUEST: 'bg-slate-100 text-slate-700',
-  SUSPEND_7D: 'bg-yellow-100 text-yellow-800',
-  SUSPEND_30D: 'bg-orange-100 text-orange-800',
-  BANNED: 'bg-red-100 text-red-800',
-  DEACTIVATED: 'bg-gray-100 text-gray-800',
+  ACTIVE: SOFT.success,
+  GUEST: SOFT.muted,
+  SUSPEND_7D: SOFT.warning,
+  SUSPEND_30D: SOFT.primary, // Ember orange — 장기 정지 강조
+  BANNED: SOFT.destructive,
+  DEACTIVATED: SOFT.outlineNeutral,
 };
 
 // ────────────────────────────────────────────────────────
@@ -51,10 +71,10 @@ export const REPORT_STATUS_LABELS: Record<string, string> = {
 };
 
 export const REPORT_STATUS_COLORS: Record<string, string> = {
-  PENDING: 'bg-yellow-100 text-yellow-800',
-  IN_REVIEW: 'bg-blue-100 text-blue-800',
-  RESOLVED: 'bg-green-100 text-green-800',
-  DISMISSED: 'bg-gray-100 text-gray-800',
+  PENDING: SOFT.warning,
+  IN_REVIEW: SOFT.info,
+  RESOLVED: SOFT.success,
+  DISMISSED: SOFT.muted,
 };
 
 // ────────────────────────────────────────────────────────
@@ -91,10 +111,10 @@ export const NOTICE_CATEGORY_LABELS: Record<string, string> = {
 };
 
 export const NOTICE_CATEGORY_COLORS: Record<string, string> = {
-  GENERAL: 'bg-slate-100 text-slate-700',
-  MAINTENANCE: 'bg-blue-100 text-blue-700',
-  TERMS_CHANGE: 'bg-purple-100 text-purple-700',
-  URGENT: 'bg-red-100 text-red-700',
+  GENERAL: SOFT.muted,
+  MAINTENANCE: SOFT.info,
+  TERMS_CHANGE: SOFT.primary, // Ember 강조 — 약관 변경은 브랜드 주도 이슈
+  URGENT: SOFT.destructive,
 };
 
 export const NOTICE_STATUS_LABELS: Record<string, string> = {
@@ -104,9 +124,9 @@ export const NOTICE_STATUS_LABELS: Record<string, string> = {
 };
 
 export const NOTICE_STATUS_COLORS: Record<string, string> = {
-  DRAFT: 'bg-gray-100 text-gray-700',
-  PUBLISHED: 'bg-green-100 text-green-700',
-  HIDDEN: 'bg-zinc-100 text-zinc-500',
+  DRAFT: SOFT.outlineNeutral,
+  PUBLISHED: SOFT.success,
+  HIDDEN: SOFT.muted,
 };
 
 // ────────────────────────────────────────────────────────
@@ -120,10 +140,10 @@ export const SUSPICIOUS_ACCOUNT_STATUS_LABELS: Record<string, string> = {
 };
 
 export const SUSPICIOUS_ACCOUNT_STATUS_COLORS: Record<string, string> = {
-  PENDING: 'bg-yellow-100 text-yellow-800',
-  INVESTIGATING: 'bg-blue-100 text-blue-800',
-  CONFIRMED: 'bg-red-100 text-red-800',
-  CLEARED: 'bg-gray-100 text-gray-800',
+  PENDING: SOFT.warning,
+  INVESTIGATING: SOFT.info,
+  CONFIRMED: SOFT.destructive,
+  CLEARED: SOFT.muted,
 };
 
 export const SUSPICION_TYPE_LABELS: Record<string, string> = {
@@ -145,10 +165,10 @@ export const BANNED_WORD_CATEGORY_LABELS: Record<string, string> = {
 };
 
 export const BANNED_WORD_CATEGORY_COLORS: Record<string, string> = {
-  PROFANITY: 'bg-orange-100 text-orange-700',
-  SEXUAL: 'bg-pink-100 text-pink-700',
-  DISCRIMINATION: 'bg-red-100 text-red-700',
-  ETC: 'bg-gray-100 text-gray-700',
+  PROFANITY: SOFT.warning,
+  SEXUAL: SOFT.primary, // Ember orange — 민감 영역 분리
+  DISCRIMINATION: SOFT.destructive, // 가장 심각
+  ETC: SOFT.muted,
 };
 
 // ────────────────────────────────────────────────────────
@@ -165,13 +185,14 @@ export const INQUIRY_CATEGORY_LABELS: Record<string, string> = {
 };
 
 export const INQUIRY_CATEGORY_COLORS: Record<string, string> = {
-  ACCOUNT: 'bg-blue-100 text-blue-800',
-  MATCHING: 'bg-pink-100 text-pink-800',
-  EXCHANGE: 'bg-purple-100 text-purple-800',
-  CHAT: 'bg-cyan-100 text-cyan-800',
-  PAYMENT: 'bg-green-100 text-green-800',
-  BUG: 'bg-red-100 text-red-800',
-  OTHER: 'bg-gray-100 text-gray-800',
+  // 7종 카테고리 — 세만틱 토큰 6종 + outline variant 로 구분성 확보
+  ACCOUNT: SOFT.info,
+  MATCHING: SOFT.primary, // Ember 핵심 기능
+  EXCHANGE: SOFT.accent, // 따뜻한 톤 (교환일기 브랜드 DNA)
+  CHAT: SOFT.outlineInfo,
+  PAYMENT: SOFT.success,
+  BUG: SOFT.destructive,
+  OTHER: SOFT.muted,
 };
 
 export const INQUIRY_STATUS_LABELS: Record<string, string> = {
@@ -182,10 +203,10 @@ export const INQUIRY_STATUS_LABELS: Record<string, string> = {
 };
 
 export const INQUIRY_STATUS_COLORS: Record<string, string> = {
-  OPEN: 'bg-yellow-100 text-yellow-800',
-  IN_PROGRESS: 'bg-blue-100 text-blue-800',
-  RESOLVED: 'bg-green-100 text-green-800',
-  CLOSED: 'bg-gray-100 text-gray-700',
+  OPEN: SOFT.warning,
+  IN_PROGRESS: SOFT.info,
+  RESOLVED: SOFT.success,
+  CLOSED: SOFT.muted,
 };
 
 // ────────────────────────────────────────────────────────
@@ -199,10 +220,10 @@ export const APPEAL_STATUS_LABELS: Record<string, string> = {
 };
 
 export const APPEAL_STATUS_COLORS: Record<string, string> = {
-  PENDING: 'bg-red-100 text-red-700',
-  IN_PROGRESS: 'bg-yellow-100 text-yellow-800',
-  ACCEPTED: 'bg-green-100 text-green-700',
-  REJECTED: 'bg-gray-100 text-gray-700',
+  PENDING: SOFT.warning, // 이의신청 대기 — 경고 톤
+  IN_PROGRESS: SOFT.info,
+  ACCEPTED: SOFT.success,
+  REJECTED: SOFT.muted,
 };
 
 export const SANCTION_TYPE_LABELS: Record<string, string> = {
@@ -224,11 +245,12 @@ export const FAQ_CATEGORY_LABELS: Record<string, string> = {
 };
 
 export const FAQ_CATEGORY_COLORS: Record<string, string> = {
-  ACCOUNT: 'bg-blue-100 text-blue-700',
-  MATCHING: 'bg-pink-100 text-pink-700',
-  DIARY: 'bg-purple-100 text-purple-700',
-  PAYMENT: 'bg-green-100 text-green-700',
-  ETC: 'bg-gray-100 text-gray-700',
+  // 5종 — INQUIRY_CATEGORY와 일관된 토큰 매핑
+  ACCOUNT: SOFT.info,
+  MATCHING: SOFT.primary,
+  DIARY: SOFT.accent,
+  PAYMENT: SOFT.success,
+  ETC: SOFT.muted,
 };
 
 // ────────────────────────────────────────────────────────

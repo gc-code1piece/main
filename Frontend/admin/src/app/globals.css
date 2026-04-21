@@ -135,22 +135,26 @@
    ─────────────────────────────────────────────── */
 
 @layer components {
+  /* next/font로 로드된 CSS variable을 직접 참조해야 한다.
+     literal 문자열 'Instrument Serif' / 'JetBrains Mono' 는 next/font가 해시된 family name을 사용하므로 매칭되지 않아 폴백(ui-serif, Georgia 등)으로 떨어질 위험이 있다.
+     layout.tsx에서 --font-instrument-serif, --font-jetbrains-mono 를 body에 주입한다. */
+
   /* KPI 큰 숫자 — Instrument Serif (AI slop 제거 장치) */
   .kpi-number {
-    font-family: 'Instrument Serif', ui-serif, Georgia, serif;
+    font-family: var(--font-instrument-serif), ui-serif, Georgia, serif;
     font-weight: 400;
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.02em;
   }
   /* Hero 타이포 */
   .hero-display {
-    font-family: 'Instrument Serif', ui-serif, Georgia, serif;
+    font-family: var(--font-instrument-serif), ui-serif, Georgia, serif;
     font-weight: 400;
     letter-spacing: -0.02em;
   }
   /* 데이터 모노 */
   .font-mono-data {
-    font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-family: var(--font-jetbrains-mono), ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     font-variant-numeric: tabular-nums;
   }
 }
