@@ -16,8 +16,11 @@ export const authApi = {
   refresh: (refreshToken: string) =>
     apiClient.post<ApiResponse<TokenResponse>>('/api/admin/auth/refresh', { refreshToken }),
 
-  changePassword: (data: { currentPassword: string; newPassword: string }) =>
-    apiClient.put<ApiResponse<null>>('/api/admin/auth/password', data),
+  changePassword: (data: {
+    currentPassword: string;
+    newPassword: string;
+    logoutOtherSessions?: boolean;
+  }) => apiClient.put<ApiResponse<null>>('/api/admin/auth/password', data),
 
   // 현재 관리자 정보 조회 (API 통합명세서 v2.0 §1)
   getMe: () => apiClient.get<ApiResponse<AdminProfile>>('/api/admin/auth/me'),

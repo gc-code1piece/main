@@ -198,8 +198,8 @@ export default function TutorialsPage() {
   return (
     <div>
       <PageHeader
-        title="튜토리얼 관리"
-        description="앱 내 튜토리얼 콘텐츠를 관리합니다"
+        title="교환일기 가이드 관리"
+        description="교환일기 가이드 콘텐츠를 관리합니다"
         actions={
           hasPermission('ADMIN') && (
             <Button onClick={handleAddTutorial}>
