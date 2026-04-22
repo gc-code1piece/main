@@ -32,4 +32,24 @@ public class AdminPiiAccessLog {
 
     @Column(name = "accessed_at", nullable = false)
     private LocalDateTime accessedAt;
+
+    /**
+     * AOP에서 PII 접근 로그를 생성할 때 사용하는 static 팩터리 메서드.
+     * admin, targetUser 모두 {@code EntityManager.getReferenceById()} proxy를 전달하여 추가 쿼리를 방지한다.
+     *
+     * @param admin      PII를 조회한 관리자 (proxy 가능)
+     * @param targetUser PII 조회 대상 사용자 (proxy 가능)
+     * @param accessType 접근 타입 (예: "EMAIL_VIEW", "REAL_NAME_VIEW")
+     * @param ipAddress  요청 IP 주소, 없으면 null
+     */
+    public static AdminPiiAccessLog of(AdminAccount admin, com.ember.ember.user.domain.User targetUser,
+                                        String accessType, String ipAddress) {
+        AdminPiiAccessLog log = new AdminPiiAccessLog();
+        log.admin = admin;
+        log.targetUser = targetUser;
+        log.accessType = accessType;
+        log.ipAddress = ipAddress;
+        log.accessedAt = java.time.LocalDateTime.now();
+        return log;
+    }
 }
