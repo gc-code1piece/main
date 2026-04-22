@@ -149,7 +149,11 @@ public enum ErrorCode {
     // ── 회원 제재 (API §3.3~3.5) ──
     ADM_USER_NOT_SANCTIONED("ADM015", HttpStatus.BAD_REQUEST, "제재 상태가 아닌 회원입니다."),
     ADM_BANNED_RELEASE_FORBIDDEN("ADM016", HttpStatus.FORBIDDEN, "영구 정지 해제는 SUPER_ADMIN 권한이 필요합니다."),
-    ADM_SANCTION_CONFLICT("ADM017", HttpStatus.CONFLICT, "제재 처리 중 충돌이 발생했습니다. 잠시 후 다시 시도해 주세요.");
+    ADM_SANCTION_CONFLICT("ADM017", HttpStatus.CONFLICT, "제재 처리 중 충돌이 발생했습니다. 잠시 후 다시 시도해 주세요."),
+
+    // §4 의심 계정 관리
+    ADM_SUSPICIOUS_ACCOUNT_NOT_FOUND("ADM018", HttpStatus.NOT_FOUND, "존재하지 않는 의심 계정 항목입니다."),
+    ADM_INVALID_STATUS_TRANSITION("ADM019", HttpStatus.BAD_REQUEST, "허용되지 않은 상태 전이입니다.");
 
     private final String code;
     private final HttpStatus status;

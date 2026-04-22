@@ -85,6 +85,30 @@ public class AdminMemberController {
         return ResponseEntity.ok(ApiResponse.success());
     }
 
+    /** §3.6 회원별 일기 목록 */
+    @GetMapping("/{userId}/diaries")
+    @Operation(summary = "회원별 일기 목록 조회",
+            description = "특정 회원의 일기 목록을 최신순 페이징 조회. 본문은 200자 이내 프리뷰로 축약해 반환.")
+    public ResponseEntity<ApiResponse<Page<AdminMemberDiaryListItemResponse>>> diaries(
+            @PathVariable Long userId,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(adminMemberService.getDiaryList(userId, pageable)));
+    }
+
+    /** §3.8 활동 타임라인 (이상 패턴 하이라이트 포함) */
+    @GetMapping("/{userId}/activity-timeline")
+    @Operation(summary = "회원 활동 타임라인 조회",
+            description = "user_activity_events 기반 최신순 타임라인. period(일수, 기본 90)와 eventType(선택)으로 필터링. "
+                    + "이상 패턴(1h 신고 3↑ / 24h 매칭 10↑ / 30s 일기 반복)이 자동 하이라이트된다.")
+    public ResponseEntity<ApiResponse<Page<AdminActivityTimelineItemResponse>>> activityTimeline(
+            @PathVariable Long userId,
+            @RequestParam(defaultValue = "90") int period,
+            @RequestParam(required = false) String eventType,
+            @PageableDefault(size = 50) Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(
+                adminMemberService.getActivityTimeline(userId, period, eventType, pageable)));
+    }
+
     /** §3.7 제재 이력 */
     @GetMapping("/{userId}/sanctions")
     @Operation(summary = "회원 제재 이력 조회",
