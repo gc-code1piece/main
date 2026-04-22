@@ -138,7 +138,9 @@ public enum ErrorCode {
     ADM_REANALYSIS_IN_PROGRESS("ADM007", HttpStatus.BAD_REQUEST, "재분석 요청이 이미 진행 중입니다."),
     ADM_TOPIC_NOT_FOUND("ADM008", HttpStatus.NOT_FOUND, "존재하지 않는 주간 주제입니다."),
     ADM_TERMS_NOT_FOUND("ADM009", HttpStatus.NOT_FOUND, "존재하지 않는 약관입니다."),
-    ADM_LAST_SUPER_ADMIN("ADM010", HttpStatus.BAD_REQUEST, "마지막 SUPER_ADMIN은 삭제할 수 없습니다.");
+    ADM_LAST_SUPER_ADMIN("ADM010", HttpStatus.BAD_REQUEST, "마지막 SUPER_ADMIN은 삭제할 수 없습니다."),
+    ADM_AUDIT_LOG_FAILED("ADM011", HttpStatus.INTERNAL_SERVER_ERROR, "감사 로그 저장에 실패했습니다."),
+    ADM_PII_LOG_FAILED("ADM012", HttpStatus.INTERNAL_SERVER_ERROR, "PII 접근 로그 저장에 실패했습니다.");
 
     private final String code;
     private final HttpStatus status;
