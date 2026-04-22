@@ -96,6 +96,10 @@ const navItems: NavItem[] = [
     subItems: [
       { title: 'AI 성능 현황', href: '/admin/ai' },
       { title: 'AI 동의 통계', href: '/admin/ai/consent-stats' },
+      { title: 'MQ / DLQ', href: '/admin/ai/mq' },
+      { title: 'OutboxRelay', href: '/admin/ai/outbox' },
+      { title: 'Redis 캐시', href: '/admin/ai/redis' },
+      { title: '분석 상태 분포', href: '/admin/ai/analysis' },
       { title: 'A/B 테스트', href: '/admin/ai/ab-test' },
     ],
   },
