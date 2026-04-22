@@ -39,6 +39,8 @@ dependencies {
 
     // Swagger (SpringDoc)
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.0")
+    // Springdoc 2.x가 OpenAPI 스키마 생성 시 Kotlin reflection을 요구 (/v3/api-docs 500 방지)
+    implementation("org.jetbrains.kotlin:kotlin-reflect")
 
     // JWT
     implementation("io.jsonwebtoken:jjwt-api:0.12.3")
