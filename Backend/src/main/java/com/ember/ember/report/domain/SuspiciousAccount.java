@@ -54,4 +54,43 @@ public class SuspiciousAccount extends BaseEntity {
     public enum ReviewStatus {
         PENDING, INVESTIGATING, CONFIRMED, CLEARED
     }
+
+    /**
+     * 검토 상태 전이 규칙 — 관리자 API §4.4 [Backend].
+     *   PENDING → INVESTIGATING / CONFIRMED / CLEARED
+     *   INVESTIGATING → CONFIRMED / CLEARED
+     *   CONFIRMED / CLEARED → (종착)
+     */
+    public boolean canTransitionTo(ReviewStatus next) {
+        if (next == null || next == this.status) return false;
+        return switch (this.status) {
+            case PENDING -> next == ReviewStatus.INVESTIGATING
+                    || next == ReviewStatus.CONFIRMED
+                    || next == ReviewStatus.CLEARED;
+            case INVESTIGATING -> next == ReviewStatus.CONFIRMED
+                    || next == ReviewStatus.CLEARED;
+            case CONFIRMED, CLEARED -> false;
+        };
+    }
+
+    /**
+     * 의심 계정 상태 변경 — §4.4.
+     * 호출 전 {@link #canTransitionTo(ReviewStatus)} 로 전이 가능 여부를 검증해야 한다.
+     */
+    public void changeStatus(ReviewStatus next, AdminAccount reviewer, String reviewNote, LocalDateTime now) {
+        this.status = next;
+        this.reviewedBy = reviewer;
+        this.reviewedAt = now;
+        this.reviewNote = reviewNote;
+    }
+
+    /**
+     * 오탐 처리 — §4.3. status=CLEARED 로 고정.
+     */
+    public void markFalsePositive(AdminAccount reviewer, String reviewNote, LocalDateTime now) {
+        this.status = ReviewStatus.CLEARED;
+        this.reviewedBy = reviewer;
+        this.reviewedAt = now;
+        this.reviewNote = reviewNote;
+    }
 }
