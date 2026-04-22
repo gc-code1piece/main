@@ -1,10 +1,14 @@
 package com.ember.ember.global.moderation.repository;
 
 import com.ember.ember.global.moderation.domain.UrlWhitelist;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * URL 화이트리스트 JPA Repository.
@@ -18,4 +22,17 @@ public interface UrlWhitelistRepository extends JpaRepository<UrlWhitelist, Long
      */
     @Query("SELECT u FROM UrlWhitelist u WHERE u.isActive = true")
     List<UrlWhitelist> findAllActive();
+
+    /** domain 유니크 중복 체크 용. */
+    Optional<UrlWhitelist> findByDomain(String domain);
+
+    /** 관리자 CRUD 페이징 검색 — 활성/도메인 키워드 필터. */
+    @Query("""
+            SELECT u FROM UrlWhitelist u
+            WHERE (:isActive IS NULL OR u.isActive = :isActive)
+              AND (:q IS NULL OR LOWER(u.domain) LIKE LOWER(CONCAT('%', :q, '%')))
+            """)
+    Page<UrlWhitelist> search(@Param("isActive") Boolean isActive,
+                              @Param("q") String q,
+                              Pageable pageable);
 }

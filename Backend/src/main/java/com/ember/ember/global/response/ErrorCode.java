@@ -140,7 +140,11 @@ public enum ErrorCode {
     ADM_TERMS_NOT_FOUND("ADM009", HttpStatus.NOT_FOUND, "존재하지 않는 약관입니다."),
     ADM_LAST_SUPER_ADMIN("ADM010", HttpStatus.BAD_REQUEST, "마지막 SUPER_ADMIN은 삭제할 수 없습니다."),
     ADM_AUDIT_LOG_FAILED("ADM011", HttpStatus.INTERNAL_SERVER_ERROR, "감사 로그 저장에 실패했습니다."),
-    ADM_PII_LOG_FAILED("ADM012", HttpStatus.INTERNAL_SERVER_ERROR, "PII 접근 로그 저장에 실패했습니다.");
+    ADM_PII_LOG_FAILED("ADM012", HttpStatus.INTERNAL_SERVER_ERROR, "PII 접근 로그 저장에 실패했습니다."),
+
+    // ── 모더레이션 CRUD (Phase 3B §9.6) ──
+    ADM_BANNED_WORD_NOT_FOUND("ADM013", HttpStatus.NOT_FOUND, "존재하지 않는 금칙어입니다."),
+    ADM_URL_WHITELIST_NOT_FOUND("ADM014", HttpStatus.NOT_FOUND, "존재하지 않는 허용 도메인입니다.");
 
     private final String code;
     private final HttpStatus status;

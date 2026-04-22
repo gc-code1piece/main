@@ -46,4 +46,29 @@ public class BannedWord extends BaseEntity {
     public enum MatchMode {
         EXACT, PARTIAL
     }
+
+    /** 신규 금칙어 팩토리 — 관리자 CRUD 서비스에서 사용. */
+    public static BannedWord create(String word, BannedWordCategory category, MatchMode matchMode,
+                                    Boolean isActive, AdminAccount createdBy) {
+        BannedWord entity = new BannedWord();
+        entity.word = word;
+        entity.category = category;
+        entity.matchMode = matchMode == null ? MatchMode.PARTIAL : matchMode;
+        entity.isActive = isActive == null ? Boolean.TRUE : isActive;
+        entity.createdBy = createdBy;
+        return entity;
+    }
+
+    /** 필드 부분 수정 — null 전달 시 해당 필드 유지. */
+    public void update(String word, BannedWordCategory category, MatchMode matchMode, Boolean isActive) {
+        if (word != null && !word.isBlank()) this.word = word;
+        if (category != null) this.category = category;
+        if (matchMode != null) this.matchMode = matchMode;
+        if (isActive != null) this.isActive = isActive;
+    }
+
+    /** 비활성화 (soft-delete 용도). */
+    public void deactivate() {
+        this.isActive = false;
+    }
 }

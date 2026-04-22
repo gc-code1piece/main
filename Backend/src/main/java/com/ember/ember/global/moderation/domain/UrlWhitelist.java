@@ -24,4 +24,23 @@ public class UrlWhitelist extends BaseEntity {
 
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
+
+    /** 신규 허용 도메인 팩토리 — 관리자 CRUD 서비스에서 사용. */
+    public static UrlWhitelist create(String domain, Boolean isActive) {
+        UrlWhitelist entity = new UrlWhitelist();
+        entity.domain = domain;
+        entity.isActive = isActive == null ? Boolean.TRUE : isActive;
+        return entity;
+    }
+
+    /** 필드 부분 수정 — null 전달 시 해당 필드 유지. */
+    public void update(String domain, Boolean isActive) {
+        if (domain != null && !domain.isBlank()) this.domain = domain;
+        if (isActive != null) this.isActive = isActive;
+    }
+
+    /** 비활성화 (soft-delete 용도). */
+    public void deactivate() {
+        this.isActive = false;
+    }
 }

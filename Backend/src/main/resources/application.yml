@@ -79,6 +79,16 @@ app:
     secret: ${JWT_SECRET:ember-local-dev-jwt-secret-key-must-be-at-least-256-bits-long}
     access-expiration: 1800000
     refresh-expiration: 604800000
+  # AI 모니터링 대시보드 외부 시스템 접속 (Phase 3B)
+  monitoring:
+    prometheus:
+      url: ${PROMETHEUS_URL:http://prometheus:9090}
+      timeout: 3s
+    rabbit-mgmt:
+      url: ${RABBITMQ_MGMT_URL:http://rabbitmq:15672}
+      username: ${RABBITMQ_MGMT_USER:guest}
+      password: ${RABBITMQ_MGMT_PASSWORD:guest}
+      timeout: 3s
 
 ---
 # 로컬 개발 환경 (로컬 PostgreSQL + Swagger)
@@ -114,6 +124,13 @@ app:
       - http://localhost:3000
       - http://localhost:8080
       - http://10.0.2.2:8080
+  monitoring:
+    prometheus:
+      url: http://localhost:9090
+    rabbit-mgmt:
+      url: http://localhost:15672
+      username: guest
+      password: guest
 
 ai:
   service:

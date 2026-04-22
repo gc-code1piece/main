@@ -86,4 +86,19 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
             @Param("userId") Long userId,
             @Param("excludeUserIds") List<Long> excludeUserIds,
             Pageable pageable);
+
+    // ── AI 모니터링 대시보드용 쿼리 (Phase 3B §12) ───────────────────────────────
+
+    /** 전체 사용자 기준 analysisStatus별 일기 건수 집계. */
+    @Query("SELECT COUNT(d) FROM Diary d WHERE d.analysisStatus = :analysisStatus")
+    long countByAnalysisStatus(@Param("analysisStatus") Diary.AnalysisStatus analysisStatus);
+
+    /** PROCESSING 상태로 오래 머무른 일기(장시간 처리) 목록 — BaseEntity.modifiedAt 기준. */
+    @Query("""
+            SELECT d FROM Diary d
+            WHERE d.analysisStatus = com.ember.ember.diary.domain.Diary.AnalysisStatus.PROCESSING
+              AND d.modifiedAt < :threshold
+            ORDER BY d.modifiedAt ASC
+            """)
+    List<Diary> findLongProcessing(@Param("threshold") java.time.LocalDateTime threshold, Pageable pageable);
 }
