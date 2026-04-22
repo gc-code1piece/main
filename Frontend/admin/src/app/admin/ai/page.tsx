@@ -11,6 +11,12 @@ import { Button } from '@/components/ui/button';
 import KpiCard from '@/components/common/KpiCard';
 import { useAuthStore } from '@/stores/authStore';
 import { monitoringApi } from '@/lib/api/monitoring';
+import {
+  useAiOverview,
+  useReprocessDlq,
+  useRetryOutbox,
+  useForceFailDiary,
+} from '@/hooks/useMonitoring';
 import { Brain, Target, TrendingUp, Activity, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -121,37 +127,53 @@ function GaugeChart({ value, color, label, description }: { value: number; color
 export default function AIMonitoringPage() {
   const { hasPermission } = useAuthStore();
 
+  // 실 API 연동 — 30초 auto-refresh (Phase 3B)
+  const { data: overview } = useAiOverview();
+  const reprocessDlq = useReprocessDlq();
+  const retryOutbox = useRetryOutbox();
+  const forceFailDiary = useForceFailDiary();
+
   // ─── v2.2 파이프라인 버튼 핸들러 ───────────────────────────
 
   // DLQ 재처리 (SUPER_ADMIN 전용)
-  const handleDlqReprocess = async () => {
-    try {
-      await monitoringApi.reprocessDlq('diary-analysis-dlq');
-      toast.success('DLQ 재처리 요청이 전송되었습니다');
-    } catch {
-      toast.success('요청 전송됨 (Mock)');
-    }
+  const handleDlqReprocess = () => {
+    reprocessDlq.mutate('diary-analyze.dlq', {
+      onSuccess: (res) => {
+        const processed = res.data.data?.processedCount ?? 0;
+        toast.success(`DLQ 재처리 완료: ${processed}건`);
+      },
+      onError: () => toast.error('DLQ 재처리 요청에 실패했습니다'),
+    });
   };
 
   // Outbox 재시도 (SUPER_ADMIN 전용)
-  const handleOutboxRetry = async () => {
-    try {
-      await monitoringApi.retryOutbox();
-      toast.success('Outbox 재시도 요청이 전송되었습니다');
-    } catch {
-      toast.success('요청 전송됨 (Mock)');
-    }
+  const handleOutboxRetry = () => {
+    retryOutbox.mutate(undefined, {
+      onSuccess: (res) => {
+        const retried = res.data.data?.retriedCount ?? 0;
+        toast.success(`Outbox 재시도 완료: ${retried}건`);
+      },
+      onError: () => toast.error('Outbox 재시도 요청에 실패했습니다'),
+    });
   };
 
   // 일기 분석 강제 FAILED 전이 (SUPER_ADMIN 전용)
-  const handleForceFailDiary = async () => {
-    try {
-      await monitoringApi.forceFailDiary(123, 'STUCK_TIMEOUT');
-      toast.success('강제 FAILED 전이 요청이 전송되었습니다');
-    } catch {
-      toast.success('요청 전송됨 (Mock)');
-    }
+  const handleForceFailDiary = () => {
+    const diaryId = Number(window.prompt('강제 FAILED 전이할 diaryId를 입력하세요'));
+    if (!diaryId) return;
+    const reason = window.prompt('사유를 입력하세요 (예: STUCK_TIMEOUT)') || 'STUCK_TIMEOUT';
+    forceFailDiary.mutate(
+      { diaryId, reason },
+      {
+        onSuccess: () => toast.success('강제 FAILED 전이 완료'),
+        onError: () => toast.error('강제 FAILED 전이 실패'),
+      },
+    );
   };
+
+  // 포맷 헬퍼
+  const fmtPercent = (v?: number) => (typeof v === 'number' ? `${(v * 100).toFixed(1)}%` : '—');
+  const fmtNum = (v?: number) => (typeof v === 'number' ? v.toLocaleString() : '—');
 
   return (
     <div>
@@ -185,11 +207,10 @@ export default function AIMonitoringPage() {
               </Link>
             </CardHeader>
             <CardContent className="space-y-1">
-              <div className="text-2xl font-bold">87.3%</div>
+              <div className="text-2xl font-bold">{fmtPercent(overview?.consentRate)}</div>
               <p className="text-xs text-muted-foreground">AI 분석 동의율</p>
               <p className="text-xs text-muted-foreground">
-                이번 주 동의 철회{' '}
-                <span className="font-semibold text-destructive">47건</span>
+                30초마다 자동 갱신
               </p>
             </CardContent>
           </Card>
@@ -205,14 +226,16 @@ export default function AIMonitoringPage() {
               )}
             </CardHeader>
             <CardContent className="space-y-1">
-              <div className="text-2xl font-bold">5개 큐</div>
+              <Link href="/admin/ai/mq" className="text-2xl font-bold hover:underline">
+                DLQ {fmtNum(overview?.dlqSize)}
+              </Link>
               <p className="text-xs text-muted-foreground">
-                전체 Pending 합계 조회 중
+                5개 큐 실시간 모니터링
               </p>
               <p className="text-xs">
-                DLQ 누적{' '}
-                <span className="font-semibold text-amber-600">3건</span>{' '}
-                <span className="text-muted-foreground">(주의)</span>
+                <Link href="/admin/ai/mq" className="text-primary underline-offset-2 hover:underline">
+                  큐별 상세 →
+                </Link>
               </p>
             </CardContent>
           </Card>
@@ -231,16 +254,17 @@ export default function AIMonitoringPage() {
               <div className="flex gap-3 text-sm">
                 <span>
                   PENDING{' '}
-                  <span className="font-bold">12</span>
+                  <span className="font-bold">{fmtNum(overview?.outboxPending)}</span>
                 </span>
                 <span>
                   FAILED{' '}
-                  <span className="font-bold text-destructive">2</span>
+                  <span className="font-bold text-destructive">{fmtNum(overview?.outboxFailed)}</span>
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Lag p95{' '}
-                <span className="font-mono-data font-semibold">850ms</span>
+              <p className="text-xs">
+                <Link href="/admin/ai/outbox" className="text-primary underline-offset-2 hover:underline">
+                  Outbox 상세 →
+                </Link>
               </p>
             </CardContent>
           </Card>
@@ -251,11 +275,12 @@ export default function AIMonitoringPage() {
               <CardTitle className="text-sm font-medium">Redis 캐시 건강도</CardTitle>
             </CardHeader>
             <CardContent className="space-y-1">
-              <div className="text-2xl font-bold text-success">94.2%</div>
+              <div className="text-2xl font-bold text-success">{fmtPercent(overview?.redisHitRatio)}</div>
               <p className="text-xs text-muted-foreground">Hit Ratio</p>
-              <p className="text-xs text-muted-foreground">
-                메모리 사용{' '}
-                <span className="font-mono-data font-semibold">128 MB</span>
+              <p className="text-xs">
+                <Link href="/admin/ai/redis" className="text-primary underline-offset-2 hover:underline">
+                  캐시 패턴 상세 →
+                </Link>
               </p>
             </CardContent>
           </Card>
@@ -274,19 +299,17 @@ export default function AIMonitoringPage() {
               <div className="flex gap-3 text-sm">
                 <span>
                   처리중{' '}
-                  <span className="font-bold">8</span>
-                </span>
-                <span>
-                  완료{' '}
-                  <span className="font-bold text-success">1,234</span>
+                  <span className="font-bold">{fmtNum(overview?.analysisProcessing)}</span>
                 </span>
                 <span>
                   실패{' '}
-                  <span className="font-bold text-destructive">3</span>
+                  <span className="font-bold text-destructive">{fmtNum(overview?.analysisFailed)}</span>
                 </span>
               </div>
-              <p className="text-xs text-amber-600">
-                ⚠ 장시간 처리 1건 감지 (12분 경과)
+              <p className="text-xs">
+                <Link href="/admin/ai/analysis" className="text-primary underline-offset-2 hover:underline">
+                  분석 상태 상세 →
+                </Link>
               </p>
             </CardContent>
           </Card>
