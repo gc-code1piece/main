@@ -39,6 +39,7 @@ import { Separator } from '@/components/ui/separator';
 interface SubNavItem {
   title: string;
   href: string;
+  requiredRole?: 'VIEWER' | 'ADMIN' | 'SUPER_ADMIN';
 }
 
 interface NavItem {
@@ -81,10 +82,11 @@ const navItems: NavItem[] = [
       { title: '랜덤 주제 관리', href: '/admin/content/topics' },
       { title: '큐레이션 관리', href: '/admin/content/curations' },
       { title: '약관 관리', href: '/admin/content/terms' },
+      { title: '약관 변경 이력', href: '/admin/content/terms/history', requiredRole: 'SUPER_ADMIN' },
       { title: '공지사항 관리', href: '/admin/content/notices' },
       { title: '금칙어 관리', href: '/admin/content/banned-words' },
-      { title: '튜토리얼 관리', href: '/admin/content/tutorials' },
-      { title: '예제 일기 관리', href: '/admin/content/example-diaries' },
+      { title: '교환일기 가이드 관리', href: '/admin/content/exchange-guide' },
+      { title: '예제 일기 관리', href: '/admin/content/examples' },
     ],
   },
   {
@@ -93,6 +95,7 @@ const navItems: NavItem[] = [
     icon: Brain,
     subItems: [
       { title: 'AI 성능 현황', href: '/admin/ai' },
+      { title: 'AI 동의 통계', href: '/admin/ai/consent-stats' },
       { title: 'A/B 테스트', href: '/admin/ai/ab-test' },
     ],
   },
@@ -125,6 +128,7 @@ const navItems: NavItem[] = [
       { title: '시스템 현황', href: '/admin/system' },
       { title: '관리자 계정', href: '/admin/system/accounts' },
       { title: '활동 로그', href: '/admin/system/logs' },
+      { title: 'PII 접근 로그', href: '/admin/system/pii-logs', requiredRole: 'SUPER_ADMIN' },
       { title: '기능 플래그', href: '/admin/system/feature-flags' },
       { title: '배치 스케줄', href: '/admin/system/batch' },
     ],
@@ -234,6 +238,10 @@ export default function Sidebar() {
                   {expanded && (
                     <div className="ml-5 mt-1 space-y-0.5 border-l border-border pl-3">
                       {item.subItems!.map((subItem) => {
+                        // subItem 수준 권한 필터링
+                        if (subItem.requiredRole && !hasPermission(subItem.requiredRole)) {
+                          return null;
+                        }
                         const isSubActive = pathname === subItem.href;
                         return (
                           <Link
