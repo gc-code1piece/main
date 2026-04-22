@@ -43,4 +43,28 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, Long> 
      */
     @Query("SELECT MIN(e.createdAt) FROM OutboxEvent e WHERE e.status = :status")
     Optional<LocalDateTime> findOldestCreatedAtByStatus(@Param("status") OutboxStatus status);
+
+    // ── AI 모니터링 대시보드용 쿼리 (Phase 3B §12) ───────────────────────────────
+
+    /** 상태별 건수 집계 (PENDING / FAILED 등). */
+    long countByStatus(OutboxStatus status);
+
+    /** FAILED 이벤트 샘플 (최근 N건, 진단용). */
+    @Query("""
+            SELECT e FROM OutboxEvent e
+            WHERE e.status = :status
+            ORDER BY e.createdAt DESC
+            """)
+    List<OutboxEvent> findFailedSample(@Param("status") OutboxStatus status,
+                                       org.springframework.data.domain.Pageable pageable);
+
+    /** PENDING 이벤트의 FAILED 상태로 일괄 리셋 (재시도 트리거) — 영향 행 수 반환. */
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("""
+            UPDATE OutboxEvent e SET e.status = com.ember.ember.messaging.outbox.entity.OutboxEvent.OutboxStatus.PENDING,
+                   e.retryCount = 0
+            WHERE e.status = com.ember.ember.messaging.outbox.entity.OutboxEvent.OutboxStatus.FAILED
+              AND (:eventIds IS NULL OR e.id IN :eventIds)
+            """)
+    int resetFailedToPending(@Param("eventIds") List<Long> eventIds);
 }
