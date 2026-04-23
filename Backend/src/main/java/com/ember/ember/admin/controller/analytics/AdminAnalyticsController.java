@@ -2,10 +2,17 @@ package com.ember.ember.admin.controller.analytics;
 
 import com.ember.ember.admin.annotation.AdminOnly;
 import com.ember.ember.admin.dto.analytics.AiPerformanceResponse;
+import com.ember.ember.admin.dto.analytics.DiaryEmotionTrendResponse;
+import com.ember.ember.admin.dto.analytics.DiaryLengthQualityResponse;
+import com.ember.ember.admin.dto.analytics.DiaryTimeHeatmapResponse;
+import com.ember.ember.admin.dto.analytics.DiaryTopicParticipationResponse;
+import com.ember.ember.admin.dto.analytics.ExchangeResponseRateResponse;
+import com.ember.ember.admin.dto.analytics.ExchangeTurnFunnelResponse;
 import com.ember.ember.admin.dto.analytics.JourneyDurationResponse;
 import com.ember.ember.admin.dto.analytics.KeywordTopResponse;
 import com.ember.ember.admin.dto.analytics.MatchingDiversityResponse;
 import com.ember.ember.admin.dto.analytics.MatchingFunnelResponse;
+import com.ember.ember.admin.dto.analytics.RetentionSurvivalResponse;
 import com.ember.ember.admin.dto.analytics.SegmentOverviewResponse;
 import com.ember.ember.admin.dto.analytics.UserFunnelResponse;
 import com.ember.ember.admin.service.analytics.AdminAnalyticsService;
@@ -36,6 +43,13 @@ import java.util.List;
  *   - §3.5 여정 소요시간 (getJourneyDurations)      — B-1.5
  *   - §3.6 AI 성능 (getAiPerformance)               — B-1.6
  *   - §3.7 매칭 다양성 (getMatchingDiversity)       — B-1.7
+ *   - §3.8 일기 시간 히트맵 (getDiaryTimeHeatmap)    — B-2.1
+ *   - §3.9 일기 길이·품질 (getDiaryLengthQuality)     — B-2.2
+ *   - §3.10 감정 태그 추이 (getDiaryEmotionTrends)    — B-2.3
+ *   - §3.11 주제 참여 (getDiaryTopicParticipation)   — B-2.4
+ *   - §3.12 교환일기 응답률 (getExchangeResponseRate) — B-2.5
+ *   - §3.13 턴→채팅 퍼널 (getExchangeTurnFunnel)     — B-2.6
+ *   - §3.14 이탈 생존분석 (getRetentionSurvival)       — B-2.7 (Kaplan-Meier)
  *
  * 근거 문서:
  *   - docs/md/architecture/analytics/Ember_분석API_데이터설계서_v0.1.md §3.1~§3.2
@@ -195,5 +209,146 @@ public class AdminAnalyticsController {
 
         return ResponseEntity.ok(ApiResponse.success(
                 adminAnalyticsService.getMatchingDiversity(start, end)));
+    }
+
+    // ------------------------------------------------------------------------
+    // §3.8 일기 시간 히트맵 — B-2.1
+    // ------------------------------------------------------------------------
+    @GetMapping("/diary/time-heatmap")
+    @Operation(summary = "일기 작성 시간 히트맵",
+            description = "요일(0=일)×시간(0~23) 24×7 히트맵. KST 기준. 설계서 §3.8.")
+    public ResponseEntity<ApiResponse<DiaryTimeHeatmapResponse>> getDiaryTimeHeatmap(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+
+        LocalDate end = endDate != null ? endDate : LocalDate.now();
+        LocalDate start = startDate != null ? startDate : end.minusDays(29);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                adminAnalyticsService.getDiaryTimeHeatmap(start, end)));
+    }
+
+    // ------------------------------------------------------------------------
+    // §3.9 일기 길이·품질 — B-2.2
+    // ------------------------------------------------------------------------
+    @GetMapping("/diary/length-quality")
+    @Operation(summary = "일기 길이·품질 분포",
+            description = "문자수 p50/p90/p99 + 5구간 히스토그램 + AI 분석 성공률. 설계서 §3.9.")
+    public ResponseEntity<ApiResponse<DiaryLengthQualityResponse>> getDiaryLengthQuality(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+
+        LocalDate end = endDate != null ? endDate : LocalDate.now();
+        LocalDate start = startDate != null ? startDate : end.minusDays(29);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                adminAnalyticsService.getDiaryLengthQuality(start, end)));
+    }
+
+    // ------------------------------------------------------------------------
+    // §3.10 감정 태그 추이 시계열 — B-2.3
+    // ------------------------------------------------------------------------
+    @GetMapping("/diary/emotion-trends")
+    @Operation(summary = "감정 태그 추이 시계열",
+            description = "diary_keywords(tag_type=EMOTION) 기반 일자/주 단위 TopN 감정 추이. "
+                    + "bucket=day|week. 설계서 §3.10.")
+    public ResponseEntity<ApiResponse<DiaryEmotionTrendResponse>> getDiaryEmotionTrends(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false, defaultValue = "day") String bucket,
+            @RequestParam(required = false, defaultValue = "5") int topN) {
+
+        LocalDate end = endDate != null ? endDate : LocalDate.now();
+        LocalDate start = startDate != null ? startDate : end.minusDays(29);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                adminAnalyticsService.getDiaryEmotionTrends(start, end, bucket, topN)));
+    }
+
+    // ------------------------------------------------------------------------
+    // §3.11 주제(카테고리) 참여도 — B-2.4
+    // ------------------------------------------------------------------------
+    @GetMapping("/diary/topic-participation")
+    @Operation(summary = "주제(카테고리) 참여도 분포",
+            description = "diaries.category 기준 일기 수·distinct 사용자·점유율. 설계서 §3.11.")
+    public ResponseEntity<ApiResponse<DiaryTopicParticipationResponse>> getDiaryTopicParticipation(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+
+        LocalDate end = endDate != null ? endDate : LocalDate.now();
+        LocalDate start = startDate != null ? startDate : end.minusDays(29);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                adminAnalyticsService.getDiaryTopicParticipation(start, end)));
+    }
+
+    // ------------------------------------------------------------------------
+    // §3.12 교환일기 응답률 — B-2.5
+    // ------------------------------------------------------------------------
+    @GetMapping("/exchange/response-rate")
+    @Operation(summary = "교환일기 응답률·지연시간",
+            description = "턴1 제출 후 windowHours 이내 턴2 응답 비율 + 전체 턴별 지연시간 p50/p90. "
+                    + "windowHours 기본 48h. 설계서 §3.12.")
+    public ResponseEntity<ApiResponse<ExchangeResponseRateResponse>> getExchangeResponseRate(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false, defaultValue = "48") int windowHours) {
+
+        LocalDate end = endDate != null ? endDate : LocalDate.now();
+        LocalDate start = startDate != null ? startDate : end.minusDays(29);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                adminAnalyticsService.getExchangeResponseRate(start, end, windowHours)));
+    }
+
+    // ------------------------------------------------------------------------
+    // §3.13 교환일기 턴→채팅 퍼널 — B-2.6
+    // ------------------------------------------------------------------------
+    @GetMapping("/exchange/turn-funnel")
+    @Operation(summary = "교환일기 턴→채팅 전환 퍼널",
+            description = "ROOM_CREATED→TURN_1~4→CHAT_CONNECTED 6단 퍼널. worstStage 자동 계산. 설계서 §3.13.")
+    public ResponseEntity<ApiResponse<ExchangeTurnFunnelResponse>> getExchangeTurnFunnel(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+
+        LocalDate end = endDate != null ? endDate : LocalDate.now();
+        LocalDate start = startDate != null ? startDate : end.minusDays(29);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                adminAnalyticsService.getExchangeTurnFunnel(start, end)));
+    }
+
+    // ------------------------------------------------------------------------
+    // §3.14 사용자 이탈 생존분석 Kaplan-Meier — B-2.7
+    // ------------------------------------------------------------------------
+    @GetMapping("/users/retention-survival")
+    @Operation(summary = "Kaplan-Meier 사용자 이탈 생존분석",
+            description = "가입일 기준 이탈 시점 추정 + Greenwood 분산 + 95% CI. "
+                    + "이벤트 정의: deactivated_at 또는 last_login_at < NOW - inactivityDays. "
+                    + "inactivityDays 기본 30일 (7~180 범위). 설계서 §3.14.")
+    public ResponseEntity<ApiResponse<RetentionSurvivalResponse>> getRetentionSurvival(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false, defaultValue = "30") int inactivityDays) {
+
+        LocalDate end = endDate != null ? endDate : LocalDate.now();
+        LocalDate start = startDate != null ? startDate : end.minusDays(89);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                adminAnalyticsService.getRetentionSurvival(start, end, inactivityDays)));
     }
 }
