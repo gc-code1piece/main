@@ -18,7 +18,11 @@ export function useReportDetail(id: number) {
   });
 }
 
-// 9.2 신고 처리 (resolve / dismiss 분리 — API 통합명세서 v2.0 §5)
+/**
+ * 신고 처리 (resolve / dismiss) — 관리자 API v2.1 §5.4 / §5.5 (Phase A-3 BE).
+ * - dismiss: { reason }
+ * - resolve: { action, note }  ← action: WARNING / SUSPEND_7D / SUSPEND_PERMANENT
+ */
 export function useProcessReport() {
   const queryClient = useQueryClient();
 
@@ -32,12 +36,15 @@ export function useProcessReport() {
       id: number;
       result: 'RESOLVED' | 'DISMISSED';
       adminMemo: string;
-      sanctionType?: 'NONE' | 'WARNING' | 'SUSPEND_7D' | 'BANNED';
+      sanctionType?: 'NONE' | 'WARNING' | 'SUSPEND_7D' | 'SUSPEND_PERMANENT';
     }) => {
       if (result === 'DISMISSED') {
-        return reportsApi.dismiss(id, { adminMemo });
+        return reportsApi.dismiss(id, { reason: adminMemo });
       }
-      return reportsApi.resolve(id, { adminMemo, sanctionType });
+      // sanctionType=NONE → 기본 경고만 (BE: WARNING)
+      const action: 'WARNING' | 'SUSPEND_7D' | 'SUSPEND_PERMANENT' =
+        sanctionType === undefined || sanctionType === 'NONE' ? 'WARNING' : sanctionType;
+      return reportsApi.resolve(id, { action, note: adminMemo });
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['reports'] });
