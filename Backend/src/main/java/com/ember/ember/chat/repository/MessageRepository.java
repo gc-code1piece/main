@@ -35,4 +35,15 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     @Query("UPDATE Message m SET m.isRead = true, m.readAt = CURRENT_TIMESTAMP " +
            "WHERE m.chatRoom.id = :roomId AND m.sender.id != :userId AND m.isRead = false")
     int markAllRead(@Param("roomId") Long roomId, @Param("userId") Long userId);
+
+    /** 여러 채팅방의 미읽음 수 한 번에 조회 (N+1 방지) */
+    @Query("SELECT m.chatRoom.id, COUNT(m) FROM Message m " +
+           "WHERE m.chatRoom.id IN :roomIds AND m.sender.id != :userId AND m.isRead = false " +
+           "GROUP BY m.chatRoom.id")
+    List<Object[]> countUnreadByRoomIds(@Param("roomIds") List<Long> roomIds, @Param("userId") Long userId);
+
+    /** 여러 채팅방의 마지막 메시지 한 번에 조회 (N+1 방지) */
+    @Query("SELECT m FROM Message m WHERE m.id IN " +
+           "(SELECT MAX(m2.id) FROM Message m2 WHERE m2.chatRoom.id IN :roomIds GROUP BY m2.chatRoom.id)")
+    List<Message> findLastMessageByRoomIds(@Param("roomIds") List<Long> roomIds);
 }

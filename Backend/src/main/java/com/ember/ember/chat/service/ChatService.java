@@ -29,7 +29,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * 채팅 서비스 (도메인 7)
@@ -99,27 +101,37 @@ public class ChatService {
                 .build();
     }
 
-    /** 6.2 채팅방 목록 조회 */
+    /** 6.2 채팅방 목록 조회 (배치 쿼리로 N+1 방지) */
     @Transactional(readOnly = true)
     public ChatRoomListResponse getChatRooms(Long userId) {
         List<ChatRoom> rooms = chatRoomRepository.findByParticipant(userId);
+        if (rooms.isEmpty()) {
+            return ChatRoomListResponse.builder().chatRooms(List.of()).build();
+        }
+
+        List<Long> roomIds = rooms.stream().map(ChatRoom::getId).toList();
+
+        // 미읽음 수 배치 조회 (N번 COUNT → 1번 GROUP BY)
+        Map<Long, Long> unreadMap = messageRepository.countUnreadByRoomIds(roomIds, userId)
+                .stream().collect(Collectors.toMap(
+                        row -> (Long) row[0], row -> (Long) row[1]));
+
+        // 마지막 메시지 배치 조회 (N번 SELECT → 1번 서브쿼리)
+        Map<Long, Message> lastMsgMap = messageRepository.findLastMessageByRoomIds(roomIds)
+                .stream().collect(Collectors.toMap(
+                        msg -> msg.getChatRoom().getId(), msg -> msg));
 
         List<ChatRoomListResponse.ChatRoomItem> items = rooms.stream().map(room -> {
             User partner = room.getPartner(userId);
-            long unreadCount = messageRepository.countUnread(room.getId(), userId);
-            List<Message> lastMsgList = messageRepository.findLastMessage(
-                    room.getId(), PageRequest.of(0, 1));
-
-            String lastMessage = lastMsgList.isEmpty() ? null : lastMsgList.get(0).getContent();
-            String lastMessageAt = lastMsgList.isEmpty() ? null :
-                    lastMsgList.get(0).getCreatedAt().format(ISO);
+            long unreadCount = unreadMap.getOrDefault(room.getId(), 0L);
+            Message lastMsg = lastMsgMap.get(room.getId());
 
             return ChatRoomListResponse.ChatRoomItem.builder()
                     .chatRoomId(room.getId())
                     .roomUuid(room.getRoomUuid().toString())
                     .partnerNickname(partner.getNickname())
-                    .lastMessage(lastMessage)
-                    .lastMessageAt(lastMessageAt)
+                    .lastMessage(lastMsg != null ? lastMsg.getContent() : null)
+                    .lastMessageAt(lastMsg != null ? lastMsg.getCreatedAt().format(ISO) : null)
                     .unreadCount(unreadCount)
                     .status(room.getStatus().name())
                     .build();

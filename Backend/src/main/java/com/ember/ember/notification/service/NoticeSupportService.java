@@ -1,5 +1,6 @@
 package com.ember.ember.notification.service;
 
+import com.ember.ember.cache.service.CacheService;
 import com.ember.ember.global.exception.BusinessException;
 import com.ember.ember.global.response.ErrorCode;
 import com.ember.ember.notification.domain.*;
@@ -7,11 +8,14 @@ import com.ember.ember.notification.dto.*;
 import com.ember.ember.notification.repository.*;
 import com.ember.ember.user.domain.User;
 import com.ember.ember.user.repository.UserRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -22,18 +26,24 @@ import java.util.List;
 public class NoticeSupportService {
 
     private static final int MAX_OPEN_INQUIRIES = 5;
+    private static final Duration CACHE_TTL_1H = Duration.ofHours(1);
 
     private final NoticeRepository noticeRepository;
     private final BannerRepository bannerRepository;
     private final FaqRepository faqRepository;
     private final InquiryRepository inquiryRepository;
     private final UserRepository userRepository;
+    private final CacheService cacheService;
 
-    /** 공지사항 목록 조회 */
+    /** 공지사항 목록 조회 (1시간 캐시) */
+    @SuppressWarnings("unchecked")
     public List<NoticeResponse> getNotices() {
-        return noticeRepository.findPublished().stream()
-                .map(NoticeResponse::from)
-                .toList();
+        return (List<NoticeResponse>) cacheService.getOrLoad(
+                "NOTICE:ALL", CACHE_TTL_1H,
+                () -> noticeRepository.findPublished().stream()
+                        .map(NoticeResponse::from)
+                        .toList(),
+                Object.class);
     }
 
     /** 공지사항 상세 조회 */
@@ -43,11 +53,15 @@ public class NoticeSupportService {
         return NoticeDetailResponse.from(notice);
     }
 
-    /** 활성 배너 조회 (최대 5개) */
+    /** 활성 배너 조회 (최대 5개, 1시간 캐시) */
+    @SuppressWarnings("unchecked")
     public List<BannerResponse> getActiveBanners() {
-        return bannerRepository.findActiveBanners(LocalDateTime.now()).stream()
-                .map(BannerResponse::from)
-                .toList();
+        return (List<BannerResponse>) cacheService.getOrLoad(
+                "BANNER:ALL", CACHE_TTL_1H,
+                () -> bannerRepository.findActiveBanners(LocalDateTime.now()).stream()
+                        .map(BannerResponse::from)
+                        .toList(),
+                Object.class);
     }
 
     /** 미읽음 ���지 수 조회 */
@@ -55,11 +69,15 @@ public class NoticeSupportService {
         return noticeRepository.countUnreadByUserId(userId);
     }
 
-    /** FAQ 목록 조회 */
+    /** FAQ 목록 조회 (1시간 캐시) */
+    @SuppressWarnings("unchecked")
     public List<FaqResponse> getFaqs() {
-        return faqRepository.findByIsActiveTrueAndDeletedAtIsNullOrderBySortOrder().stream()
-                .map(FaqResponse::from)
-                .toList();
+        return (List<FaqResponse>) cacheService.getOrLoad(
+                "FAQ:ALL", CACHE_TTL_1H,
+                () -> faqRepository.findByIsActiveTrueAndDeletedAtIsNullOrderBySortOrder().stream()
+                        .map(FaqResponse::from)
+                        .toList(),
+                Object.class);
     }
 
     /** 1:1 문의 접수 */

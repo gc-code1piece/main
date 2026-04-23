@@ -1,5 +1,6 @@
 package com.ember.ember.diary.service;
 
+import com.ember.ember.cache.service.CacheService;
 import com.ember.ember.content.service.ContentScanResult;
 import com.ember.ember.content.service.ContentScanService;
 import com.ember.ember.diary.domain.*;
@@ -52,6 +53,11 @@ public class DiaryService {
     private final ContentScanService contentScanService;
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
+    private final CacheService cacheService;
+
+    /** AI 분석 결과 Redis 캐시 키 패턴 */
+    private static final String CACHE_KEY_AI_DIARY = "AI:DIARY:%d";
+    private static final java.time.Duration CACHE_TTL_24H = java.time.Duration.ofHours(24);
 
     private static final DateTimeFormatter ISO_KST = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
@@ -225,8 +231,9 @@ public class DiaryService {
                 .editedAt(LocalDateTime.now())
                 .build());
 
-        // AI 키워드 초기화
+        // AI 키워드 초기화 + 캐시 무효화
         diaryKeywordRepository.deleteByDiaryId(diaryId);
+        cacheService.invalidate(String.format(CACHE_KEY_AI_DIARY, diaryId));
 
         // 본문 수정
         diary.updateContent(request.content());
