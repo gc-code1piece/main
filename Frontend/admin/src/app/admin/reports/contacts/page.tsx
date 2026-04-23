@@ -1,14 +1,24 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import PageHeader from '@/components/layout/PageHeader';
 import SearchBar from '@/components/common/SearchBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/utils/format';
-import { RefreshCw, Download, Eye, AlertTriangle, CheckCircle, XCircle, Phone, Mail, MessageCircle, Link as LinkIcon, Shield } from 'lucide-react';
+import {
+  RefreshCw,
+  Eye,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  Phone,
+  Mail,
+  MessageCircle,
+  Link as LinkIcon,
+  Shield,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   BarChart,
@@ -23,143 +33,60 @@ import {
   Cell,
 } from 'recharts';
 
-// Mock 외부 연락처 감지 데이터
-const MOCK_CONTACT_DETECTIONS = [
-  {
-    id: 1,
-    userId: 123,
-    nickname: '수상한사용자',
-    contentType: 'DIARY',
-    contentId: 456,
-    detectedText: '010-1234-5678',
-    patternType: 'PHONE',
-    context: '...연락해줘요 010-1234-5678 으로...',
-    status: 'PENDING',
-    confidence: 98,
-    detectedAt: '2024-03-23T10:30:00',
-    reviewedBy: null,
-    reviewedAt: null,
-  },
-  {
-    id: 2,
-    userId: 456,
-    nickname: '연락처공유자',
-    contentType: 'EXCHANGE_DIARY',
-    contentId: 789,
-    detectedText: 'kakao: friend123',
-    patternType: 'KAKAO',
-    context: '...카톡으로 연락해 kakao: friend123...',
-    status: 'CONFIRMED',
-    confidence: 95,
-    detectedAt: '2024-03-23T09:15:00',
-    reviewedBy: '김관리',
-    reviewedAt: '2024-03-23T09:30:00',
-  },
-  {
-    id: 3,
-    userId: 789,
-    nickname: '인스타유저',
-    contentType: 'CHAT',
-    contentId: 101,
-    detectedText: '@instagram_user',
-    patternType: 'INSTAGRAM',
-    context: '...인스타로 연락주세요 @instagram_user...',
-    status: 'PENDING',
-    confidence: 92,
-    detectedAt: '2024-03-23T08:45:00',
-    reviewedBy: null,
-    reviewedAt: null,
-  },
-  {
-    id: 4,
-    userId: 202,
-    nickname: '이메일공유자',
-    contentType: 'DIARY',
-    contentId: 303,
-    detectedText: 'test@email.com',
-    patternType: 'EMAIL',
-    context: '...이메일로 연락해 test@email.com...',
-    status: 'FALSE_POSITIVE',
-    confidence: 75,
-    detectedAt: '2024-03-22T16:00:00',
-    reviewedBy: '이운영',
-    reviewedAt: '2024-03-22T17:00:00',
-  },
-  {
-    id: 5,
-    userId: 404,
-    nickname: '링크공유자',
-    contentType: 'EXCHANGE_DIARY',
-    contentId: 505,
-    detectedText: 'open.kakao.com/xxx',
-    patternType: 'LINK',
-    context: '...오픈채팅방 open.kakao.com/xxx 에서...',
-    status: 'CONFIRMED',
-    confidence: 99,
-    detectedAt: '2024-03-22T14:30:00',
-    reviewedBy: '김관리',
-    reviewedAt: '2024-03-22T15:00:00',
-  },
-];
+import {
+  contactsApi,
+  type ContactDetection,
+  type ContactPatternType,
+  type ContactStatus,
+  type ContactDetectionStats,
+} from '@/lib/api/contacts';
 
-// Mock 통계 데이터
-const MOCK_PATTERN_STATS = [
-  { type: '전화번호', count: 45 },
-  { type: '카카오톡', count: 32 },
-  { type: '인스타그램', count: 28 },
-  { type: '이메일', count: 15 },
-  { type: '링크', count: 12 },
-];
+// ─────────────────────────────────────────────────────────
+// 관리자 v2.1 §5.10~§5.11 · 외부 연락처 감지 (Phase A-5 실 API 연동)
+// ─────────────────────────────────────────────────────────
 
-const MOCK_DAILY_TREND = [
-  { date: '3/17', count: 12 },
-  { date: '3/18', count: 15 },
-  { date: '3/19', count: 18 },
-  { date: '3/20', count: 14 },
-  { date: '3/21', count: 22 },
-  { date: '3/22', count: 19 },
-  { date: '3/23', count: 8 },
-];
+const PIE_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#6b7280'];
 
-const PIE_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6'];
-
-const PATTERN_TYPE_LABELS: Record<string, string> = {
+const PATTERN_TYPE_LABELS: Record<ContactPatternType, string> = {
   PHONE: '전화번호',
   EMAIL: '이메일',
   KAKAO: '카카오톡',
   INSTAGRAM: '인스타그램',
   LINK: '외부 링크',
+  OTHER: '기타',
 };
 
-const PATTERN_TYPE_COLORS: Record<string, string> = {
+const PATTERN_TYPE_COLORS: Record<ContactPatternType, string> = {
   PHONE: 'bg-blue-100 text-blue-800',
   EMAIL: 'bg-green-100 text-green-800',
   KAKAO: 'bg-yellow-100 text-yellow-800',
   INSTAGRAM: 'bg-pink-100 text-pink-800',
   LINK: 'bg-purple-100 text-purple-800',
+  OTHER: 'bg-gray-100 text-gray-800',
 };
 
-const PATTERN_TYPE_ICONS: Record<string, React.ReactNode> = {
+const PATTERN_TYPE_ICONS: Record<ContactPatternType, React.ReactNode> = {
   PHONE: <Phone className="h-4 w-4" />,
   EMAIL: <Mail className="h-4 w-4" />,
   KAKAO: <MessageCircle className="h-4 w-4" />,
   INSTAGRAM: <MessageCircle className="h-4 w-4" />,
   LINK: <LinkIcon className="h-4 w-4" />,
+  OTHER: <Shield className="h-4 w-4" />,
 };
 
 const CONTENT_TYPE_LABELS: Record<string, string> = {
   DIARY: '일기',
   EXCHANGE_DIARY: '교환일기',
-  CHAT: '채팅',
+  CHAT_MESSAGE: '채팅',
 };
 
-const STATUS_LABELS: Record<string, string> = {
+const STATUS_LABELS: Record<ContactStatus, string> = {
   PENDING: '검토 대기',
   CONFIRMED: '확인됨',
   FALSE_POSITIVE: '오탐지',
 };
 
-const STATUS_COLORS: Record<string, string> = {
+const STATUS_COLORS: Record<ContactStatus, string> = {
   PENDING: 'bg-yellow-100 text-yellow-800',
   CONFIRMED: 'bg-red-100 text-red-800',
   FALSE_POSITIVE: 'bg-green-100 text-green-800',
@@ -167,54 +94,89 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function ExternalContactsPage() {
   const [keyword, setKeyword] = useState('');
-  const [typeFilter, setTypeFilter] = useState<string>('ALL');
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [typeFilter, setTypeFilter] = useState<'ALL' | ContactPatternType>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | ContactStatus>('ALL');
 
-  const handleRefresh = () => {
-    toast.success('감지 목록을 새로고침했습니다.');
+  const [detections, setDetections] = useState<ContactDetection[]>([]);
+  const [stats, setStats] = useState<ContactDetectionStats | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [version, setVersion] = useState(0); // 새로고침용
+
+  // 실 API 호출 — 관리자 API v2.1 §5.10 + /stats
+  useEffect(() => {
+    let ignore = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [listRes, statsRes] = await Promise.all([
+          contactsApi.getList({
+            status: statusFilter === 'ALL' ? undefined : statusFilter,
+            patternType: typeFilter === 'ALL' ? undefined : typeFilter,
+            periodDays: 30,
+            size: 100,
+          }),
+          contactsApi.getStats(7),
+        ]);
+        if (ignore) return;
+        setDetections(listRes.data.data.content);
+        setStats(statsRes.data.data);
+      } catch (err) {
+        if (!ignore) toast.error('외부 연락처 감지 데이터를 불러오지 못했습니다.');
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      ignore = true;
+    };
+  }, [typeFilter, statusFilter, version]);
+
+  const filtered = useMemo(() => {
+    if (!keyword) return detections;
+    return detections.filter(
+      (d) => d.nickname.includes(keyword) || d.detectedText.includes(keyword),
+    );
+  }, [detections, keyword]);
+
+  const patternChartData = useMemo(() => {
+    if (!stats) return [];
+    return (Object.keys(stats.byPatternType) as ContactPatternType[])
+      .map((t) => ({ type: PATTERN_TYPE_LABELS[t], count: stats.byPatternType[t] ?? 0 }))
+      .filter((row) => row.count > 0);
+  }, [stats]);
+
+  const handleRefresh = () => setVersion((v) => v + 1);
+
+  const handleAction = async (
+    detectionId: number,
+    action: 'HIDE_AND_WARN' | 'ESCALATE_TO_REPORT' | 'DISMISS',
+  ) => {
+    const adminMemo = window.prompt('처리 메모를 입력하세요 (1~500자)');
+    if (!adminMemo || adminMemo.trim().length === 0) {
+      return;
+    }
+    try {
+      await contactsApi.applyAction(detectionId, { action, adminMemo: adminMemo.trim() });
+      toast.success(
+        action === 'DISMISS' ? '오탐지로 처리했습니다.' : '외부 연락처 공유로 확인했습니다.',
+      );
+      handleRefresh();
+    } catch {
+      toast.error('조치 처리에 실패했습니다.');
+    }
   };
-
-  const handleExport = () => {
-    toast.success('감지 이력을 CSV로 내보냅니다.');
-  };
-
-  const handleConfirm = (detectionId: number) => {
-    toast.success('외부 연락처 공유로 확인했습니다.');
-  };
-
-  const handleFalsePositive = (detectionId: number) => {
-    toast.success('오탐지로 처리했습니다.');
-  };
-
-  // Filter detections
-  const filteredDetections = MOCK_CONTACT_DETECTIONS.filter(detection => {
-    const matchesKeyword = !keyword ||
-      detection.nickname.includes(keyword) ||
-      detection.detectedText.includes(keyword);
-    const matchesType = typeFilter === 'ALL' || detection.patternType === typeFilter;
-    const matchesStatus = statusFilter === 'ALL' || detection.status === statusFilter;
-    return matchesKeyword && matchesType && matchesStatus;
-  });
-
-  const pendingCount = MOCK_CONTACT_DETECTIONS.filter(d => d.status === 'PENDING').length;
-  const confirmedCount = MOCK_CONTACT_DETECTIONS.filter(d => d.status === 'CONFIRMED').length;
 
   return (
     <div>
       <PageHeader
         title="외부 연락처 감지 관리"
-        description="AI 기반 외부 연락처 공유 감지 및 관리"
+        description="AI 기반 외부 연락처 공유 감지 및 관리 (관리자 API v2.1 §5.10~5.11)"
         actions={
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleRefresh}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              새로고침
-            </Button>
-            <Button onClick={handleExport}>
-              <Download className="mr-2 h-4 w-4" />
-              CSV 내보내기
-            </Button>
-          </div>
+          <Button variant="outline" onClick={handleRefresh} disabled={loading}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            새로고침
+          </Button>
         }
       />
 
@@ -224,9 +186,9 @@ export default function ExternalContactsPage() {
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-blue-500" />
-              <span className="text-sm text-muted-foreground">오늘 감지</span>
+              <span className="text-sm text-muted-foreground">최근 7일 감지</span>
             </div>
-            <div className="mt-1 text-2xl font-bold">{MOCK_CONTACT_DETECTIONS.length}</div>
+            <div className="mt-1 text-2xl font-bold">{stats?.totalCount ?? '-'}</div>
           </CardContent>
         </Card>
         <Card>
@@ -235,7 +197,9 @@ export default function ExternalContactsPage() {
               <AlertTriangle className="h-5 w-5 text-yellow-500" />
               <span className="text-sm text-muted-foreground">검토 대기</span>
             </div>
-            <div className="mt-1 text-2xl font-bold text-yellow-600">{pendingCount}</div>
+            <div className="mt-1 text-2xl font-bold text-yellow-600">
+              {stats?.pendingCount ?? '-'}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -244,38 +208,42 @@ export default function ExternalContactsPage() {
               <XCircle className="h-5 w-5 text-red-500" />
               <span className="text-sm text-muted-foreground">확인됨</span>
             </div>
-            <div className="mt-1 text-2xl font-bold text-red-600">{confirmedCount}</div>
+            <div className="mt-1 text-2xl font-bold text-red-600">
+              {stats?.confirmedCount ?? '-'}
+            </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-green-500" />
-              <span className="text-sm text-muted-foreground">감지 정확도</span>
+              <span className="text-sm text-muted-foreground">오탐지</span>
             </div>
-            <div className="mt-1 text-2xl font-bold text-green-600">94.2%</div>
+            <div className="mt-1 text-2xl font-bold text-green-600">
+              {stats?.falsePositiveCount ?? '-'}
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts */}
+      {/* Chart */}
       <div className="mb-6 grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>패턴 유형별 감지</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
+            <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <Pie
-                  data={MOCK_PATTERN_STATS}
+                  data={patternChartData}
                   cx="50%"
                   cy="50%"
                   outerRadius={80}
                   dataKey="count"
                   label={({ type, count }) => `${type}: ${count}`}
                 >
-                  {MOCK_PATTERN_STATS.map((entry, index) => (
+                  {patternChartData.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                   ))}
                 </Pie>
@@ -286,16 +254,16 @@ export default function ExternalContactsPage() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>일별 감지 추이</CardTitle>
+            <CardTitle>유형별 건수</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={MOCK_DAILY_TREND}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="date" stroke="#6b7280" fontSize={12} />
-                <YAxis stroke="#6b7280" fontSize={12} />
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={patternChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="type" />
+                <YAxis />
                 <Tooltip />
-                <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="count" fill="#3b82f6" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -303,106 +271,125 @@ export default function ExternalContactsPage() {
       </div>
 
       {/* Filters */}
-      <div className="mb-6 flex flex-wrap gap-4">
-        <div className="flex-1 min-w-[300px]">
-          <SearchBar
-            value={keyword}
-            onChange={setKeyword}
-            placeholder="닉네임 또는 패턴 검색"
-          />
-        </div>
-        <div className="flex gap-2">
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="rounded-md border px-3 py-2 text-sm"
-          >
-            <option value="ALL">전체 패턴</option>
-            {Object.entries(PATTERN_TYPE_LABELS).map(([key, label]) => (
-              <option key={key} value={key}>{label}</option>
-            ))}
-          </select>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-md border px-3 py-2 text-sm"
-          >
-            <option value="ALL">전체 상태</option>
-            {Object.entries(STATUS_LABELS).map(([key, label]) => (
-              <option key={key} value={key}>{label}</option>
-            ))}
-          </select>
-        </div>
+      <div className="mb-4 flex flex-wrap gap-2">
+        <SearchBar value={keyword} onChange={setKeyword} placeholder="닉네임·감지 텍스트 검색" />
+        <select
+          className="rounded border px-3 py-2 text-sm"
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value as 'ALL' | ContactPatternType)}
+        >
+          <option value="ALL">전체 유형</option>
+          {(Object.keys(PATTERN_TYPE_LABELS) as ContactPatternType[]).map((t) => (
+            <option key={t} value={t}>
+              {PATTERN_TYPE_LABELS[t]}
+            </option>
+          ))}
+        </select>
+        <select
+          className="rounded border px-3 py-2 text-sm"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as 'ALL' | ContactStatus)}
+        >
+          <option value="ALL">전체 상태</option>
+          <option value="PENDING">검토 대기</option>
+          <option value="CONFIRMED">확인됨</option>
+          <option value="FALSE_POSITIVE">오탐지</option>
+        </select>
       </div>
 
-      {/* Detection List */}
-      <div className="grid gap-4">
-        {filteredDetections.map(detection => (
-          <Card key={detection.id}>
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge className={PATTERN_TYPE_COLORS[detection.patternType]}>
-                      <span className="flex items-center gap-1">
-                        {PATTERN_TYPE_ICONS[detection.patternType]}
-                        {PATTERN_TYPE_LABELS[detection.patternType]}
+      {/* Table */}
+      <Card>
+        <CardContent className="p-0">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 text-gray-700">
+              <tr>
+                <th className="px-3 py-2 text-left">감지 일시</th>
+                <th className="px-3 py-2 text-left">사용자</th>
+                <th className="px-3 py-2 text-left">유형</th>
+                <th className="px-3 py-2 text-left">감지 텍스트</th>
+                <th className="px-3 py-2 text-left">맥락</th>
+                <th className="px-3 py-2 text-left">상태</th>
+                <th className="px-3 py-2 text-left">신뢰도</th>
+                <th className="px-3 py-2 text-left">조치</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && (
+                <tr>
+                  <td className="px-3 py-6 text-center text-muted-foreground" colSpan={8}>
+                    불러오는 중…
+                  </td>
+                </tr>
+              )}
+              {!loading && filtered.length === 0 && (
+                <tr>
+                  <td className="px-3 py-6 text-center text-muted-foreground" colSpan={8}>
+                    감지된 항목이 없습니다.
+                  </td>
+                </tr>
+              )}
+              {filtered.map((d) => (
+                <tr key={d.id} className="border-t">
+                  <td className="px-3 py-2">{formatDateTime(d.detectedAt)}</td>
+                  <td className="px-3 py-2">{d.nickname}</td>
+                  <td className="px-3 py-2">
+                    <Badge className={PATTERN_TYPE_COLORS[d.patternType]}>
+                      <span className="mr-1">{PATTERN_TYPE_ICONS[d.patternType]}</span>
+                      {PATTERN_TYPE_LABELS[d.patternType]}
+                    </Badge>
+                    <div className="text-xs text-muted-foreground">
+                      {CONTENT_TYPE_LABELS[d.contentType] ?? d.contentType}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 font-mono">{d.detectedText}</td>
+                  <td className="max-w-xs truncate px-3 py-2" title={d.context ?? undefined}>
+                    {d.context ?? '-'}
+                  </td>
+                  <td className="px-3 py-2">
+                    <Badge className={STATUS_COLORS[d.status]}>{STATUS_LABELS[d.status]}</Badge>
+                  </td>
+                  <td className="px-3 py-2">{d.confidence}%</td>
+                  <td className="px-3 py-2">
+                    {d.status === 'PENDING' ? (
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleAction(d.id, 'HIDE_AND_WARN')}
+                        >
+                          숨김+경고
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleAction(d.id, 'ESCALATE_TO_REPORT')}
+                        >
+                          신고 전환
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleAction(d.id, 'DISMISS')}
+                        >
+                          오탐지
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        {d.actionType ?? '-'} · {d.reviewedByName ?? '-'}
                       </span>
-                    </Badge>
-                    <Badge className={STATUS_COLORS[detection.status]}>
-                      {STATUS_LABELS[detection.status]}
-                    </Badge>
-                    <Badge variant="outline">
-                      {CONTENT_TYPE_LABELS[detection.contentType]}
-                    </Badge>
-                    <span className="text-sm text-muted-foreground">
-                      신뢰도: <span className={detection.confidence >= 90 ? 'text-red-600 font-bold' : ''}>{detection.confidence}%</span>
-                    </span>
-                  </div>
-                  <div className="mt-2">
-                    <Link href={`/admin/members/${detection.userId}`} className="font-semibold text-blue-600 hover:underline">
-                      {detection.nickname}
-                    </Link>
-                  </div>
-                  <div className="mt-2 p-2 bg-muted rounded text-sm font-mono">
-                    <span className="text-red-600 font-bold">{detection.detectedText}</span>
-                    <p className="mt-1 text-muted-foreground">{detection.context}</p>
-                  </div>
-                </div>
-                <div className="flex gap-1 ml-4">
-                  <Button variant="ghost" size="sm">
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  {detection.status === 'PENDING' && (
-                    <>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleConfirm(detection.id)}
-                      >
-                        <XCircle className="h-4 w-4 text-red-500" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleFalsePositive(detection.id)}
-                      >
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
 
-              <div className="mt-4 pt-4 border-t flex justify-between text-sm text-muted-foreground">
-                <span>감지: {formatDateTime(detection.detectedAt)}</span>
-                {detection.reviewedBy && (
-                  <span>검토: {detection.reviewedBy} ({formatDateTime(detection.reviewedAt!)})</span>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+        <Eye className="h-3 w-3" />
+        <span>상세 맥락 조회는 PII 접근 로그 대상입니다 (관리자 API v2.1 §5.6).</span>
       </div>
     </div>
   );
