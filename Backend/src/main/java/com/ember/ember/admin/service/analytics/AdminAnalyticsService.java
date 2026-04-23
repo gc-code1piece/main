@@ -1,6 +1,12 @@
 package com.ember.ember.admin.service.analytics;
 
 import com.ember.ember.admin.dto.analytics.AiPerformanceResponse;
+import com.ember.ember.admin.dto.analytics.DiaryEmotionTrendResponse;
+import com.ember.ember.admin.dto.analytics.DiaryLengthQualityResponse;
+import com.ember.ember.admin.dto.analytics.DiaryTimeHeatmapResponse;
+import com.ember.ember.admin.dto.analytics.DiaryTopicParticipationResponse;
+import com.ember.ember.admin.dto.analytics.ExchangeResponseRateResponse;
+import com.ember.ember.admin.dto.analytics.ExchangeTurnFunnelResponse;
 import com.ember.ember.admin.dto.analytics.JourneyDurationResponse;
 import com.ember.ember.admin.dto.analytics.KeywordTopResponse;
 import com.ember.ember.admin.dto.analytics.MatchingDiversityResponse;
@@ -9,14 +15,18 @@ import com.ember.ember.admin.dto.analytics.MatchingFunnelResponse.DailyFunnelPoi
 import com.ember.ember.admin.dto.analytics.MatchingFunnelResponse.Meta;
 import com.ember.ember.admin.dto.analytics.MatchingFunnelResponse.Period;
 import com.ember.ember.admin.dto.analytics.MatchingFunnelResponse.StageTotals;
+import com.ember.ember.admin.dto.analytics.RetentionSurvivalResponse;
 import com.ember.ember.admin.dto.analytics.SegmentOverviewResponse;
 import com.ember.ember.admin.dto.analytics.UserFunnelResponse;
 import com.ember.ember.admin.repository.analytics.AnalyticsAiPerformanceRepository;
+import com.ember.ember.admin.repository.analytics.AnalyticsDiaryPatternRepository;
+import com.ember.ember.admin.repository.analytics.AnalyticsExchangePatternRepository;
 import com.ember.ember.admin.repository.analytics.AnalyticsFunnelRepository;
 import com.ember.ember.admin.repository.analytics.AnalyticsJourneyRepository;
 import com.ember.ember.admin.repository.analytics.AnalyticsKeywordRepository;
 import com.ember.ember.admin.repository.analytics.AnalyticsMatchingDiversityRepository;
 import com.ember.ember.admin.repository.analytics.AnalyticsSegmentRepository;
+import com.ember.ember.admin.repository.analytics.AnalyticsSurvivalRepository;
 import com.ember.ember.admin.repository.analytics.AnalyticsUserFunnelRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +54,13 @@ import java.util.Map;
  *   - §3.5  여정 소요시간 분포        (B-1.5, Fallback)
  *   - §3.6  AI 성능                  (B-1.6, DB Fallback — Prometheus 별도)
  *   - §3.7  매칭 통계 보조            (B-1.7, 추천 다양성·재추천)
+ *   - §3.8  일기 시간 히트맵          (B-2.1)
+ *   - §3.9  일기 길이·품질             (B-2.2)
+ *   - §3.10 감정 태그 추이 시계열       (B-2.3)
+ *   - §3.11 주제(카테고리) 참여도       (B-2.4)
+ *   - §3.12 교환일기 응답률            (B-2.5)
+ *   - §3.13 턴→채팅 전환 퍼널         (B-2.6)
+ *   - §3.14 사용자 이탈 생존분석 (Kaplan-Meier) (B-2.7)
  *
  * 설계 준수 사항:
  *   - 분모·분자 분리: 일별 포인트는 raw count, 합계에서만 비율 계산.
@@ -62,6 +79,10 @@ public class AdminAnalyticsService {
     private static final int K_ANON_MIN = 5;
     private static final int PROFILE_DONE_STEP = 1;
     private static final int RERECOMMENDATION_WINDOW_DAYS = 14;
+    private static final String DATA_SOURCE_V2 = "live-v0.2";
+    private static final int DEFAULT_FIRST_RESPONSE_WINDOW_HOURS = 48;
+    private static final int DEFAULT_INACTIVITY_THRESHOLD_DAYS = 30;
+    private static final double Z_95 = 1.959963984540054d; // 1.96 approx (φ⁻¹(0.975))
 
     private final AnalyticsFunnelRepository funnelRepository;
     private final AnalyticsUserFunnelRepository userFunnelRepository;
@@ -70,6 +91,9 @@ public class AdminAnalyticsService {
     private final AnalyticsJourneyRepository journeyRepository;
     private final AnalyticsAiPerformanceRepository aiPerformanceRepository;
     private final AnalyticsMatchingDiversityRepository matchingDiversityRepository;
+    private final AnalyticsDiaryPatternRepository diaryPatternRepository;
+    private final AnalyticsExchangePatternRepository exchangePatternRepository;
+    private final AnalyticsSurvivalRepository survivalRepository;
 
     // =========================================================================
     // §18.1 매칭 퍼널 (B-1.1)
@@ -405,6 +429,301 @@ public class AdminAnalyticsService {
                 new MatchingDiversityResponse.Period(startDate, endDate, TZ),
                 totalRecs, uniqueCandidates, shannon, rerec, rerecRate,
                 new MatchingDiversityResponse.Meta(RERECOMMENDATION_WINDOW_DAYS, "live"));
+    }
+
+    // =========================================================================
+    // §3.8 일기 시간 히트맵 (B-2.1)
+    // =========================================================================
+
+    public DiaryTimeHeatmapResponse getDiaryTimeHeatmap(LocalDate startDate, LocalDate endDate) {
+        LocalDate endExclusive = endDate.plusDays(1);
+        List<Object[]> rows = diaryPatternRepository.aggregateTimeHeatmap(startDate, endExclusive);
+
+        List<DiaryTimeHeatmapResponse.HeatmapCell> cells = new ArrayList<>(rows.size());
+        long totalDiaries = 0;
+        long peakCount = -1;
+        Integer peakDow = null;
+        Integer peakHour = null;
+
+        for (Object[] row : rows) {
+            int dow = (int) toLong(row[0]);
+            int hour = (int) toLong(row[1]);
+            long cnt = toLong(row[2]);
+
+            cells.add(new DiaryTimeHeatmapResponse.HeatmapCell(dow, hour, cnt));
+            totalDiaries += cnt;
+            if (cnt > peakCount) {
+                peakCount = cnt;
+                peakDow = dow;
+                peakHour = hour;
+            }
+        }
+
+        return new DiaryTimeHeatmapResponse(
+                new DiaryTimeHeatmapResponse.Period(startDate, endDate, TZ),
+                cells, totalDiaries, peakDow, peakHour,
+                new DiaryTimeHeatmapResponse.Meta(K_ANON_MIN, DATA_SOURCE_V2));
+    }
+
+    // =========================================================================
+    // §3.9 일기 길이·품질 (B-2.2)
+    // =========================================================================
+
+    public DiaryLengthQualityResponse getDiaryLengthQuality(LocalDate startDate, LocalDate endDate) {
+        LocalDate endExclusive = endDate.plusDays(1);
+        Object[] row = diaryPatternRepository.aggregateLengthAndQuality(startDate, endExclusive);
+
+        long total = toLong(row[0]);
+        Double mean = toDouble(row[1]);
+        Double p50 = toDouble(row[2]);
+        Double p90 = toDouble(row[3]);
+        Double p99 = toDouble(row[4]);
+        Long min = total == 0 ? null : toLong(row[5]);
+        Long max = total == 0 ? null : toLong(row[6]);
+
+        List<DiaryLengthQualityResponse.LengthBucket> histogram = List.of(
+                new DiaryLengthQualityResponse.LengthBucket("100-199",  toLong(row[7])),
+                new DiaryLengthQualityResponse.LengthBucket("200-399",  toLong(row[8])),
+                new DiaryLengthQualityResponse.LengthBucket("400-799",  toLong(row[9])),
+                new DiaryLengthQualityResponse.LengthBucket("800-1499", toLong(row[10])),
+                new DiaryLengthQualityResponse.LengthBucket("1500+",    toLong(row[11]))
+        );
+
+        long completed = toLong(row[12]);
+        long failed    = toLong(row[13]);
+        long skipped   = toLong(row[14]);
+        long pending   = toLong(row[15]);
+        Double successRate = safeDivide(completed, completed + failed);
+
+        return new DiaryLengthQualityResponse(
+                new DiaryLengthQualityResponse.Period(startDate, endDate, TZ),
+                new DiaryLengthQualityResponse.LengthStats(total, mean, p50, p90, p99, min, max),
+                histogram,
+                new DiaryLengthQualityResponse.QualityStats(completed, failed, skipped, pending, successRate),
+                new DiaryLengthQualityResponse.Meta(K_ANON_MIN, DATA_SOURCE_V2));
+    }
+
+    // =========================================================================
+    // §3.10 감정 태그 추이 시계열 (B-2.3)
+    // =========================================================================
+
+    public DiaryEmotionTrendResponse getDiaryEmotionTrends(LocalDate startDate,
+                                                           LocalDate endDate,
+                                                           String bucket,
+                                                           int topN) {
+        LocalDate endExclusive = endDate.plusDays(1);
+        String unit = (bucket == null || bucket.isBlank()) ? "day" : bucket.toLowerCase(Locale.ROOT);
+        int safeTopN = Math.min(Math.max(topN, 1), 20);
+
+        List<Object[]> rows = diaryPatternRepository.aggregateEmotionTrends(
+                startDate, endExclusive, unit, safeTopN);
+        List<DiaryEmotionTrendResponse.TrendPoint> points = new ArrayList<>(rows.size());
+        for (Object[] r : rows) {
+            points.add(new DiaryEmotionTrendResponse.TrendPoint(
+                    toLocalDate(r[0]),
+                    (String) r[1],
+                    toLong(r[2]),
+                    toBigDecimal(r[3])));
+        }
+
+        List<Object> topRows = diaryPatternRepository.aggregateTopEmotions(
+                startDate, endExclusive, safeTopN);
+        List<String> topEmotions = new ArrayList<>(topRows.size());
+        for (Object o : topRows) {
+            if (o != null) topEmotions.add(o.toString());
+        }
+
+        return new DiaryEmotionTrendResponse(
+                new DiaryEmotionTrendResponse.Period(startDate, endDate, TZ),
+                unit, points, topEmotions,
+                new DiaryEmotionTrendResponse.Meta(K_ANON_MIN, DATA_SOURCE_V2));
+    }
+
+    // =========================================================================
+    // §3.11 주제(카테고리) 참여도 (B-2.4)
+    // =========================================================================
+
+    public DiaryTopicParticipationResponse getDiaryTopicParticipation(LocalDate startDate,
+                                                                     LocalDate endDate) {
+        LocalDate endExclusive = endDate.plusDays(1);
+
+        Object[] totals = diaryPatternRepository.aggregateTopicTotals(startDate, endExclusive);
+        long totalDiaries = toLong(totals[0]);
+        long totalUsers = toLong(totals[1]);
+
+        List<Object[]> rows = diaryPatternRepository.aggregateTopicParticipation(startDate, endExclusive);
+        List<DiaryTopicParticipationResponse.TopicRow> topics = new ArrayList<>(rows.size());
+        for (Object[] r : rows) {
+            String category = (String) r[0];
+            long diaryCnt = toLong(r[1]);
+            long userCnt = toLong(r[2]);
+            topics.add(new DiaryTopicParticipationResponse.TopicRow(
+                    category, diaryCnt, userCnt,
+                    safeDivide(diaryCnt, totalDiaries),
+                    safeDivide(userCnt, totalUsers)));
+        }
+
+        return new DiaryTopicParticipationResponse(
+                new DiaryTopicParticipationResponse.Period(startDate, endDate, TZ),
+                totalDiaries, totalUsers, topics,
+                new DiaryTopicParticipationResponse.Meta(K_ANON_MIN, DATA_SOURCE_V2));
+    }
+
+    // =========================================================================
+    // §3.12 교환일기 응답률 (B-2.5)
+    // =========================================================================
+
+    public ExchangeResponseRateResponse getExchangeResponseRate(LocalDate startDate,
+                                                                LocalDate endDate,
+                                                                int windowHours) {
+        LocalDate endExclusive = endDate.plusDays(1);
+        int safeWindow = Math.min(Math.max(windowHours, 1), 168); // 1시간 ~ 1주일 제한
+
+        Object[] firstRate = exchangePatternRepository.aggregateFirstResponseRate(
+                startDate, endExclusive, safeWindow);
+        long started = toLong(firstRate[0]);
+        long responded = toLong(firstRate[1]);
+        Double rate = safeDivide(responded, started);
+
+        Object[] delay = exchangePatternRepository.aggregateResponseDelay(startDate, endExclusive);
+        ExchangeResponseRateResponse.ResponseDelay respDelay = new ExchangeResponseRateResponse.ResponseDelay(
+                toDouble(delay[0]), toDouble(delay[1]), toDouble(delay[2]), toDouble(delay[3]));
+
+        List<Object[]> transRows = exchangePatternRepository.aggregateTurnTransitions(
+                startDate, endExclusive);
+        List<ExchangeResponseRateResponse.TurnResponseRow> byTurn = new ArrayList<>(transRows.size());
+        for (Object[] r : transRows) {
+            int fromTurn = (int) toLong(r[0]);
+            int toTurn = (int) toLong(r[1]);
+            long samples = toLong(r[2]);
+            Double turnRate = toDouble(r[3]);
+            Double p50 = toDouble(r[4]);
+            byTurn.add(new ExchangeResponseRateResponse.TurnResponseRow(
+                    fromTurn, toTurn, samples, turnRate, p50));
+        }
+
+        return new ExchangeResponseRateResponse(
+                new ExchangeResponseRateResponse.Period(startDate, endDate, TZ),
+                safeWindow, started, responded, rate, respDelay, byTurn,
+                new ExchangeResponseRateResponse.Meta(K_ANON_MIN, DATA_SOURCE_V2));
+    }
+
+    // =========================================================================
+    // §3.13 턴→채팅 전환 퍼널 (B-2.6)
+    // =========================================================================
+
+    public ExchangeTurnFunnelResponse getExchangeTurnFunnel(LocalDate startDate, LocalDate endDate) {
+        LocalDate endExclusive = endDate.plusDays(1);
+        Object[] row = exchangePatternRepository.aggregateTurnFunnel(startDate, endExclusive);
+
+        long roomsCreated = toLong(row[0]);
+        long turn1        = toLong(row[1]);
+        long turn2        = toLong(row[2]);
+        long turn3        = toLong(row[3]);
+        long turn4        = toLong(row[4]);
+        long chat         = toLong(row[5]);
+
+        List<ExchangeTurnFunnelResponse.FunnelStage> stages = new ArrayList<>(6);
+        stages.add(new ExchangeTurnFunnelResponse.FunnelStage(
+                "ROOM_CREATED", roomsCreated, null, 1.0));
+        stages.add(new ExchangeTurnFunnelResponse.FunnelStage(
+                "TURN_1", turn1, safeDivide(turn1, roomsCreated), safeDivide(turn1, roomsCreated)));
+        stages.add(new ExchangeTurnFunnelResponse.FunnelStage(
+                "TURN_2", turn2, safeDivide(turn2, turn1), safeDivide(turn2, roomsCreated)));
+        stages.add(new ExchangeTurnFunnelResponse.FunnelStage(
+                "TURN_3", turn3, safeDivide(turn3, turn2), safeDivide(turn3, roomsCreated)));
+        stages.add(new ExchangeTurnFunnelResponse.FunnelStage(
+                "TURN_4_COMPLETE", turn4, safeDivide(turn4, turn3), safeDivide(turn4, roomsCreated)));
+        stages.add(new ExchangeTurnFunnelResponse.FunnelStage(
+                "CHAT_CONNECTED", chat, safeDivide(chat, turn4), safeDivide(chat, roomsCreated)));
+
+        String worst = null;
+        double worstRate = Double.MAX_VALUE;
+        for (int i = 1; i < stages.size(); i++) {
+            Double sr = stages.get(i).stepRate();
+            if (sr != null && sr < worstRate) {
+                worstRate = sr;
+                worst = stages.get(i).name();
+            }
+        }
+
+        return new ExchangeTurnFunnelResponse(
+                new ExchangeTurnFunnelResponse.Period(startDate, endDate, TZ),
+                stages,
+                safeDivide(chat, roomsCreated),
+                worst,
+                new ExchangeTurnFunnelResponse.Meta(K_ANON_MIN, DATA_SOURCE_V2));
+    }
+
+    // =========================================================================
+    // §3.14 사용자 이탈 생존분석 Kaplan-Meier (B-2.7)
+    // =========================================================================
+
+    public RetentionSurvivalResponse getRetentionSurvival(LocalDate startDate,
+                                                          LocalDate endDate,
+                                                          int inactivityThresholdDays) {
+        LocalDate endExclusive = endDate.plusDays(1);
+        int threshold = Math.min(Math.max(inactivityThresholdDays, 7), 180);
+
+        Object[] cohort = survivalRepository.aggregateCohortStats(startDate, endExclusive, threshold);
+        long cohortSize = toLong(cohort[0]);
+        long events = toLong(cohort[1]);
+        long censored = toLong(cohort[2]);
+
+        List<Object[]> rows = survivalRepository.aggregateSurvivalPoints(
+                startDate, endExclusive, threshold);
+
+        // Kaplan-Meier S(t) 누적 곱 + Greenwood 분산 누적 합 계산.
+        List<RetentionSurvivalResponse.SurvivalPoint> curve = new ArrayList<>(rows.size());
+        double cumulativeLogS = 0.0;
+        double greenwoodSum = 0.0;
+        Integer medianDay = null;
+
+        for (Object[] r : rows) {
+            int day = (int) toLong(r[0]);
+            long atRisk = toLong(r[1]);
+            long d = toLong(r[2]);
+
+            if (atRisk <= 0) continue;
+            double survivalAtThisStep;
+            if (d >= atRisk) {
+                survivalAtThisStep = 0.0;
+            } else {
+                survivalAtThisStep = 1.0 - (double) d / (double) atRisk;
+            }
+
+            if (survivalAtThisStep > 0.0) {
+                cumulativeLogS += Math.log(survivalAtThisStep);
+            } else {
+                cumulativeLogS = Double.NEGATIVE_INFINITY;
+            }
+            double st = Math.exp(cumulativeLogS);
+
+            // Greenwood: Σ d_i / (n_i * (n_i - d_i)) — n=d 인 경우 항이 정의되지 않으니 스킵.
+            if (atRisk > d) {
+                greenwoodSum += (double) d / ((double) atRisk * (double) (atRisk - d));
+            }
+            double variance = st * st * greenwoodSum;
+            double stdError = Math.sqrt(Math.max(variance, 0.0));
+            double ciLower = Math.max(0.0, st - Z_95 * stdError);
+            double ciUpper = Math.min(1.0, st + Z_95 * stdError);
+
+            if (medianDay == null && st <= 0.5) {
+                medianDay = day;
+            }
+
+            curve.add(new RetentionSurvivalResponse.SurvivalPoint(
+                    day, atRisk, d, st, stdError, ciLower, ciUpper));
+        }
+
+        return new RetentionSurvivalResponse(
+                new RetentionSurvivalResponse.Period(startDate, endDate, TZ),
+                threshold, cohortSize, events, censored, medianDay, curve,
+                new RetentionSurvivalResponse.Meta(
+                        "kaplan-meier-greenwood",
+                        "deactivated_at OR last_login_at < NOW() - " + threshold + "d",
+                        true, // user_activity_events 미활용 fallback
+                        DATA_SOURCE_V2));
     }
 
     // =========================================================================
