@@ -9,7 +9,6 @@ import com.ember.ember.messaging.event.AiAnalysisResultEvent;
 import com.ember.ember.messaging.event.AiAnalysisResultType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -32,7 +31,6 @@ public class DevController {
     private final DiaryRepository diaryRepository;
     private final RabbitTemplate rabbitTemplate;
     private final StringRedisTemplate stringRedisTemplate;
-    private final RedisTemplate<String, Object> objectRedisTemplate;
 
     /** 테스트 토큰 발급 */
     @GetMapping("/api/dev/token")
@@ -148,22 +146,15 @@ public class DevController {
     /** Redis 특정 키 조회 (값 + TTL) */
     @GetMapping("/api/dev/redis/get")
     public Map<String, Object> redisGet(@RequestParam String key) {
-        // StringRedisTemplate으로 먼저 시도
-        String strValue = stringRedisTemplate.opsForValue().get(key);
-        Object objValue = null;
-        if (strValue == null) {
-            objValue = objectRedisTemplate.opsForValue().get(key);
-        }
-
+        String value = stringRedisTemplate.opsForValue().get(key);
         Long ttl = stringRedisTemplate.getExpire(key, TimeUnit.SECONDS);
         boolean exists = Boolean.TRUE.equals(stringRedisTemplate.hasKey(key));
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("key", key);
         result.put("exists", exists);
-        result.put("value", strValue != null ? strValue : objValue);
+        result.put("value", value);
         result.put("ttlSeconds", ttl);
-        result.put("type", strValue != null ? "STRING" : (objValue != null ? "OBJECT" : "NONE"));
         return result;
     }
 
