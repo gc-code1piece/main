@@ -43,4 +43,9 @@ public interface ExchangeDiaryRepository extends JpaRepository<ExchangeDiary, Lo
            "AND ed.turnNumber = :turnNumber AND ed.status = 'SUBMITTED'")
     java.util.Optional<ExchangeDiary> findByRoomIdAndTurnNumber(
             @Param("roomId") Long roomId, @Param("turnNumber") int turnNumber);
+
+    /** 여러 교환방의 마지막 제출 시각 배치 조회 (N+1 방지) */
+    @Query("SELECT ed.room.id, MAX(ed.submittedAt) FROM ExchangeDiary ed " +
+           "WHERE ed.room.id IN :roomIds AND ed.status = 'SUBMITTED' GROUP BY ed.room.id")
+    List<Object[]> findLastSubmittedAtByRoomIds(@Param("roomIds") List<Long> roomIds);
 }

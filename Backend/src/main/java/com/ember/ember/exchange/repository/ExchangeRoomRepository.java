@@ -24,8 +24,9 @@ public interface ExchangeRoomRepository extends JpaRepository<ExchangeRoom, Long
     @Query("SELECT r FROM ExchangeRoom r WHERE r.id = :roomId")
     Optional<ExchangeRoom> findByIdForUpdate(@Param("roomId") Long roomId);
 
-    /** 참여 중인 교환방 목록 (최신순) */
-    @Query("SELECT r FROM ExchangeRoom r WHERE (r.userA.id = :userId OR r.userB.id = :userId) " +
+    /** 참여 중인 교환방 목록 (최신순, userA/userB JOIN FETCH로 N+1 방지) */
+    @Query("SELECT r FROM ExchangeRoom r JOIN FETCH r.userA JOIN FETCH r.userB " +
+           "WHERE (r.userA.id = :userId OR r.userB.id = :userId) " +
            "AND r.status NOT IN ('TERMINATED', 'ENDED') ORDER BY r.modifiedAt DESC")
     List<ExchangeRoom> findByParticipant(@Param("userId") Long userId);
 

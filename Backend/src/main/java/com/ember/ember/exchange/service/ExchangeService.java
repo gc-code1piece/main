@@ -32,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -53,16 +54,24 @@ public class ExchangeService {
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
 
-    /** 5.1 교환일기 방 목록 조회 */
+    /** 5.1 교환일기 방 목록 조회 (배치 쿼리로 N+1 방지) */
     @Transactional(readOnly = true)
     public ExchangeRoomListResponse getRooms(Long userId) {
         List<ExchangeRoom> rooms = exchangeRoomRepository.findByParticipant(userId);
+        if (rooms.isEmpty()) {
+            return ExchangeRoomListResponse.builder().rooms(List.of()).build();
+        }
+
+        // 마지막 일기 제출 시각 배치 조회 (N번 SELECT → 1번 GROUP BY)
+        List<Long> roomIds = rooms.stream().map(ExchangeRoom::getId).toList();
+        Map<Long, LocalDateTime> lastDiaryAtMap = exchangeDiaryRepository
+                .findLastSubmittedAtByRoomIds(roomIds).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        row -> (Long) row[0], row -> (LocalDateTime) row[1]));
 
         List<ExchangeRoomListResponse.ExchangeRoomItem> items = rooms.stream().map(room -> {
             User partner = room.getPartner(userId);
-            List<ExchangeDiary> diaries = exchangeDiaryRepository.findSubmittedByRoomId(room.getId());
-            String lastDiaryAt = diaries.isEmpty() ? null :
-                    diaries.get(diaries.size() - 1).getSubmittedAt().format(ISO);
+            LocalDateTime lastDiaryAt = lastDiaryAtMap.get(room.getId());
 
             return ExchangeRoomListResponse.ExchangeRoomItem.builder()
                     .roomId(room.getId())
@@ -72,7 +81,7 @@ public class ExchangeService {
                     .currentTurn(room.getTurnCount())
                     .isMyTurn(room.getStatus() == RoomStatus.ACTIVE &&
                               room.getCurrentTurnUser().getId().equals(userId))
-                    .lastDiaryAt(lastDiaryAt)
+                    .lastDiaryAt(lastDiaryAt != null ? lastDiaryAt.format(ISO) : null)
                     .deadline(room.getStatus() == RoomStatus.ACTIVE &&
                               room.getCurrentTurnUser().getId().equals(userId)
                               ? room.getDeadlineAt().format(ISO) : null)
