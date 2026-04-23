@@ -7,6 +7,8 @@ import com.ember.ember.idealtype.domain.UserVector;
 import com.ember.ember.idealtype.repository.UserIdealKeywordRepository;
 import com.ember.ember.idealtype.repository.UserPersonalityKeywordRepository;
 import com.ember.ember.idealtype.repository.UserVectorRepository;
+import com.ember.ember.global.exception.BusinessException;
+import com.ember.ember.global.response.ErrorCode;
 import com.ember.ember.matching.client.*;
 import com.ember.ember.matching.dto.RecommendationItem;
 import com.ember.ember.matching.dto.RecommendationResponse;
@@ -140,7 +142,7 @@ public class MatchingService {
     private RecommendationResponse computeRecommendations(Long userId) {
         // ── 기준 사용자 로드 ──────────────────────────────────────────────────
         User currentUser = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
+                .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
 
         // ── 후보 필터링 (이성, 연령, 활동, 차단 제외) ────────────────────────
         List<Long> candidateIds = candidateFilterService.findCandidates(currentUser);

@@ -1,7 +1,9 @@
 package com.ember.ember.matching.repository;
 
 import com.ember.ember.matching.domain.Matching;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -17,7 +19,13 @@ public interface MatchingRepository extends JpaRepository<Matching, Long> {
     /** 동일 상대방에 대한 PENDING 신청 존재 여부 */
     boolean existsByFromUserIdAndToUserIdAndStatus(Long fromUserId, Long toUserId, Matching.MatchingStatus status);
 
-    /** 역방향 PENDING 신청 조회 (양방향 매칭 감지용) */
+    /** 역방향 PENDING 신청 조회 (양방향 매칭 감지용, 비관적 락) */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT m FROM Matching m WHERE m.fromUser.id = :fromUserId AND m.toUser.id = :toUserId AND m.status = :status")
+    Optional<Matching> findByFromUserIdAndToUserIdAndStatusForUpdate(
+            @Param("fromUserId") Long fromUserId, @Param("toUserId") Long toUserId, @Param("status") Matching.MatchingStatus status);
+
+    /** 역방향 PENDING 신청 조회 (락 없이, 차단 등 일반 용도) */
     Optional<Matching> findByFromUserIdAndToUserIdAndStatus(Long fromUserId, Long toUserId, Matching.MatchingStatus status);
 
     /** 현재 진행 중인 교환일기 수 (MATCHED 상태) */

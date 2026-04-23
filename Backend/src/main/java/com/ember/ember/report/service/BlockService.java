@@ -109,11 +109,15 @@ public class BlockService {
     private int cancelPendingMatchings(Long userA, Long userB) {
         int count = 0;
         // A → B 방향
-        matchingRepository.findByFromUserIdAndToUserIdAndStatus(userA, userB, Matching.MatchingStatus.PENDING)
-                .ifPresent(m -> m.cancel());
+        if (matchingRepository.findByFromUserIdAndToUserIdAndStatus(userA, userB, Matching.MatchingStatus.PENDING)
+                .map(m -> { m.cancel(); return true; }).isPresent()) {
+            count++;
+        }
         // B → A 방향
-        matchingRepository.findByFromUserIdAndToUserIdAndStatus(userB, userA, Matching.MatchingStatus.PENDING)
-                .ifPresent(m -> m.cancel());
+        if (matchingRepository.findByFromUserIdAndToUserIdAndStatus(userB, userA, Matching.MatchingStatus.PENDING)
+                .map(m -> { m.cancel(); return true; }).isPresent()) {
+            count++;
+        }
         return count;
     }
 

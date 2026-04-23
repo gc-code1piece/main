@@ -278,7 +278,7 @@ public class ExploreService {
     @Transactional
     public MatchingSelectResponse acceptRequest(Long userId, Long matchingId) {
         Matching request = matchingRepository.findById(matchingId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.DIARY_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.MATCHING_NOT_FOUND));
 
         // 본인에게 온 요청인지 확인
         if (!request.getToUser().getId().equals(userId)) {
@@ -350,8 +350,8 @@ public class ExploreService {
         Matching matching = Matching.create(fromUser, toUser, diary);
         matchingRepository.save(matching);
 
-        // 역방향 PENDING 조회 (양방향 매칭 감지)
-        Optional<Matching> reverseMatching = matchingRepository.findByFromUserIdAndToUserIdAndStatus(
+        // 역방향 PENDING 조회 (양방향 매칭 감지, 비관적 락으로 동시성 보호)
+        Optional<Matching> reverseMatching = matchingRepository.findByFromUserIdAndToUserIdAndStatusForUpdate(
                 toUser.getId(), userId, Matching.MatchingStatus.PENDING);
 
         if (reverseMatching.isPresent()) {
@@ -500,13 +500,11 @@ public class ExploreService {
 
     private List<String> findCommonKeywords(List<Long> diaryIds) {
         if (diaryIds.isEmpty()) return List.of();
-        // 빈도 기반 키워드 추출
+        // 배치 조회로 N+1 방지
+        List<DiaryKeyword> allKeywords = diaryKeywordRepository.findByDiaryIdIn(diaryIds);
         Map<String, Long> freq = new HashMap<>();
-        for (Long diaryId : diaryIds) {
-            List<DiaryKeyword> keywords = diaryKeywordRepository.findByDiaryId(diaryId);
-            for (DiaryKeyword kw : keywords) {
-                freq.merge(kw.getLabel(), 1L, Long::sum);
-            }
+        for (DiaryKeyword kw : allKeywords) {
+            freq.merge(kw.getLabel(), 1L, Long::sum);
         }
         return freq.entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
@@ -517,13 +515,12 @@ public class ExploreService {
 
     private List<String> findLifestyleTags(List<Long> diaryIds) {
         if (diaryIds.isEmpty()) return List.of();
+        // 배치 조회로 N+1 방지
+        List<DiaryKeyword> allKeywords = diaryKeywordRepository.findByDiaryIdIn(diaryIds);
         Map<String, Long> freq = new HashMap<>();
-        for (Long diaryId : diaryIds) {
-            List<DiaryKeyword> keywords = diaryKeywordRepository.findByDiaryId(diaryId);
-            keywords.stream()
-                    .filter(k -> k.getTagType() == DiaryKeyword.TagType.LIFESTYLE)
-                    .forEach(k -> freq.merge(k.getLabel(), 1L, Long::sum));
-        }
+        allKeywords.stream()
+                .filter(k -> k.getTagType() == DiaryKeyword.TagType.LIFESTYLE)
+                .forEach(k -> freq.merge(k.getLabel(), 1L, Long::sum));
         return freq.entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
                 .limit(5)
