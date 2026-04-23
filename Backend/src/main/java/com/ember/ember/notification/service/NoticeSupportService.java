@@ -28,7 +28,6 @@ public class NoticeSupportService {
     private final FaqRepository faqRepository;
     private final InquiryRepository inquiryRepository;
     private final UserRepository userRepository;
-    private final NoticeRepository noticeRepo;
 
     /** 공지사항 목록 조회 */
     public List<NoticeResponse> getNotices() {

@@ -149,10 +149,11 @@ public class ExchangeService {
                 .build();
     }
 
-    /** 5.4 교환일기 작성 (턴 기반) */
+    /** 5.4 교환일기 작성 (턴 기반, 비관적 락으로 동시성 보호) */
     @Transactional
     public ExchangeDiaryWriteResponse writeDiary(Long userId, Long roomId, ExchangeDiaryRequest request) {
-        ExchangeRoom room = findRoomOrThrow(roomId);
+        ExchangeRoom room = exchangeRoomRepository.findByIdForUpdate(roomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.EXCHANGE_ROOM_NOT_FOUND));
         validateParticipant(room, userId);
 
         // 방 상태 확인

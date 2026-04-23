@@ -10,6 +10,8 @@ import com.ember.ember.chat.repository.MessageRepository;
 import com.ember.ember.exchange.domain.ExchangeRoom;
 import com.ember.ember.exchange.domain.ExchangeRoom.RoomStatus;
 import com.ember.ember.exchange.repository.ExchangeRoomRepository;
+import com.ember.ember.content.service.ContentScanResult;
+import com.ember.ember.content.service.ContentScanService;
 import com.ember.ember.global.exception.BusinessException;
 import com.ember.ember.global.response.ErrorCode;
 import com.ember.ember.notification.domain.Notification;
@@ -56,6 +58,7 @@ public class ChatService {
     private final UserRepository userRepository;
     private final StringRedisTemplate redisTemplate;
     private final SimpMessagingTemplate messagingTemplate;
+    private final ContentScanService contentScanService;
 
     /** 6.1 채팅 시작 (교환일기 → 채팅방 생성) */
     @Transactional
@@ -181,6 +184,12 @@ public class ChatService {
 
         User sender = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
+
+        // 금칙어 검열
+        ContentScanResult scanResult = contentScanService.scan(request.content());
+        if (!scanResult.isAllowed()) {
+            throw new BusinessException(ErrorCode.CONTENT_FILTERED);
+        }
 
         // Redis INCR로 sequenceId 발급
         String seqKey = "MSG:SEQ:" + roomId;

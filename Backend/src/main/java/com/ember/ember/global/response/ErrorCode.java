@@ -59,6 +59,7 @@ public enum ErrorCode {
     MATCHING_BLOCKED_USER("M003", HttpStatus.FORBIDDEN, "차단된 사용자입니다."),
     MATCHING_NO_DIARY("M004", HttpStatus.BAD_REQUEST, "일기를 먼저 작성해야 매칭이 가능합니다."),
     MATCHING_CONCURRENT_LIMIT("M005", HttpStatus.CONFLICT, "동시에 진행할 수 있는 교환일기는 최대 3건입니다."),
+    MATCHING_NOT_FOUND("M006", HttpStatus.NOT_FOUND, "존재하지 않는 매칭 요청입니다."),
 
     // ── 교환일기 (ER) ──
     EXCHANGE_ROOM_NOT_FOUND("ER001", HttpStatus.NOT_FOUND, "존재하지 않는 교환일기 방입니다."),

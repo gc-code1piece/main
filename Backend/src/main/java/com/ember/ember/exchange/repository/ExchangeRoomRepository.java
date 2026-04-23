@@ -1,8 +1,9 @@
 package com.ember.ember.exchange.repository;
 
 import com.ember.ember.exchange.domain.ExchangeRoom;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
-
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -17,6 +18,11 @@ public interface ExchangeRoomRepository extends JpaRepository<ExchangeRoom, Long
 
     /** roomUuid로 교환방 조회 */
     Optional<ExchangeRoom> findByRoomUuid(UUID roomUuid);
+
+    /** 교환방 조회 (비관적 락 — 턴 진행 동시성 보호용) */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM ExchangeRoom r WHERE r.id = :roomId")
+    Optional<ExchangeRoom> findByIdForUpdate(@Param("roomId") Long roomId);
 
     /** 참여 중인 교환방 목록 (최신순) */
     @Query("SELECT r FROM ExchangeRoom r WHERE (r.userA.id = :userId OR r.userB.id = :userId) " +
