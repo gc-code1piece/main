@@ -695,7 +695,7 @@ class TutorialScreen extends StatelessWidget {
 }
 
 // ══════════════════════════════════════
-// 홈 화면 (도메인 4: 일기)
+// 홈 화면 (4탭 구조)
 // ══════════════════════════════════════
 class HomeScreen extends StatefulWidget {
   final int initialTab;
@@ -706,23 +706,20 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final app = AppState();
   late int _currentTab = widget.initialTab;
 
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      const DiaryWriteTab(),
-      const DiaryHistoryTab(),
-      const ExploreTab(),
-      const ExchangeTab(),
-      const ChatTab(),
-      const DraftTab(),
-      const SettingsTab(),
-    ];
-
     return Scaffold(
-      body: pages[_currentTab],
+      body: IndexedStack(
+        index: _currentTab,
+        children: const [
+          DiaryUnifiedTab(),
+          ExploreTab(),
+          CommunicationTab(),
+          MoreTab(),
+        ],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentTab,
         onTap: (i) => setState(() => _currentTab = i),
@@ -730,22 +727,118 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedFontSize: 11,
         unselectedFontSize: 10,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.edit), label: '일기'),
-          BottomNavigationBarItem(icon: Icon(Icons.list), label: '히스토리'),
+          BottomNavigationBarItem(icon: Icon(Icons.auto_stories), label: '일기'),
           BottomNavigationBarItem(icon: Icon(Icons.explore), label: '탐색'),
-          BottomNavigationBarItem(icon: Icon(Icons.swap_horiz), label: '교환일기'),
-          BottomNavigationBarItem(icon: Icon(Icons.chat), label: '채팅'),
-          BottomNavigationBarItem(icon: Icon(Icons.drafts), label: '임시저장'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: '설정'),
+          BottomNavigationBarItem(icon: Icon(Icons.forum), label: '소통'),
+          BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: '더보기'),
         ],
       ),
     );
   }
 }
 
+// ── 일기 통합 탭 (작성 / 히스토리 / 임시저장) ──
+class DiaryUnifiedTab extends StatefulWidget {
+  const DiaryUnifiedTab({super.key});
+
+  @override
+  State<DiaryUnifiedTab> createState() => _DiaryUnifiedTabState();
+}
+
+class _DiaryUnifiedTabState extends State<DiaryUnifiedTab> {
+  int _subIndex = 0; // 0=작성, 1=히스토리, 2=임시저장
+
+  static const _labels = ['작성', '히스토리', '임시저장'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('🔥 일기'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            child: SegmentedButton<int>(
+              segments: List.generate(_labels.length, (i) =>
+                ButtonSegment<int>(value: i, label: Text(_labels[i]))),
+              selected: {_subIndex},
+              onSelectionChanged: (s) => setState(() => _subIndex = s.first),
+              style: const ButtonStyle(
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ),
+        ),
+      ),
+      body: IndexedStack(
+        index: _subIndex,
+        children: const [
+          _DiaryWriteBody(),
+          _DiaryHistoryBody(),
+          _DraftBody(),
+        ],
+      ),
+    );
+  }
+}
+
+// ── 소통 통합 탭 (교환일기 / 채팅) ──
+class CommunicationTab extends StatefulWidget {
+  const CommunicationTab({super.key});
+
+  @override
+  State<CommunicationTab> createState() => _CommunicationTabState();
+}
+
+class _CommunicationTabState extends State<CommunicationTab> {
+  int _subIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('소통'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            child: SegmentedButton<int>(
+              segments: const [
+                ButtonSegment<int>(value: 0, label: Text('교환일기'), icon: Icon(Icons.swap_horiz, size: 16)),
+                ButtonSegment<int>(value: 1, label: Text('채팅'), icon: Icon(Icons.chat_bubble, size: 16)),
+              ],
+              selected: {_subIndex},
+              onSelectionChanged: (s) => setState(() => _subIndex = s.first),
+              style: const ButtonStyle(
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ),
+        ),
+      ),
+      body: IndexedStack(
+        index: _subIndex,
+        children: const [
+          _ExchangeBody(),
+          _ChatBody(),
+        ],
+      ),
+    );
+  }
+}
+
+// ── 일기 작성 바디 래퍼 (DiaryUnifiedTab 내부용) ──
+class _DiaryWriteBody extends StatelessWidget {
+  const _DiaryWriteBody();
+  @override
+  Widget build(BuildContext context) => const DiaryWriteTab(standaloneAppBar: false);
+}
+
 // ── 4.1 일기 작성 탭 ──
 class DiaryWriteTab extends StatefulWidget {
-  const DiaryWriteTab({super.key});
+  final bool standaloneAppBar;
+  const DiaryWriteTab({super.key, this.standaloneAppBar = true});
 
   @override
   State<DiaryWriteTab> createState() => _DiaryWriteTabState();
@@ -859,7 +952,7 @@ class _DiaryWriteTabState extends State<DiaryWriteTab> {
     final charCount = contentCtrl.text.length;
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: widget.standaloneAppBar ? AppBar(
         title: Text('${now.month}월 ${now.day}일 (${['월','화','수','목','금','토','일'][now.weekday - 1]})'),
         actions: [
           if (todayExists == true)
@@ -868,7 +961,7 @@ class _DiaryWriteTabState extends State<DiaryWriteTab> {
               child: Chip(label: Text('작성됨', style: TextStyle(fontSize: 11))),
             ),
         ],
-      ),
+      ) : null,
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -915,9 +1008,17 @@ class _DiaryWriteTabState extends State<DiaryWriteTab> {
   }
 }
 
+// ── 일기 히스토리 바디 래퍼 ──
+class _DiaryHistoryBody extends StatelessWidget {
+  const _DiaryHistoryBody();
+  @override
+  Widget build(BuildContext context) => const DiaryHistoryTab(standaloneAppBar: false);
+}
+
 // ── 4.4 일기 히스토리 탭 ──
 class DiaryHistoryTab extends StatefulWidget {
-  const DiaryHistoryTab({super.key});
+  final bool standaloneAppBar;
+  const DiaryHistoryTab({super.key, this.standaloneAppBar = true});
 
   @override
   State<DiaryHistoryTab> createState() => _DiaryHistoryTabState();
@@ -946,9 +1047,18 @@ class _DiaryHistoryTabState extends State<DiaryHistoryTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('나의 일기')),
+      appBar: widget.standaloneAppBar ? AppBar(title: const Text('나의 일기')) : null,
       body: diaries.isEmpty
-        ? Center(child: Text(message ?? '일기가 없습니다', style: const TextStyle(color: Colors.white54)))
+        ? Center(child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.book_outlined, size: 64, color: Colors.white24),
+              const SizedBox(height: 12),
+              Text(message ?? '아직 일기가 없어요', style: const TextStyle(color: Colors.white54)),
+              const SizedBox(height: 8),
+              const Text('오늘의 일기를 작성해보세요', style: TextStyle(color: Colors.white38, fontSize: 13)),
+            ],
+          ))
         : RefreshIndicator(
             onRefresh: _load,
             child: ListView.builder(
@@ -957,6 +1067,8 @@ class _DiaryHistoryTabState extends State<DiaryHistoryTab> {
               itemBuilder: (context, index) {
                 final d = diaries[index];
                 return Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   child: ListTile(
                     title: Text(d['contentPreview'] ?? '', maxLines: 2, overflow: TextOverflow.ellipsis),
                     subtitle: Row(children: [
@@ -1056,9 +1168,17 @@ class DiaryDetailScreen extends StatelessWidget {
   );
 }
 
+// ── 임시저장 바디 래퍼 ──
+class _DraftBody extends StatelessWidget {
+  const _DraftBody();
+  @override
+  Widget build(BuildContext context) => const DraftTab(standaloneAppBar: false);
+}
+
 // ── 임시저장 탭 ──
 class DraftTab extends StatefulWidget {
-  const DraftTab({super.key});
+  final bool standaloneAppBar;
+  const DraftTab({super.key, this.standaloneAppBar = true});
 
   @override
   State<DraftTab> createState() => _DraftTabState();
@@ -1087,9 +1207,16 @@ class _DraftTabState extends State<DraftTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('임시저장 (${drafts.length}/3)')),
+      appBar: widget.standaloneAppBar ? AppBar(title: Text('임시저장 (${drafts.length}/3)')) : null,
       body: drafts.isEmpty
-        ? Center(child: Text(message ?? '임시저장된 일기가 없습니다', style: const TextStyle(color: Colors.white54)))
+        ? Center(child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.drafts_outlined, size: 64, color: Colors.white24),
+              const SizedBox(height: 12),
+              Text(message ?? '임시저장된 일기가 없어요', style: const TextStyle(color: Colors.white54)),
+            ],
+          ))
         : RefreshIndicator(
             onRefresh: _load,
             child: ListView.builder(
@@ -1333,7 +1460,7 @@ class _ReceivedRequestsScreenState extends State<ReceivedRequestsScreen> {
           duration: Duration(seconds: 2)));
         // 매칭 성사 시 교환일기 탭으로 이동 (홈 재진입)
         Navigator.pushAndRemoveUntil(context,
-          MaterialPageRoute(builder: (_) => const HomeScreen(initialTab: 3)),
+          MaterialPageRoute(builder: (_) => const HomeScreen(initialTab: 2)),
           (_) => false);
       }
     } catch (e) {
@@ -1531,15 +1658,18 @@ class LifestyleReportScreen extends StatelessWidget {
   );
 }
 
-// ── 설정 탭 (프로필/알림/차단/계정관리/로그아웃) ──
-class SettingsTab extends StatefulWidget {
-  const SettingsTab({super.key});
+// ── 더보기 탭 (설정 + Redis 모니터링) ──
+class MoreTab extends StatefulWidget {
+  const MoreTab({super.key});
 
   @override
-  State<SettingsTab> createState() => _SettingsTabState();
+  State<MoreTab> createState() => _MoreTabState();
 }
 
-class _SettingsTabState extends State<SettingsTab> {
+// 하위 호환을 위해 SettingsTab 유지
+typedef SettingsTab = MoreTab;
+
+class _MoreTabState extends State<MoreTab> {
   final app = AppState();
 
   void _snack(String msg) {
@@ -1560,7 +1690,7 @@ class _SettingsTabState extends State<SettingsTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('설정')),
+      appBar: AppBar(title: const Text('더보기')),
       body: ListView(
         children: [
           // ── 프로필 ──
@@ -1684,6 +1814,46 @@ class _SettingsTabState extends State<SettingsTab> {
             title: const Text('AI 분석 시뮬레이션'), leading: const Icon(Icons.science, color: Colors.amber),
             subtitle: const Text('diaryId 입력 -> 가짜 AI 결과 생성'),
             onTap: () => _showAiSimulateDialog(),
+          ),
+
+          // ── Redis 모니터링 (Dev) ──
+          const Divider(),
+          const Padding(padding: EdgeInsets.all(12), child: Text('Redis 캐시 (Dev)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.amber))),
+          ListTile(
+            title: const Text('캐시 요약'), leading: const Icon(Icons.dashboard, color: Colors.amber),
+            subtitle: const Text('전체 캐시 키 수/메모리 현황'),
+            onTap: () async {
+              try {
+                final res = await app.dio.get('${app.baseUrl}/api/dev/redis/summary');
+                _showJson('Redis 요약', res.data);
+              } catch (e) { _snack(app.errMsg(e)); }
+            },
+          ),
+          ListTile(
+            title: const Text('내 캐시 현황'), leading: const Icon(Icons.person_search, color: Colors.amber),
+            subtitle: const Text('내 userId 기준 캐시 키 목록'),
+            onTap: () async {
+              if (app.userId == null) { _snack('로그인 후 이용하세요'); return; }
+              try {
+                final res = await app.dio.get('${app.baseUrl}/api/dev/redis/user/${app.userId}');
+                _showJson('내 캐시 (userId=${app.userId})', res.data);
+              } catch (e) { _snack(app.errMsg(e)); }
+            },
+          ),
+          ListTile(
+            title: const Text('키 직접 조회'), leading: const Icon(Icons.search, color: Colors.amber),
+            subtitle: const Text('key 입력 → 값 조회'),
+            onTap: () => _showRedisGetDialog(),
+          ),
+          ListTile(
+            title: const Text('키 삭제'), leading: const Icon(Icons.delete_outline, color: Colors.amber),
+            subtitle: const Text('key 입력 → 캐시 삭제'),
+            onTap: () => _showRedisDeleteDialog(),
+          ),
+          ListTile(
+            title: const Text('패턴 검색'), leading: const Icon(Icons.filter_list, color: Colors.amber),
+            subtitle: const Text('pattern 입력 (예: AI:DIARY:*) → 키 목록'),
+            onTap: () => _showRedisPatternDialog(),
           ),
 
           // ── 앱 설정 ──
@@ -1908,13 +2078,95 @@ class _SettingsTabState extends State<SettingsTab> {
       ],
     ));
   }
+
+  void _showRedisGetDialog() {
+    final keyCtrl = TextEditingController();
+    showDialog(context: context, builder: (_) => AlertDialog(
+      title: const Text('Redis 키 조회'),
+      content: TextField(controller: keyCtrl, decoration: const InputDecoration(labelText: 'key (예: AI:DIARY:123)')),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+        TextButton(onPressed: () async {
+          Navigator.pop(context);
+          final key = keyCtrl.text.trim();
+          if (key.isEmpty) return;
+          try {
+            final res = await app.dio.get('${app.baseUrl}/api/dev/redis/get',
+              queryParameters: {'key': key});
+            _showJson('Redis [$key]', res.data);
+          } catch (e) { _snack(app.errMsg(e)); }
+        }, child: const Text('조회', style: TextStyle(color: Colors.amber))),
+      ],
+    ));
+  }
+
+  void _showRedisDeleteDialog() {
+    final keyCtrl = TextEditingController();
+    showDialog(context: context, builder: (_) => AlertDialog(
+      title: const Text('Redis 키 삭제'),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: keyCtrl, decoration: const InputDecoration(labelText: 'key')),
+        const SizedBox(height: 8),
+        const Text('삭제 후 복구 불가', style: TextStyle(fontSize: 12, color: Colors.redAccent)),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+        TextButton(onPressed: () async {
+          Navigator.pop(context);
+          final key = keyCtrl.text.trim();
+          if (key.isEmpty) return;
+          try {
+            final res = await app.dio.delete('${app.baseUrl}/api/dev/redis/delete',
+              queryParameters: {'key': key});
+            _showJson('삭제 결과', res.data);
+          } catch (e) { _snack(app.errMsg(e)); }
+        }, child: const Text('삭제', style: TextStyle(color: Colors.redAccent))),
+      ],
+    ));
+  }
+
+  void _showRedisPatternDialog() {
+    final patternCtrl = TextEditingController(text: '*');
+    showDialog(context: context, builder: (_) => AlertDialog(
+      title: const Text('Redis 패턴 검색'),
+      content: TextField(controller: patternCtrl, decoration: const InputDecoration(labelText: 'pattern (예: AI:DIARY:*)')),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+        TextButton(onPressed: () async {
+          Navigator.pop(context);
+          final pattern = patternCtrl.text.trim();
+          if (pattern.isEmpty) return;
+          try {
+            final res = await app.dio.get('${app.baseUrl}/api/dev/redis/keys',
+              queryParameters: {'pattern': pattern});
+            _showJson('패턴 [$pattern] 결과', res.data);
+          } catch (e) { _snack(app.errMsg(e)); }
+        }, child: const Text('검색', style: TextStyle(color: Colors.amber))),
+      ],
+    ));
+  }
+}
+
+// ── 교환일기 바디 래퍼 ──
+class _ExchangeBody extends StatelessWidget {
+  const _ExchangeBody();
+  @override
+  Widget build(BuildContext context) => const ExchangeTab(standaloneAppBar: false);
+}
+
+// ── 채팅 바디 래퍼 ──
+class _ChatBody extends StatelessWidget {
+  const _ChatBody();
+  @override
+  Widget build(BuildContext context) => const ChatTab(standaloneAppBar: false);
 }
 
 // ══════════════════════════════════════
 // 6. 교환일기 탭
 // ══════════════════════════════════════
 class ExchangeTab extends StatefulWidget {
-  const ExchangeTab({super.key});
+  final bool standaloneAppBar;
+  const ExchangeTab({super.key, this.standaloneAppBar = true});
 
   @override
   State<ExchangeTab> createState() => _ExchangeTabState();
@@ -1950,12 +2202,20 @@ class _ExchangeTabState extends State<ExchangeTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('교환일기')),
+      appBar: widget.standaloneAppBar ? AppBar(title: const Text('교환일기')) : null,
       body: loading
         ? const Center(child: CircularProgressIndicator())
         : rooms.isEmpty
-          ? const Center(child: Text('진행 중인 교환일기가 없습니다.\n탐색 탭에서 매칭을 시작해보세요!',
-              textAlign: TextAlign.center, style: TextStyle(color: Colors.white54)))
+          ? Center(child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Icon(Icons.swap_horiz, size: 64, color: Colors.white24),
+                SizedBox(height: 12),
+                Text('진행 중인 교환일기가 없어요', style: TextStyle(color: Colors.white54)),
+                SizedBox(height: 8),
+                Text('탐색 탭에서 매칭을 시작해보세요!', style: TextStyle(color: Colors.white38, fontSize: 13)),
+              ],
+            ))
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView.builder(
@@ -1990,6 +2250,8 @@ class _ExchangeTabState extends State<ExchangeTab> {
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: statusColor.withOpacity(0.2),
@@ -2291,7 +2553,8 @@ class _ExchangeRoomScreenState extends State<ExchangeRoomScreen> {
 // 7~8. 채팅 + 커플 탭
 // ══════════════════════════════════════
 class ChatTab extends StatefulWidget {
-  const ChatTab({super.key});
+  final bool standaloneAppBar;
+  const ChatTab({super.key, this.standaloneAppBar = true});
 
   @override
   State<ChatTab> createState() => _ChatTabState();
@@ -2325,12 +2588,20 @@ class _ChatTabState extends State<ChatTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('채팅')),
+      appBar: widget.standaloneAppBar ? AppBar(title: const Text('채팅')) : null,
       body: loading
         ? const Center(child: CircularProgressIndicator())
         : chatRooms.isEmpty
-          ? const Center(child: Text('채팅방이 없습니다.\n교환일기 완료 후 채팅이 시작됩니다.',
-              textAlign: TextAlign.center, style: TextStyle(color: Colors.white54)))
+          ? Center(child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Icon(Icons.chat_bubble_outline, size: 64, color: Colors.white24),
+                SizedBox(height: 12),
+                Text('채팅방이 없어요', style: TextStyle(color: Colors.white54)),
+                SizedBox(height: 8),
+                Text('교환일기 완료 후 채팅이 시작됩니다', style: TextStyle(color: Colors.white38, fontSize: 13)),
+              ],
+            ))
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView.builder(
@@ -2349,6 +2620,8 @@ class _ChatTabState extends State<ChatTab> {
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: statusColor.withOpacity(0.2),

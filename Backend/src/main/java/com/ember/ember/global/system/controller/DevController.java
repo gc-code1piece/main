@@ -9,12 +9,14 @@ import com.ember.ember.messaging.event.AiAnalysisResultEvent;
 import com.ember.ember.messaging.event.AiAnalysisResultType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 개발/테스트 전용 엔드포인트.
@@ -28,6 +30,7 @@ public class DevController {
     private final ExchangeRoomRepository exchangeRoomRepository;
     private final DiaryRepository diaryRepository;
     private final RabbitTemplate rabbitTemplate;
+    private final StringRedisTemplate stringRedisTemplate;
 
     /** 테스트 토큰 발급 */
     @GetMapping("/api/dev/token")
@@ -101,6 +104,129 @@ public class DevController {
                 "message", "AI 분석 결과가 ai.result.q에 발행되었습니다. 2~3초 후 반영됩니다.",
                 "tags", tags.stream().map(t -> t.type() + ":" + t.label()).toList()
         );
+    }
+
+    // ── Redis Dev API ─────────────────────────────────────────────────────
+
+    /** Redis 전체 요약 (캐시 카테고리별 키 수 + 총 키 수) */
+    @GetMapping("/api/dev/redis/summary")
+    public Map<String, Object> redisSummary() {
+        Set<String> allKeys = stringRedisTemplate.keys("*");
+        if (allKeys == null) allKeys = Set.of();
+
+        // 카테고리별 분류
+        Map<String, List<String>> grouped = new LinkedHashMap<>();
+        for (String key : allKeys) {
+            String category = key.contains(":") ? key.substring(0, key.indexOf(":")) : "OTHER";
+            // 세부 카테고리 (AI:DIARY → AI:DIARY)
+            if (key.startsWith("AI:")) {
+                String[] parts = key.split(":");
+                category = parts.length >= 2 ? parts[0] + ":" + parts[1] : parts[0];
+            } else if (key.startsWith("MATCHING:RECO")) {
+                category = "MATCHING:RECO";
+            } else if (key.startsWith("MSG:SEQ")) {
+                category = "MSG:SEQ";
+            }
+            grouped.computeIfAbsent(category, k -> new ArrayList<>()).add(key);
+        }
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("totalKeys", allKeys.size());
+        Map<String, Object> categories = new LinkedHashMap<>();
+        grouped.forEach((cat, keys) -> {
+            Map<String, Object> info = new LinkedHashMap<>();
+            info.put("count", keys.size());
+            info.put("keys", keys.size() <= 20 ? keys : keys.subList(0, 20));
+            categories.put(cat, info);
+        });
+        summary.put("categories", categories);
+        return summary;
+    }
+
+    /** Redis 특정 키 조회 (값 + TTL) */
+    @GetMapping("/api/dev/redis/get")
+    public Map<String, Object> redisGet(@RequestParam String key) {
+        String value = stringRedisTemplate.opsForValue().get(key);
+        Long ttl = stringRedisTemplate.getExpire(key, TimeUnit.SECONDS);
+        boolean exists = Boolean.TRUE.equals(stringRedisTemplate.hasKey(key));
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("key", key);
+        result.put("exists", exists);
+        result.put("value", value);
+        result.put("ttlSeconds", ttl);
+        return result;
+    }
+
+    /** Redis 키 패턴 검색 (예: AI:DIARY:*, MATCHING:*, MSG:SEQ:*) */
+    @GetMapping("/api/dev/redis/keys")
+    public Map<String, Object> redisKeys(@RequestParam String pattern) {
+        Set<String> keys = stringRedisTemplate.keys(pattern);
+        if (keys == null) keys = Set.of();
+
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (String key : keys) {
+            Long ttl = stringRedisTemplate.getExpire(key, TimeUnit.SECONDS);
+            String type = String.valueOf(stringRedisTemplate.type(key));
+            items.add(Map.of("key", key, "ttlSeconds", ttl != null ? ttl : -1, "type", type));
+        }
+
+        return Map.of(
+                "pattern", pattern,
+                "count", keys.size(),
+                "keys", items
+        );
+    }
+
+    /** Redis 키 삭제 (테스트용 캐시 무효화) */
+    @DeleteMapping("/api/dev/redis/delete")
+    public Map<String, Object> redisDelete(@RequestParam String key) {
+        boolean deleted = Boolean.TRUE.equals(stringRedisTemplate.delete(key));
+        return Map.of("key", key, "deleted", deleted);
+    }
+
+    /** 사용자별 Redis 캐시 현황 조회 (userId 기준) */
+    @GetMapping("/api/dev/redis/user/{userId}")
+    public Map<String, Object> redisUserKeys(@PathVariable Long userId) {
+        List<String> patterns = List.of(
+                "AI:DIARY:*",           // 일기 AI 분석 캐시
+                "AI:LIFESTYLE:" + userId,   // 라이프스타일 분석
+                "AI:SIMILARITY:" + userId + ":*", // 유사도 캐시
+                "MATCHING:RECO:" + userId,  // 매칭 추천 (fresh)
+                "MATCHING:RECO:stale:" + userId, // 매칭 추천 (stale)
+                "RT:" + userId,             // Refresh Token
+                "MSG:SEQ:*"                // 채팅 시퀀스
+        );
+
+        Map<String, Object> userCache = new LinkedHashMap<>();
+        for (String pattern : patterns) {
+            if (pattern.contains("*")) {
+                Set<String> keys = stringRedisTemplate.keys(pattern);
+                if (keys != null && !keys.isEmpty()) {
+                    for (String key : keys) {
+                        Long ttl = stringRedisTemplate.getExpire(key, TimeUnit.SECONDS);
+                        userCache.put(key, Map.of("exists", true, "ttlSeconds", ttl != null ? ttl : -1));
+                    }
+                }
+            } else {
+                boolean exists = Boolean.TRUE.equals(stringRedisTemplate.hasKey(pattern));
+                if (exists) {
+                    Long ttl = stringRedisTemplate.getExpire(pattern, TimeUnit.SECONDS);
+                    userCache.put(pattern, Map.of("exists", true, "ttlSeconds", ttl != null ? ttl : -1));
+                } else {
+                    userCache.put(pattern, Map.of("exists", false));
+                }
+            }
+        }
+
+        // 공통 캐시도 포함
+        for (String commonKey : List.of("NOTICE:ALL", "BANNER:ALL", "FAQ:ALL", "BANNED_WORDS:ALL", "URL_WHITELIST")) {
+            boolean exists = Boolean.TRUE.equals(stringRedisTemplate.hasKey(commonKey));
+            Long ttl = exists ? stringRedisTemplate.getExpire(commonKey, TimeUnit.SECONDS) : null;
+            userCache.put(commonKey, Map.of("exists", exists, "ttlSeconds", ttl != null ? ttl : -1));
+        }
+
+        return Map.of("userId", userId, "cache", userCache);
     }
 
     /** 교환일기 방 상태 강제 변경 (테스트용) */
