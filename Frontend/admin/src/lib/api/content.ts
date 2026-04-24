@@ -1,21 +1,53 @@
 import apiClient from './client';
 import type { ApiResponse } from './types';
-import type { ExampleDiary, ExchangeDiaryGuideStep, Banner } from '@/types/content';
+import type { ExchangeDiaryGuideStep, Banner } from '@/types/content';
+
+// ─── 예제 일기(Example Diary) — 백엔드 §6.6 (AdminExampleDiaryController) ──────
+// BE 응답 shape: AdminExampleDiaryResponse (createdByName 포함)
+
+export type ExampleDiaryCategoryBe =
+  | 'GRATITUDE'
+  | 'GROWTH'
+  | 'DAILY'
+  | 'EMOTION'
+  | 'RELATIONSHIP'
+  | 'SEASONAL';
+
+export type ExampleDiaryDisplayTarget = 'ONBOARDING' | 'HELP' | 'FAQ';
+
+export interface ExampleDiaryResponse {
+  id: number;
+  title: string;
+  content: string;
+  category: ExampleDiaryCategoryBe;
+  displayTarget: ExampleDiaryDisplayTarget;
+  displayOrder: number;
+  isActive: boolean;
+  createdByName: string | null;
+  createdAt: string;
+}
+
+export interface ExampleDiaryCreateRequest {
+  title: string;
+  content: string;
+  category: ExampleDiaryCategoryBe;
+  displayTarget: ExampleDiaryDisplayTarget;
+  displayOrder: number;
+  isActive?: boolean;
+}
+
+export type ExampleDiaryUpdateRequest = Partial<ExampleDiaryCreateRequest>;
 
 export const exampleDiariesApi = {
-  // 예제 일기 목록 조회
   getList: () =>
-    apiClient.get<ApiResponse<ExampleDiary[]>>('/api/admin/example-diaries'),
+    apiClient.get<ApiResponse<ExampleDiaryResponse[]>>('/api/admin/example-diaries'),
 
-  // 예제 일기 등록
-  create: (data: Omit<ExampleDiary, 'id' | 'createdAt'>) =>
-    apiClient.post<ApiResponse<ExampleDiary>>('/api/admin/example-diaries', data),
+  create: (data: ExampleDiaryCreateRequest) =>
+    apiClient.post<ApiResponse<ExampleDiaryResponse>>('/api/admin/example-diaries', data),
 
-  // 예제 일기 수정
-  update: (id: number, data: Partial<ExampleDiary>) =>
-    apiClient.put<ApiResponse<ExampleDiary>>(`/api/admin/example-diaries/${id}`, data),
+  update: (id: number, data: ExampleDiaryUpdateRequest) =>
+    apiClient.put<ApiResponse<ExampleDiaryResponse>>(`/api/admin/example-diaries/${id}`, data),
 
-  // 예제 일기 삭제
   delete: (id: number) =>
     apiClient.delete<ApiResponse<null>>(`/api/admin/example-diaries/${id}`),
 };
