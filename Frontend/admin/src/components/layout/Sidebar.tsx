@@ -116,7 +116,7 @@ const navItems: NavItem[] = [
       { title: '이탈 생존분석 (KM)', href: '/admin/analytics/survival' },
       { title: '세그먼트 분석', href: '/admin/analytics/segments' },
       { title: '연관규칙 (Apriori)', href: '/admin/analytics/associations' },
-      { title: '코호트 리텐션 매트릭스', href: '/admin/analytics/cohort' },
+      { title: '사용자 여정', href: '/admin/analytics/journey' },
     ],
   },
   {
