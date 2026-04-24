@@ -57,6 +57,9 @@ public class DiaryService {
 
     /** AI 분석 결과 Redis 캐시 키 패턴 */
     private static final String CACHE_KEY_AI_DIARY = "AI:DIARY:%d";
+    /** 임시저장 Redis 캐시 키 패턴 (멀티 디바이스 동기화) */
+    private static final String CACHE_KEY_DRAFT = "DRAFT:%d";
+    private static final Duration DRAFT_CACHE_TTL = Duration.ofHours(24);
     private static final java.time.Duration CACHE_TTL_24H = java.time.Duration.ofHours(24);
 
     private static final DateTimeFormatter ISO_KST = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
@@ -295,8 +298,14 @@ public class DiaryService {
                 .orElse(new WeeklyTopicResponse(null, null, null, false));
     }
 
-    /** 임시저장 목록 조회 */
+    /** 임시저장 목록 조회 — Redis 캐시(24h) + DB 폴백 */
     public DraftListResponse getDrafts(Long userId) {
+        String cacheKey = String.format(CACHE_KEY_DRAFT, userId);
+        return cacheService.getOrLoad(cacheKey, DRAFT_CACHE_TTL, () -> loadDraftsFromDb(userId), DraftListResponse.class);
+    }
+
+    /** DB에서 임시저장 목록 조회 (캐시 미스 시 호출) */
+    private DraftListResponse loadDraftsFromDb(Long userId) {
         List<DiaryDraft> drafts = diaryDraftRepository.findByUserIdAndDeletedAtIsNullOrderBySavedDateDesc(userId);
 
         List<DraftResponse> items = drafts.stream()
@@ -337,6 +346,9 @@ public class DiaryService {
 
         diaryDraftRepository.save(draft);
 
+        // 임시저장 캐시 무효화 (멀티 디바이스 동기화)
+        cacheService.invalidate(String.format(CACHE_KEY_DRAFT, userId));
+
         return new DraftResponse(
                 draft.getId(),
                 draft.getContent(),
@@ -359,6 +371,9 @@ public class DiaryService {
         }
 
         draft.softDelete();
+
+        // 임시저장 캐시 무효화
+        cacheService.invalidate(String.format(CACHE_KEY_DRAFT, userId));
     }
 
     /** AI 태그 필터링 */
