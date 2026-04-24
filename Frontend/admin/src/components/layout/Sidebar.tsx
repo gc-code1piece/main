@@ -115,7 +115,7 @@ const navItems: NavItem[] = [
       { title: '키워드 분석', href: '/admin/analytics/keywords' },
       { title: '이탈 생존분석 (KM)', href: '/admin/analytics/survival' },
       { title: '세그먼트 분석', href: '/admin/analytics/segments' },
-      { title: '연관규칙 (Apriori)', href: '/admin/analytics/associations' },
+      { title: '다양성 지표', href: '/admin/analytics/diversity' },
       { title: '사용자 여정', href: '/admin/analytics/journey' },
       { title: 'AI 인사이트', href: '/admin/analytics/ai-insights' },
     ],
