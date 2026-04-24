@@ -3,6 +3,7 @@ package com.ember.ember.user.service;
 import com.ember.ember.cache.service.CacheService;
 import com.ember.ember.chat.repository.ChatRoomRepository;
 import com.ember.ember.consent.repository.AiConsentLogRepository;
+import com.ember.ember.consent.service.AiConsentService;
 import com.ember.ember.diary.domain.DiaryKeyword;
 import com.ember.ember.diary.repository.DiaryKeywordRepository;
 import com.ember.ember.diary.repository.DiaryRepository;
@@ -49,6 +50,7 @@ public class AccountService {
     private final DiaryRepository diaryRepository;
     private final DiaryKeywordRepository diaryKeywordRepository;
     private final CacheService cacheService;
+    private final AiConsentService aiConsentService;
     private final RedisTemplate<String, String> redisTemplate;
 
     /** 회원 탈퇴 (30일 유예) */
@@ -132,8 +134,10 @@ public class AccountService {
                     .user(user).action("REVOKED").consentType("AI_DATA_USAGE").ipAddress(ipAddress).build());
         }
 
-        // Redis AI 캐시 삭제
+        // Redis AI 캐시 + 동의 캐시 삭제
         cleanupAiCache(userId);
+        aiConsentService.invalidateConsent(userId, "AI_ANALYSIS");
+        aiConsentService.invalidateConsent(userId, "AI_DATA_USAGE");
 
         log.info("[AI 동의 철회] 완료 — userId={}", userId);
     }
