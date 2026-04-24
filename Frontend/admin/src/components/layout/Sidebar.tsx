@@ -113,6 +113,7 @@ const navItems: NavItem[] = [
       { title: '일기 패턴', href: '/admin/analytics/diaries' },
       { title: '일기 시간 히트맵', href: '/admin/analytics/diaries/heatmap' },
       { title: '일기 길이·품질', href: '/admin/analytics/diaries/quality' },
+      { title: '일기 감정 추이', href: '/admin/analytics/diaries/emotion' },
       { title: '퍼널 분석', href: '/admin/analytics/funnel' },
       { title: '키워드 분석', href: '/admin/analytics/keywords' },
       { title: '퍼널 심화', href: '/admin/analytics/funnel-deep' },
