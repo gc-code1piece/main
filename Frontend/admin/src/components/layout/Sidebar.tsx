@@ -111,6 +111,7 @@ const navItems: NavItem[] = [
       { title: '매칭 분석', href: '/admin/analytics/matching' },
       { title: '리텐션 분석', href: '/admin/analytics/retention' },
       { title: '일기 패턴', href: '/admin/analytics/diaries' },
+      { title: '일기 시간 히트맵', href: '/admin/analytics/diaries/heatmap' },
       { title: '퍼널 분석', href: '/admin/analytics/funnel' },
       { title: '키워드 분석', href: '/admin/analytics/keywords' },
       { title: '퍼널 심화', href: '/admin/analytics/funnel-deep' },
