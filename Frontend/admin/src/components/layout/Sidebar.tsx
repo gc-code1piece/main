@@ -40,6 +40,7 @@ interface SubNavItem {
   title: string;
   href: string;
   requiredRole?: 'VIEWER' | 'ADMIN' | 'SUPER_ADMIN';
+  group?: string; // 같은 group 값끼리 묶어 렌더링, undefined면 그룹 없음
 }
 
 interface NavItem {
@@ -108,22 +109,25 @@ const navItems: NavItem[] = [
     href: '/admin/analytics/matching',
     icon: BarChart3,
     subItems: [
-      { title: '매칭 분석', href: '/admin/analytics/matching' },
-      { title: '리텐션 분석', href: '/admin/analytics/retention' },
-      { title: '일기 패턴', href: '/admin/analytics/diaries' },
-      { title: '일기 시간 히트맵', href: '/admin/analytics/diaries/heatmap' },
-      { title: '일기 길이·품질', href: '/admin/analytics/diaries/quality' },
-      { title: '일기 감정 추이', href: '/admin/analytics/diaries/emotion' },
-      { title: '일기 주제 참여', href: '/admin/analytics/diaries/topic' },
-      { title: '교환 응답률', href: '/admin/analytics/diaries/response' },
-      { title: '턴 퍼널', href: '/admin/analytics/diaries/turn-funnel' },
-      { title: '퍼널 분석', href: '/admin/analytics/funnel' },
-      { title: '키워드 분석', href: '/admin/analytics/keywords' },
-      { title: '퍼널 심화', href: '/admin/analytics/funnel-deep' },
-      { title: '세그먼트 분석', href: '/admin/analytics/segments' },
-      { title: '다양성 지표', href: '/admin/analytics/diversity' },
-      { title: '사용자 여정', href: '/admin/analytics/journey' },
-      { title: 'AI 인사이트', href: '/admin/analytics/ai-insights' },
+      // 기본 분석
+      { title: '매칭 분석', href: '/admin/analytics/matching', group: '기본' },
+      { title: '리텐션 분석', href: '/admin/analytics/retention', group: '기본' },
+      { title: '일기 패턴', href: '/admin/analytics/diaries', group: '기본' },
+      // 매크로 분석 (B-1.x)
+      { title: '퍼널 분석', href: '/admin/analytics/funnel', group: '매크로 분석' },
+      { title: '키워드 분석', href: '/admin/analytics/keywords', group: '매크로 분석' },
+      { title: '세그먼트 분석', href: '/admin/analytics/segments', group: '매크로 분석' },
+      { title: '사용자 여정', href: '/admin/analytics/journey', group: '매크로 분석' },
+      { title: 'AI 인사이트', href: '/admin/analytics/ai-insights', group: '매크로 분석' },
+      { title: '다양성 지표', href: '/admin/analytics/diversity', group: '매크로 분석' },
+      { title: '퍼널 심화', href: '/admin/analytics/funnel-deep', group: '매크로 분석' },
+      // 일기 분석 (B-2.x)
+      { title: '일기 시간 히트맵', href: '/admin/analytics/diaries/heatmap', group: '일기 분석' },
+      { title: '일기 길이·품질', href: '/admin/analytics/diaries/quality', group: '일기 분석' },
+      { title: '일기 감정 추이', href: '/admin/analytics/diaries/emotion', group: '일기 분석' },
+      { title: '일기 주제 참여', href: '/admin/analytics/diaries/topic', group: '일기 분석' },
+      { title: '교환 응답률', href: '/admin/analytics/diaries/response', group: '일기 분석' },
+      { title: '턴 퍼널', href: '/admin/analytics/diaries/turn-funnel', group: '일기 분석' },
     ],
   },
   {
@@ -262,27 +266,58 @@ export default function Sidebar() {
 
                   {expanded && (
                     <div className="ml-5 mt-1 space-y-0.5 border-l border-border pl-3">
-                      {item.subItems!.map((subItem) => {
-                        // subItem 수준 권한 필터링
-                        if (subItem.requiredRole && !hasPermission(subItem.requiredRole)) {
-                          return null;
+                      {(() => {
+                        // group 필드 기준으로 순서를 보존한 채 그룹핑
+                        // Object.groupBy 대신 수동 reduce — Node 타입 이슈 회피
+                        const groups: { label: string | undefined; items: SubNavItem[] }[] = [];
+                        const labelIndexMap = new Map<string | undefined, number>();
+
+                        for (const subItem of item.subItems!) {
+                          const key = subItem.group;
+                          if (!labelIndexMap.has(key)) {
+                            labelIndexMap.set(key, groups.length);
+                            groups.push({ label: key, items: [] });
+                          }
+                          groups[labelIndexMap.get(key)!].items.push(subItem);
                         }
-                        const isSubActive = pathname === subItem.href;
-                        return (
-                          <Link
-                            key={subItem.href}
-                            href={subItem.href}
-                            className={cn(
-                              'block rounded-sm px-3 py-1.5 text-sm transition-colors duration-short',
-                              isSubActive
-                                ? 'bg-primary/10 font-medium text-primary'
-                                : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground',
+
+                        return groups.map(({ label, items }, groupIdx) => (
+                          <div key={label ?? `__no_group_${groupIdx}`}>
+                            {/* 그룹 헤더 — non-clickable 구분자 */}
+                            {label && (
+                              <div
+                                className={cn(
+                                  'mb-1 px-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70',
+                                  groupIdx === 0 ? 'mt-1' : 'mt-3',
+                                )}
+                              >
+                                {label}
+                              </div>
                             )}
-                          >
-                            {subItem.title}
-                          </Link>
-                        );
-                      })}
+                            {items.map((subItem) => {
+                              // subItem 수준 권한 필터링
+                              if (subItem.requiredRole && !hasPermission(subItem.requiredRole)) {
+                                return null;
+                              }
+                              const isSubActive = pathname === subItem.href;
+                              return (
+                                <Link
+                                  key={subItem.href}
+                                  href={subItem.href}
+                                  className={cn(
+                                    'block rounded-sm px-3 py-1.5 text-sm transition-colors duration-short',
+                                    isSubActive
+                                      ? 'bg-primary/10 font-medium text-primary'
+                                      : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground',
+                                  )}
+                                >
+                                  {subItem.title}
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        ));
+                      })()}
                     </div>
                   )}
                 </>
