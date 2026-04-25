@@ -7,14 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/stores/authStore';
+import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
-
-// Mock 계정 정보
-const MOCK_ACCOUNTS = [
-  { email: 'super@ember.com', password: 'admin123', role: 'SUPER_ADMIN' as const, adminId: 1 },
-  { email: 'admin@ember.com', password: 'admin123', role: 'ADMIN' as const, adminId: 2 },
-  { email: 'viewer@ember.com', password: 'admin123', role: 'VIEWER' as const, adminId: 3 },
-];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -33,27 +27,23 @@ export default function LoginPage() {
 
     setIsLoading(true);
 
-    // Mock 로그인 처리
-    await new Promise((resolve) => setTimeout(resolve, 500)); // 로딩 시뮬레이션
+    try {
+      const { data } = await apiClient.post('/api/admin/auth/login', { email, password });
+      const res = data.data;
 
-    const account = MOCK_ACCOUNTS.find(
-      (acc) => acc.email === email && acc.password === password
-    );
-
-    if (account) {
-      const mockToken = `mock-token-${account.role}-${Date.now()}`;
-      login(mockToken, `refresh-${mockToken}`, {
-        adminId: account.adminId,
-        email: account.email,
-        role: account.role,
+      login(res.accessToken, res.refreshToken, {
+        adminId: res.adminId,
+        email: res.email,
+        role: res.role,
       });
-      toast.success(`${account.role} 로그인 성공`);
+      toast.success(`${res.role} 로그인 성공`);
       router.push('/admin/dashboard');
-    } else {
-      toast.error('이메일 또는 비밀번호가 올바르지 않습니다.');
+    } catch (err: any) {
+      const msg = err.response?.data?.message || '로그인에 실패했습니다.';
+      toast.error(msg);
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   return (
