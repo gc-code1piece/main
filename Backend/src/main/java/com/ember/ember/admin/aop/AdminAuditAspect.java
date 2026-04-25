@@ -15,6 +15,8 @@ import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.AfterReturning;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.core.DefaultParameterNameDiscoverer;
+import org.springframework.core.ParameterNameDiscoverer;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -40,6 +42,7 @@ public class AdminAuditAspect {
 
     private final AdminAuditLogRepository auditLogRepository;
     private final AdminAccountRepository adminAccountRepository;
+    private final ParameterNameDiscoverer paramDiscoverer = new DefaultParameterNameDiscoverer();
 
     /**
      * {@code @AdminAction} 메서드 성공 후 감사 로그 저장.
@@ -86,13 +89,19 @@ public class AdminAuditAspect {
     private Long extractTargetId(JoinPoint joinPoint, String paramName) {
         if (paramName == null || paramName.isBlank()) return null;
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
-        String[] names = signature.getParameterNames();
         Object[] args = joinPoint.getArgs();
-        if (names == null) return null;
-        for (int i = 0; i < names.length; i++) {
-            if (paramName.equals(names[i]) && args[i] instanceof Number n) {
-                return n.longValue();
+
+        String[] names = paramDiscoverer.getParameterNames(signature.getMethod());
+        if (names == null) names = signature.getParameterNames();
+        if (names != null) {
+            for (int i = 0; i < names.length; i++) {
+                if (paramName.equals(names[i]) && args[i] instanceof Number n) {
+                    return n.longValue();
+                }
             }
+        }
+        for (Object arg : args) {
+            if (arg instanceof Number n) return n.longValue();
         }
         return null;
     }
