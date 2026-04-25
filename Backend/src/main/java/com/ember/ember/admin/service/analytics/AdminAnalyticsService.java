@@ -1309,10 +1309,10 @@ public class AdminAnalyticsService {
               AND last_login_at < NOW() - INTERVAL '3 days'
             GROUP BY 1
             ORDER BY
-              CASE
-                WHEN last_login_at < NOW() - INTERVAL '14 days' THEN 1
-                WHEN last_login_at < NOW() - INTERVAL '7 days' THEN 2
-                ELSE 3
+              CASE risk_level
+                WHEN 'HIGH' THEN 1
+                WHEN 'MEDIUM' THEN 2
+                WHEN 'LOW' THEN 3
               END
             """;
 
