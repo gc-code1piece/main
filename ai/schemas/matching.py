@@ -61,9 +61,32 @@ class MatchingCalculateRequest(BaseModel):
 
 
 class ScoreBreakdown(BaseModel):
-    """점수 세부 내역."""
+    """
+    점수 세부 내역.
+
+    M8 매칭 알고리즘 v2 신규 필드(Optional, 하위 호환):
+      - keywordSemantic: 이상형 키워드 vs 후보 퍼스널리티 키워드 의미 유사도 (KoSimCSE 기반)
+      - cosineRaw: stretch 적용 전 raw cosine 정규화 값 (디버깅·분석용)
+      - cosineAvailable: 코사인 항 사용 여부 (False 면 keyword 항 단독으로 점수 산출)
+    Spring DTO 가 신규 필드를 모르더라도 Jackson 기본 동작(unknown 무시)으로 호환된다.
+    """
     keywordOverlap: float = Field(..., ge=0.0, le=1.0, description="이상형 키워드 Jaccard 유사도")
-    cosineSimilarity: float = Field(..., ge=0.0, le=1.0, description="코사인 유사도 (0~1 정규화)")
+    cosineSimilarity: float = Field(
+        ..., ge=0.0, le=1.0,
+        description="코사인 유사도 (M8: 한국어 분포 기반 stretch 후 0~1)",
+    )
+    keywordSemantic: float = Field(
+        0.0, ge=0.0, le=1.0,
+        description="M8 신규: 키워드 의미 유사도 (KoSimCSE pairwise 평균, 0~1)",
+    )
+    cosineRaw: float = Field(
+        0.0, ge=0.0, le=1.0,
+        description="M8 신규: stretch 적용 전 raw cosine 정규화 값 (0~1)",
+    )
+    cosineAvailable: bool = Field(
+        True,
+        description="M8 신규: 코사인 항 사용 여부. False 면 keyword 항 단독으로 점수 산출.",
+    )
 
 
 class CandidateScore(BaseModel):
