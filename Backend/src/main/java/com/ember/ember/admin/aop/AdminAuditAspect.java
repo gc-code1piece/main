@@ -89,6 +89,7 @@ public class AdminAuditAspect {
     private Long extractTargetId(JoinPoint joinPoint, String paramName) {
         if (paramName == null || paramName.isBlank()) return null;
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+<<<<<<< HEAD
         String[] names = paramDiscoverer.getParameterNames(signature.getMethod());
         Object[] args = joinPoint.getArgs();
         if (names == null) names = signature.getParameterNames();
@@ -96,7 +97,21 @@ public class AdminAuditAspect {
         for (int i = 0; i < names.length; i++) {
             if (paramName.equals(names[i]) && args[i] instanceof Number n) {
                 return n.longValue();
+=======
+        Object[] args = joinPoint.getArgs();
+
+        String[] names = paramDiscoverer.getParameterNames(signature.getMethod());
+        if (names == null) names = signature.getParameterNames();
+        if (names != null) {
+            for (int i = 0; i < names.length; i++) {
+                if (paramName.equals(names[i]) && args[i] instanceof Number n) {
+                    return n.longValue();
+                }
+>>>>>>> e19ea56 (fix: AOP 파라미터명 해석 — DefaultParameterNameDiscoverer 사용)
             }
+        }
+        for (Object arg : args) {
+            if (arg instanceof Number n) return n.longValue();
         }
         return null;
     }
