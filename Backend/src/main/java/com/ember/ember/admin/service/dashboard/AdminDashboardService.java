@@ -71,36 +71,56 @@ public class AdminDashboardService {
 
     @SuppressWarnings("unchecked")
     private DashboardKpiResponse queryKpiFromDb() {
-        // DAU: 오늘 로그인한 사용자 수 (last_login_at 기준)
-        long dau = singleLong(
-            "SELECT COUNT(*) FROM users WHERE deleted_at IS NULL " +
-            "AND last_login_at >= CURRENT_DATE AND last_login_at < CURRENT_DATE + INTERVAL '1 day'");
-
-        // MAU: 최근 30일 로그인 사용자 수
-        long mau = singleLong(
-            "SELECT COUNT(*) FROM users WHERE deleted_at IS NULL " +
-            "AND last_login_at >= CURRENT_DATE - INTERVAL '30 days'");
+        // 누적 가입자
+        long totalSignups = singleLong(
+            "SELECT COUNT(*) FROM users WHERE deleted_at IS NULL");
 
         // 오늘 신규 가입자
-        long newUsersToday = singleLong(
+        long newSignupsToday = singleLong(
             "SELECT COUNT(*) FROM users WHERE deleted_at IS NULL " +
             "AND created_at >= CURRENT_DATE AND created_at < CURRENT_DATE + INTERVAL '1 day'");
 
-        // 오늘 매칭 성사 수
-        long matchesToday = singleLong(
-            "SELECT COUNT(*) FROM matchings " +
-            "WHERE status = 'MATCHED' " +
-            "AND matched_at >= CURRENT_DATE AND matched_at < CURRENT_DATE + INTERVAL '1 day'");
+        // 활성 매칭 (PENDING 상태)
+        long activeMatching = singleLong(
+            "SELECT COUNT(*) FROM matchings WHERE status = 'PENDING'");
 
-        // 대기 중인 신고
+        // 매칭 성공률
+        long totalMatchings = singleLong("SELECT COUNT(*) FROM matchings");
+        long matchedCount = singleLong("SELECT COUNT(*) FROM matchings WHERE status = 'MATCHED'");
+        double matchingSuccessRate = totalMatchings > 0
+            ? (double) matchedCount / totalMatchings * 100.0 : 0.0;
+
+        // 오늘 일기 작성 수
+        long diaryCountToday = singleLong(
+            "SELECT COUNT(*) FROM diaries WHERE deleted_at IS NULL " +
+            "AND created_at >= CURRENT_DATE AND created_at < CURRENT_DATE + INTERVAL '1 day'");
+
+        // 오늘 교환일기 작성 수
+        long exchangeDiaryCountToday = singleLong(
+            "SELECT COUNT(*) FROM exchange_diaries " +
+            "WHERE created_at >= CURRENT_DATE AND created_at < CURRENT_DATE + INTERVAL '1 day'");
+
+        // 7일 이탈률
+        long activeUsers7dAgo = singleLong(
+            "SELECT COUNT(*) FROM users WHERE deleted_at IS NULL " +
+            "AND last_login_at >= CURRENT_DATE - INTERVAL '14 days' " +
+            "AND last_login_at < CURRENT_DATE - INTERVAL '7 days'");
+        long churnedFromThem = activeUsers7dAgo > 0 ? singleLong(
+            "SELECT COUNT(*) FROM users WHERE deleted_at IS NULL " +
+            "AND last_login_at >= CURRENT_DATE - INTERVAL '14 days' " +
+            "AND last_login_at < CURRENT_DATE - INTERVAL '7 days' " +
+            "AND (last_login_at < CURRENT_DATE - INTERVAL '7 days')") : 0;
+        double churnRate7d = activeUsers7dAgo > 0
+            ? (double) churnedFromThem / activeUsers7dAgo * 100.0 : 0.0;
+
+        // 미처리 신고
         long pendingReports = singleLong(
             "SELECT COUNT(*) FROM reports WHERE status IN ('PENDING', 'IN_REVIEW')");
 
-        // 활성 교환일기 방
-        long activeExchanges = singleLong(
-            "SELECT COUNT(*) FROM exchange_rooms WHERE status NOT IN ('ENDED', 'TERMINATED')");
-
-        return new DashboardKpiResponse(dau, mau, newUsersToday, matchesToday, pendingReports, activeExchanges);
+        return DashboardKpiResponse.of(
+            totalSignups, newSignupsToday, activeMatching,
+            matchingSuccessRate, diaryCountToday,
+            exchangeDiaryCountToday, churnRate7d, pendingReports);
     }
 
     // ─────────────────────────────────────────────────────────────────────
