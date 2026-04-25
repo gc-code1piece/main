@@ -34,8 +34,8 @@ public interface AdminAccountRepository extends JpaRepository<AdminAccount, Long
             SELECT a
               FROM AdminAccount a
              WHERE a.status <> com.ember.ember.admin.domain.AdminAccount$AdminStatus.DELETED
-               AND (:search IS NULL OR LOWER(a.email) LIKE LOWER(CONCAT('%', COALESCE(:search, ''), '%'))
-                                    OR LOWER(a.name)  LIKE LOWER(CONCAT('%', COALESCE(:search, ''), '%')))
+               AND (:search IS NULL OR LOWER(a.email) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
+                                    OR LOWER(a.name)  LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
                AND (:role IS NULL OR a.role = :role)
                AND (:status IS NULL OR a.status = :status)
             """)

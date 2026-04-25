@@ -31,8 +31,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
              WHERE (:status IS NULL OR u.status = :status)
                AND (:gender IS NULL OR u.gender = :gender)
                AND (:keyword IS NULL
-                    OR u.nickname LIKE CONCAT('%', COALESCE(:keyword, ''), '%')
-                    OR u.realName LIKE CONCAT('%', COALESCE(:keyword, ''), '%'))
+                    OR u.nickname LIKE CONCAT('%', CAST(:keyword AS string), '%')
+                    OR u.realName LIKE CONCAT('%', CAST(:keyword AS string), '%'))
             """)
     Page<User> searchMembers(@Param("keyword") String keyword,
                               @Param("status") User.UserStatus status,

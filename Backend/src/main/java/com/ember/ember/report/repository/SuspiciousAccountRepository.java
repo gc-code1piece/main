@@ -27,7 +27,7 @@ public interface SuspiciousAccountRepository extends JpaRepository<SuspiciousAcc
              WHERE (:status IS NULL OR s.status = :status)
                AND (:suspicionType IS NULL OR s.suspicionType = :suspicionType)
                AND (:keyword IS NULL
-                    OR u.nickname LIKE CONCAT('%', COALESCE(:keyword, ''), '%'))
+                    OR u.nickname LIKE CONCAT('%', CAST(:keyword AS string), '%'))
              ORDER BY s.riskScore DESC, s.detectedAt DESC
             """,
             countQuery = """
@@ -35,7 +35,7 @@ public interface SuspiciousAccountRepository extends JpaRepository<SuspiciousAcc
              WHERE (:status IS NULL OR s.status = :status)
                AND (:suspicionType IS NULL OR s.suspicionType = :suspicionType)
                AND (:keyword IS NULL
-                    OR s.user.nickname LIKE CONCAT('%', COALESCE(:keyword, ''), '%'))
+                    OR s.user.nickname LIKE CONCAT('%', CAST(:keyword AS string), '%'))
             """)
     Page<SuspiciousAccount> searchSuspicious(@Param("status") SuspiciousAccount.ReviewStatus status,
                                              @Param("suspicionType") SuspiciousAccount.SuspicionType suspicionType,
