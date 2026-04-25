@@ -31,8 +31,8 @@ public interface AdminAuditLogRepository extends JpaRepository<AdminAuditLog, Lo
                AND (:startAt    IS NULL OR l.performedAt >= :startAt)
                AND (:endAt      IS NULL OR l.performedAt <  :endAt)
                AND (:search     IS NULL
-                    OR LOWER(l.ipAddress) LIKE LOWER(CONCAT('%', :search, '%'))
-                    OR LOWER(l.detail)    LIKE LOWER(CONCAT('%', :search, '%')))
+                    OR LOWER(l.ipAddress) LIKE LOWER(CONCAT('%', COALESCE(:search, ''), '%'))
+                    OR LOWER(l.detail)    LIKE LOWER(CONCAT('%', COALESCE(:search, ''), '%')))
              ORDER BY l.performedAt DESC
             """,
             countQuery = """
@@ -45,8 +45,8 @@ public interface AdminAuditLogRepository extends JpaRepository<AdminAuditLog, Lo
                AND (:startAt    IS NULL OR l.performedAt >= :startAt)
                AND (:endAt      IS NULL OR l.performedAt <  :endAt)
                AND (:search     IS NULL
-                    OR LOWER(l.ipAddress) LIKE LOWER(CONCAT('%', :search, '%'))
-                    OR LOWER(l.detail)    LIKE LOWER(CONCAT('%', :search, '%')))
+                    OR LOWER(l.ipAddress) LIKE LOWER(CONCAT('%', COALESCE(:search, ''), '%'))
+                    OR LOWER(l.detail)    LIKE LOWER(CONCAT('%', COALESCE(:search, ''), '%')))
             """)
     Page<AdminAuditLog> searchAuditLogs(@Param("adminId") Long adminId,
                                          @Param("action") String action,
