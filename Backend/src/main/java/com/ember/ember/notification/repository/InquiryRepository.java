@@ -25,12 +25,18 @@ public interface InquiryRepository extends JpaRepository<Inquiry, Long> {
     long countByUserIdAndStatusIn(Long userId, List<Inquiry.InquiryStatus> statuses);
 
     /** 관리자용 문의 검색 — 상태/카테고리 필터 + 페이징 */
-    @Query("""
+    @Query(value = """
             SELECT i FROM Inquiry i
             JOIN FETCH i.user u
+            LEFT JOIN FETCH i.answeredBy
              WHERE (:status IS NULL OR i.status = :status)
                AND (:category IS NULL OR i.category = :category)
             ORDER BY i.createdAt DESC
+            """,
+            countQuery = """
+            SELECT COUNT(i) FROM Inquiry i
+             WHERE (:status IS NULL OR i.status = :status)
+               AND (:category IS NULL OR i.category = :category)
             """)
     Page<Inquiry> searchForAdmin(@Param("status") Inquiry.InquiryStatus status,
                                  @Param("category") String category,

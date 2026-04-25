@@ -18,6 +18,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 관리자 FAQ 서비스 — 관리자 API v2.1 §22.
@@ -82,8 +85,14 @@ public class AdminFaqService {
     @AdminAction(action = "FAQ_REORDER", targetType = "FAQ")
     public void reorder(ReorderRequest request) {
         List<Long> orderedIds = request.orderedIds();
+        List<Faq> faqs = faqRepository.findAllById(orderedIds);
+        Map<Long, Faq> faqMap = faqs.stream()
+                .collect(Collectors.toMap(Faq::getId, Function.identity()));
         for (int i = 0; i < orderedIds.size(); i++) {
-            Faq faq = load(orderedIds.get(i));
+            Faq faq = faqMap.get(orderedIds.get(i));
+            if (faq == null) {
+                throw new BusinessException(ErrorCode.ADM_FAQ_NOT_FOUND);
+            }
             faq.updateSortOrder(i);
         }
         log.info("[FAQ_REORDER] count={}", orderedIds.size());

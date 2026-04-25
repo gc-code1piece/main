@@ -139,6 +139,8 @@ public enum ErrorCode {
     ADM_REANALYSIS_IN_PROGRESS("ADM007", HttpStatus.BAD_REQUEST, "재분석 요청이 이미 진행 중입니다."),
     ADM_TOPIC_NOT_FOUND("ADM008", HttpStatus.NOT_FOUND, "존재하지 않는 주간 주제입니다."),
     ADM_TERMS_NOT_FOUND("ADM009", HttpStatus.NOT_FOUND, "존재하지 않는 약관입니다."),
+    ADM_TERMS_REQUIRED_DELETE("ADM041", HttpStatus.BAD_REQUEST, "필수 약관이 활성 상태일 때는 아카이브할 수 없습니다."),
+    ADM_TERMS_ACTIVE_EXISTS("ADM042", HttpStatus.CONFLICT, "동일 유형의 활성 약관이 이미 존재합니다."),
     ADM_LAST_SUPER_ADMIN("ADM010", HttpStatus.BAD_REQUEST, "마지막 SUPER_ADMIN은 삭제할 수 없습니다."),
     ADM_AUDIT_LOG_FAILED("ADM011", HttpStatus.INTERNAL_SERVER_ERROR, "감사 로그 저장에 실패했습니다."),
     ADM_PII_LOG_FAILED("ADM012", HttpStatus.INTERNAL_SERVER_ERROR, "PII 접근 로그 저장에 실패했습니다."),
@@ -178,7 +180,7 @@ public enum ErrorCode {
 
     // §11 공지사항 관리
     ADM_NOTICE_NOT_FOUND("ADM032", HttpStatus.NOT_FOUND, "존재하지 않는 공지사항입니다."),
-    ADM_NOTICE_PIN_LIMIT("ADM033", HttpStatus.BAD_REQUEST, "고정 공지는 최대 5개까지 가능합니다."),
+    ADM_NOTICE_PIN_LIMIT("ADM033", HttpStatus.BAD_REQUEST, "고정 공지는 최대 3개까지 가능합니다."),
 
     // §22 FAQ 관리
     ADM_FAQ_NOT_FOUND("ADM034", HttpStatus.NOT_FOUND, "존재하지 않는 FAQ입니다."),

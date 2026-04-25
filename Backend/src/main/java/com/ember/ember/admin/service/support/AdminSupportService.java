@@ -77,6 +77,9 @@ public class AdminSupportService {
     @AdminAction(action = "INQUIRY_CLOSE", targetType = "INQUIRY", targetIdParam = "inquiryId")
     public InquiryResponse closeInquiry(Long inquiryId, Long adminId) {
         Inquiry inquiry = loadInquiry(inquiryId);
+        if (inquiry.getStatus() == Inquiry.InquiryStatus.CLOSED) {
+            throw new BusinessException(ErrorCode.ADM_INQUIRY_ALREADY_RESOLVED);
+        }
         inquiry.close();
         log.info("[INQUIRY_CLOSE] inquiryId={} adminId={}", inquiryId, adminId);
         return InquiryResponse.from(inquiry);

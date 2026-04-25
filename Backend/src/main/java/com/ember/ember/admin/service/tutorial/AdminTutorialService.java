@@ -20,6 +20,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 관리자 튜토리얼 서비스 — 관리자 API v2.1 §23.
@@ -87,8 +90,23 @@ public class AdminTutorialService {
     @AdminAction(action = "TUTORIAL_REORDER", targetType = "TUTORIAL")
     public void reorder(ReorderRequest request) {
         List<Long> orderedIds = request.orderedIds();
+        List<TutorialPage> pages = tutorialPageRepository.findAllById(orderedIds);
+        Map<Long, TutorialPage> pageMap = pages.stream()
+                .collect(Collectors.toMap(TutorialPage::getId, Function.identity()));
+
+        // 2-pass: pageOrder에 unique 제약이 있으므로 먼저 음수로 설정 후 flush
         for (int i = 0; i < orderedIds.size(); i++) {
-            TutorialPage page = load(orderedIds.get(i));
+            TutorialPage page = pageMap.get(orderedIds.get(i));
+            if (page == null) {
+                throw new BusinessException(ErrorCode.ADM_TUTORIAL_PAGE_NOT_FOUND);
+            }
+            page.updatePageOrder(-(i + 1));
+        }
+        tutorialPageRepository.flush();
+
+        // 최종 순서 설정
+        for (int i = 0; i < orderedIds.size(); i++) {
+            TutorialPage page = pageMap.get(orderedIds.get(i));
             page.updatePageOrder(i);
         }
         log.info("[TUTORIAL_REORDER] count={}", orderedIds.size());

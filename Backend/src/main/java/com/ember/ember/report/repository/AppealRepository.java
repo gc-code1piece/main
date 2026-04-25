@@ -16,12 +16,17 @@ public interface AppealRepository extends JpaRepository<Appeal, Long> {
     boolean existsBySanctionIdAndStatus(Long sanctionId, Appeal.AppealStatus status);
 
     /** 관리자용 이의신청 검색 — 상태 필터 + 페이징 */
-    @Query("""
+    @Query(value = """
             SELECT a FROM Appeal a
             JOIN FETCH a.user u
             JOIN FETCH a.sanction s
+            LEFT JOIN FETCH a.decidedBy
              WHERE (:status IS NULL OR a.status = :status)
             ORDER BY a.createdAt DESC
+            """,
+            countQuery = """
+            SELECT COUNT(a) FROM Appeal a
+             WHERE (:status IS NULL OR a.status = :status)
             """)
     Page<Appeal> searchForAdmin(@Param("status") Appeal.AppealStatus status,
                                 Pageable pageable);

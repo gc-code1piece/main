@@ -88,7 +88,7 @@ public class AdminTermsService {
     public void archive(Long termsId) {
         Terms terms = load(termsId);
         if (Boolean.TRUE.equals(terms.getIsRequired()) && terms.getStatus() == Terms.TermsStatus.ACTIVE) {
-            throw new BusinessException(ErrorCode.ADM_TERMS_NOT_FOUND);
+            throw new BusinessException(ErrorCode.ADM_TERMS_REQUIRED_DELETE);
         }
         terms.updateStatus(Terms.TermsStatus.ARCHIVED);
         log.info("[TERMS_ARCHIVE] termsId={}", termsId);
@@ -103,7 +103,7 @@ public class AdminTermsService {
 
     private void validateNoActiveExists(Terms.TermsType type) {
         if (termsRepository.existsByTypeAndStatus(type, Terms.TermsStatus.ACTIVE)) {
-            throw new BusinessException(ErrorCode.ADM_TERMS_NOT_FOUND);
+            throw new BusinessException(ErrorCode.ADM_TERMS_ACTIVE_EXISTS);
         }
     }
 }

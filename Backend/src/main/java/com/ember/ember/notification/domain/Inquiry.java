@@ -65,6 +65,9 @@ public class Inquiry extends BaseEntity {
 
     /** 관리자 답변 등록 */
     public void reply(String answer, AdminAccount admin) {
+        if (this.status == InquiryStatus.RESOLVED || this.status == InquiryStatus.CLOSED) {
+            throw new IllegalStateException("이미 답변 완료되었거나 종료된 문의에는 답변할 수 없습니다.");
+        }
         this.answer = answer;
         this.answeredBy = admin;
         this.answeredAt = LocalDateTime.now();
@@ -73,6 +76,9 @@ public class Inquiry extends BaseEntity {
 
     /** 문의 종료 처리 */
     public void close() {
+        if (this.status == InquiryStatus.CLOSED) {
+            throw new IllegalStateException("이미 종료된 문의입니다.");
+        }
         this.closedAt = LocalDateTime.now();
         this.status = InquiryStatus.CLOSED;
     }
