@@ -1,5 +1,7 @@
 package com.ember.ember.diary.service;
 
+import com.ember.ember.admin.domain.inbox.AdminNotification;
+import com.ember.ember.admin.service.inbox.AdminInboxPublisher;
 import com.ember.ember.aireport.service.LifestyleAnalysisService;
 import com.ember.ember.cache.service.CacheService;
 import com.ember.ember.diary.domain.Diary;
@@ -47,6 +49,7 @@ public class DiaryAnalysisResultHandler {
     private final ObjectMapper objectMapper;
     private final LifestyleAnalysisService lifestyleAnalysisService;
     private final FcmService fcmService;
+    private final AdminInboxPublisher adminInboxPublisher;
 
     /**
      * AI 분석 완료 처리.
@@ -121,7 +124,8 @@ public class DiaryAnalysisResultHandler {
      * 처리 순서:
      *   1. diary.analysisStatus = FAILED 업데이트
      *   2. user_activity_events INSERT (AI_ANALYSIS_FAILED)
-     *   3. 관리자 알림 — TODO(M7): 관측성 마일스톤에서 구현
+     *   3. 관리자 알림 발행 (AdminInboxPublisher — AI_PIPELINE 카테고리, WARN)
+     *      동일 sourceType 5분 묶음은 CRITICAL에만 적용되므로, 폭주 시 errorCode별 분기 검토 필요.
      *
      * @param event 분석 실패 이벤트
      */
@@ -156,7 +160,24 @@ public class DiaryAnalysisResultHandler {
             userActivityEventRepository.save(activityEvent);
         });
 
-        // 3. 관리자 알림 — TODO(M7): 관측성/알림 마일스톤에서 구현
+        // 3. 관리자 알림 발행 — AI_PIPELINE 카테고리, WARN.
+        //    publish 실패가 본 트랜잭션을 롤백시키지 않도록 try/catch로 방어.
+        try {
+            String errorCode = event.error() != null ? event.error().code() : "UNKNOWN";
+            adminInboxPublisher.publish(AdminInboxPublisher.NotificationCommand.builder()
+                    .type(AdminNotification.NotificationType.WARN)
+                    .category("AI_PIPELINE")
+                    .title("일기 AI 분석 실패")
+                    .message(String.format("diaryId=%d 분석 실패 — errorCode=%s", diaryId, errorCode))
+                    .sourceType("DIARY_ANALYSIS_FAILED")
+                    .sourceId(String.valueOf(diaryId))
+                    .actionUrl("/admin/ai/analysis")
+                    .build());
+        } catch (Exception ex) {
+            log.warn("[DiaryAnalysisResultHandler] 관리자 알림 발행 실패 (분석 실패는 정상 처리됨) — diaryId={}, 이유={}",
+                    diaryId, ex.getMessage());
+        }
+
         log.info("[DiaryAnalysisResultHandler] 분석 실패 처리 완료 — diaryId={}, userId={}", diaryId, userId);
     }
 

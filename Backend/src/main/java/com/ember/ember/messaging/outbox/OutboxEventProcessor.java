@@ -1,5 +1,7 @@
 package com.ember.ember.messaging.outbox;
 
+import com.ember.ember.admin.domain.inbox.AdminNotification;
+import com.ember.ember.admin.service.inbox.AdminInboxPublisher;
 import com.ember.ember.aireport.repository.ExchangeReportRepository;
 import com.ember.ember.consent.service.AiConsentService;
 import com.ember.ember.diary.repository.DiaryRepository;
@@ -35,6 +37,7 @@ public class OutboxEventProcessor {
     private final DiaryRepository diaryRepository;
     private final ExchangeReportRepository exchangeReportRepository;
     private final ObjectMapper objectMapper;
+    private final AdminInboxPublisher adminInboxPublisher;
 
     /**
      * 단일 이벤트 처리 — 독립 트랜잭션.
@@ -62,6 +65,26 @@ public class OutboxEventProcessor {
             outboxEventRepository.save(event);
             log.warn("[OutboxRelay] 발행 실패 — eventId={}, retry={}, 이유={}",
                     event.getId(), event.getRetryCount(), e.getMessage());
+
+            // FAILED로 전이된 1회만 관리자 알림 발행 (CRITICAL — 5분 묶음 자동 적용).
+            // publish 실패가 본 catch 흐름을 깨지 않도록 내부에서 또 try/catch로 방어.
+            if (event.getStatus() == OutboxEvent.OutboxStatus.FAILED) {
+                try {
+                    adminInboxPublisher.publish(AdminInboxPublisher.NotificationCommand.builder()
+                            .type(AdminNotification.NotificationType.CRITICAL)
+                            .category("MESSAGING")
+                            .title("Outbox 이벤트 최대 재시도 초과")
+                            .message(String.format("eventId=%d eventType=%s 최대 재시도(%d) 초과",
+                                    event.getId(), event.getEventType(), MAX_RETRY))
+                            .sourceType("OUTBOX_DLQ")
+                            .sourceId(String.valueOf(event.getId()))
+                            .actionUrl("/admin/system/messaging")
+                            .build());
+                } catch (Exception ex) {
+                    log.warn("[OutboxRelay] 관리자 알림 발행 실패 (Outbox FAILED 처리는 정상) — eventId={}, 이유={}",
+                            event.getId(), ex.getMessage());
+                }
+            }
         } finally {
             MDC.remove("outboxEventId");
             MDC.remove("eventType");
