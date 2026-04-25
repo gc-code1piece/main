@@ -1,5 +1,7 @@
 package com.ember.ember.aireport.service;
 
+import com.ember.ember.admin.domain.inbox.AdminNotification;
+import com.ember.ember.admin.service.inbox.AdminInboxPublisher;
 import com.ember.ember.aireport.domain.ExchangeReport;
 import com.ember.ember.aireport.repository.ExchangeReportRepository;
 import com.ember.ember.cache.service.CacheService;
@@ -44,6 +46,7 @@ public class ExchangeReportResultHandler {
     private final CacheService cacheService;
     private final FcmService fcmService;
     private final ObjectMapper objectMapper;
+    private final AdminInboxPublisher adminInboxPublisher;
 
     /**
      * 교환일기 리포트 생성 완료 처리.
@@ -124,7 +127,7 @@ public class ExchangeReportResultHandler {
      * 처리 순서:
      *   1. ExchangeReport 조회 (없으면 WARN 후 return)
      *   2. status=FAILED 업데이트
-     *   3. 관리자 알림 — TODO(M7)
+     *   3. 관리자 알림 발행 (AdminInboxPublisher — AI_PIPELINE 카테고리, WARN)
      *
      * @param event EXCHANGE_REPORT_FAILED 이벤트
      */
@@ -147,7 +150,23 @@ public class ExchangeReportResultHandler {
                 () -> log.warn("[ExchangeReportResultHandler] ExchangeReport 없음 (실패 처리) — reportId={}", reportId)
         );
 
-        // TODO(M7): 관리자 알림 — reportId 기준 DLQ 소진 후 Slack/이메일 알림 발송
+        // 3. 관리자 알림 발행 — AI_PIPELINE / EXCHANGE_REPORT_FAILED, WARN.
+        //    publish 실패가 본 트랜잭션을 롤백시키지 않도록 try/catch로 방어.
+        try {
+            String errorCode = event.error() != null ? event.error().code() : "UNKNOWN";
+            adminInboxPublisher.publish(AdminInboxPublisher.NotificationCommand.builder()
+                    .type(AdminNotification.NotificationType.WARN)
+                    .category("AI_PIPELINE")
+                    .title("교환일기 리포트 생성 실패")
+                    .message(String.format("reportId=%d 리포트 실패 — errorCode=%s", reportId, errorCode))
+                    .sourceType("EXCHANGE_REPORT_FAILED")
+                    .sourceId(String.valueOf(reportId))
+                    .actionUrl("/admin/ai/analysis")
+                    .build());
+        } catch (Exception ex) {
+            log.warn("[ExchangeReportResultHandler] 관리자 알림 발행 실패 (리포트 실패는 정상 처리됨) — reportId={}, 이유={}",
+                    reportId, ex.getMessage());
+        }
     }
 
     // -------------------------------------------------------------------------
