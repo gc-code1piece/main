@@ -102,31 +102,17 @@ public class PiiAccessAspect {
     private Long extractTargetId(JoinPoint joinPoint, String paramName) {
         if (paramName == null || paramName.isBlank()) return null;
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
-<<<<<<< HEAD
-        String[] names = paramDiscoverer.getParameterNames(signature.getMethod());
-        Object[] args = joinPoint.getArgs();
-        if (names == null) names = signature.getParameterNames();
-        if (names == null) return null;
-        for (int i = 0; i < names.length; i++) {
-            if (paramName.equals(names[i]) && args[i] instanceof Number n) {
-                return n.longValue();
-=======
         Object[] args = joinPoint.getArgs();
 
-        // 1차: Spring ParameterNameDiscoverer
         String[] names = paramDiscoverer.getParameterNames(signature.getMethod());
-        // 2차: AspectJ MethodSignature
         if (names == null) names = signature.getParameterNames();
-        // 파라미터명으로 매칭
         if (names != null) {
             for (int i = 0; i < names.length; i++) {
                 if (paramName.equals(names[i]) && args[i] instanceof Number n) {
                     return n.longValue();
                 }
->>>>>>> e19ea56 (fix: AOP 파라미터명 해석 — DefaultParameterNameDiscoverer 사용)
             }
         }
-        // 3차 폴백: 파라미터명 해석 실패 시 첫 번째 Long/Integer 파라미터 사용
         for (Object arg : args) {
             if (arg instanceof Number n) return n.longValue();
         }
