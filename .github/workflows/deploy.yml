@@ -48,6 +48,7 @@ jobs:
             FIREBASE_CREDENTIALS_PATH=firebase-service-account.json
             OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
             OPENAI_MODEL=${{ secrets.OPENAI_MODEL }}
+            ADMIN_ORIGIN=${{ secrets.ADMIN_ORIGIN }}
             EOF
             chmod 600 .env
 
