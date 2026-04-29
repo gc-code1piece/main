@@ -390,11 +390,11 @@ class _ConsentScreenState extends State<ConsentScreen> {
     try {
       if (userTerms) {
         await app.dio.post('${app.baseUrl}/api/consent',
-          data: {'consentType': 'USER_TERMS'}, options: app.authHeaders);
+          data: {'consentType': 'AI_ANALYSIS'}, options: app.authHeaders);
       }
       if (aiTerms) {
         await app.dio.post('${app.baseUrl}/api/consent',
-          data: {'consentType': 'AI_TERMS'}, options: app.authHeaders);
+          data: {'consentType': 'AI_DATA_USAGE'}, options: app.authHeaders);
       }
       if (mounted) {
         Navigator.pushReplacement(context,

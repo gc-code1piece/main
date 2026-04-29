@@ -42,6 +42,11 @@ public class ConsentController {
             @Valid @RequestBody ConsentRequest request,
             HttpServletRequest httpRequest) {
 
+        // consentType 유효성 검증 (AI_ANALYSIS / AI_DATA_USAGE만 허용)
+        if (!request.isValidType()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST);
+        }
+
         User user = userRepository.findById(userDetails.getUserId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
 
