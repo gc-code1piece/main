@@ -1,214 +1,232 @@
 """
-매칭 점수 계산 v2 — 변별력 강화 알고리즘 (M8)
+매칭 점수 계산 — Semantic Matrix + Temperature Scaling 버전
 
-기존 v1 (api/matching.py 인라인) 한계:
-  - KoSimCSE 한국어 임베딩 코사인이 0.6~0.9 분포에 몰려 (cos+1)/2 정규화 시
-    0.8~0.95 부근 → matchingScore 차이가 거의 안 보이는 문제
-  - 키워드 매칭이 Jaccard 단일 → "따뜻함" vs "다정함" 같은 의미 유사 키워드는 0점 처리
-  - userEmbedding 또는 candidate.embedding 이 None 인 경우 0.5(중립값)로 강제 보간
-    → 임베딩 유무에 따른 점수 왜곡
+알고리즘:
+  1. 이상형 키워드 10개 설명문을 KoSimCSE로 임베딩
+  2. 33개 원천 태그를 KoSimCSE로 임베딩
+  3. 10×33 Semantic Matrix 생성 (코사인 유사도)
+  4. 행별 Min-Max 정규화 + Temperature 2.0
+  5. 후보 유저의 33차원 프로필 벡터와 코사인 유사도 → 키워드별 점수
+  6. 이상형 1순위×3 + 2순위×2 + 3순위×1 가중합산 → 최종 점수
 
-v2 개선 포인트:
-  1. cosine variance stretching:
-     KoSimCSE 한국어 임베딩 분포 baseline (0.50) ~ 동일 의미 상한 (0.95) 구간을
-     0~1 로 선형 stretch 하여 0.55~0.85 사이 변별력을 4배 이상 확보.
-  2. keyword semantic similarity:
-     idealKeywords 와 personalityKeywords 각각을 KoSimCSE 임베딩 후
-     pairwise max-pool 평균 계산 (lru_cache 로 재사용).
-     keyword_score = max(jaccard, 0.85 × semantic) 로 정확 매칭을 우선시하면서
-     의미 유사 매칭도 점수에 반영.
-  3. 임베딩 결손 처리 명시화:
-     - userEmbedding 결손 + idealKeywords 존재 → 동적 임베딩 (v1 동일)
-     - userEmbedding 결손 + idealKeywords 결손 → cosine 항 가중치 0 (keyword 항 100%)
-     - candidate.embedding 결손 → cosine 항 가중치 0, keyword 항만으로 점수 산출
-     (기존 0.5 보간 제거)
-
-알고리즘 검증 가능성:
-  - keywordOverlap (Jaccard) 와 cosineSimilarity (stretched) 는 기존 ScoreBreakdown
-    필드와 동일한 의미를 유지 (Spring DTO 호환성).
-  - 신규 keywordSemantic / cosineRaw 필드는 ScoreBreakdown 에 추가 (Optional).
-    Spring 측 Jackson 은 unknown field 무시(기본 동작) → 하위 호환.
+기존 api/matching.py 라우터와의 호환:
+  - compute_matching_score() 함수 시그니처를 기존과 동일하게 유지
+  - MatchingScore 데이터클래스의 필드명도 기존 ScoreBreakdown과 호환
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
-from typing import Iterable, Optional
+from functools import lru_cache
+from typing import Optional
 
 import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
 
 from services import kosimcse_service
 
-# ── 알고리즘 상수 ─────────────────────────────────────────────────────────────
+logger = logging.getLogger(__name__)
 
-# KoSimCSE 한국어 임베딩 코사인 분포 baseline / saturation
-# - COSINE_BASELINE: 무관한 한국어 두 문장의 평균 코사인 (실측 약 0.50)
-# - COSINE_SATURATION: 의미가 매우 유사한 두 문장의 평균 코사인 (실측 약 0.95)
-# 두 값 사이를 0~1 로 선형 stretch 하여 변별력 확보.
-COSINE_BASELINE: float = 0.50
-COSINE_SATURATION: float = 0.95
+# ── 이상형 키워드 + 설명문 (v2 확정) ─────────────────────────────────────────
 
-# 가중치 (sum=1.0) — keyword 항 / cosine 항
-W_KEYWORD: float = 0.55
-W_COSINE: float = 0.45
+IDEAL_KEYWORDS = [
+    "안정적인 사람", "긍정적인 사람", "따뜻한 사람", "공감적인 사람", "다정한 사람",
+    "솔직한 사람", "성실한 사람", "도전적인 사람", "자유로운 사람", "깊이 있는 사람"
+]
 
-# semantic 점수에 곱하는 패널티 — 정확(Jaccard) 매칭 대비 약간 낮춰
-# 의미 유사 매칭이 정확 매칭과 동등하게 평가되지 않도록 한다.
-SEMANTIC_PENALTY: float = 0.85
+IDEAL_DESCRIPTIONS = [
+    "매일 편안하고 안정적인 감정을 느끼며, 불안이나 걱정보다는 신뢰와 평온함이 일상에 가득한 사람",
+    "즐거움과 기대, 설렘을 자주 느끼고, 일상에서 긍정적인 에너지와 뿌듯함을 표현하는 사람",
+    "감성적이고 상대를 배려하며, 편안함과 신뢰를 바탕으로 따뜻한 감정을 전하는 사람",
+    "타인의 슬픔과 외로움, 걱정에 함께 공감하며, 상대의 감정을 이해하고 배려하는 사람",
+    "상대를 배려하면서 천천히 가까워지고, 편안함과 신뢰 속에서 감성적으로 다가오는 사람",
+    "직설적으로 자기 생각을 표현하고, 갈등 상황에서도 회피하지 않고 솔직하게 맞서는 사람",
+    "계획적이고 진지하며, 꾸준히 목표를 세우고 성실하게 실행하며 신뢰를 쌓아가는 사람",
+    "도전적이고 활동적이며, 새로운 경험에 대한 기대와 설렘을 자주 느끼는 사람",
+    "즉흥적이고 활동적이며, 계획에 얽매이지 않고 자유롭게 즐거움과 설렘을 추구하는 사람",
+    "진지하고 편안한 분위기 속에서 신뢰를 바탕으로 자기 내면을 깊이 성찰하며, 갈등보다는 조용한 공감을 선호하고 슬픔도 담담하게 받아들이는 사람"
+]
 
-# 키워드 의미 유사도 계산에서 단일 후보 키워드와 ideal 키워드 집합 간
-# pairwise cosine 의 상위 평균만 사용 (잡음 컷)
-SEMANTIC_TOP_K: int = 3
+# 33개 원천 태그 (프로필 벡터 차원 순서)
+RAW_TAGS = [
+    "즐거움", "뿌듯함", "신뢰", "편안함", "걱정", "긴장", "놀람", "당황",
+    "슬픔", "외로움", "거부감", "불쾌감", "짜증", "억울함", "기대", "설렘",
+    "즉흥적인", "계획적인", "안정추구형", "도전적인", "집콕선호", "활동적인",
+    "갈등회피", "갈등직면", "상대배려중심", "자기표현중심", "점진적친밀형", "초고속친밀형",
+    "해결보단공감", "공감보단해결",
+    "진지한", "직설적인", "감성적인"
+]
+
+TEMPERATURE = 2.0
+
+# 이상형 순위별 가중치
+RANK_WEIGHTS = [3.0, 2.0, 1.0, 0.5]
 
 
-# ── 결과 컨테이너 ─────────────────────────────────────────────────────────────
+# ── Semantic Matrix (앱 시작 시 1회 생성, 캐시) ──────────────────────────────
+
+@lru_cache(maxsize=1)
+def _get_semantic_matrix() -> np.ndarray:
+    """
+    10×33 Semantic Matrix 생성:
+      1. 이상형 설명문 10개 임베딩
+      2. 원천 태그 33개 임베딩
+      3. 코사인 유사도 행렬
+      4. 행별 Min-Max 정규화 + Temperature Scaling
+    """
+    # KoSimCSE 임베딩
+    ideal_vecs = [kosimcse_service.embed_vec_cached(desc) for desc in IDEAL_DESCRIPTIONS]
+    tag_vecs = [kosimcse_service.embed_vec_cached(tag) for tag in RAW_TAGS]
+
+    ideal_mat = np.stack(ideal_vecs)  # (10, 768)
+    tag_mat = np.stack(tag_vecs)      # (33, 768)
+
+    # 코사인 유사도 행렬 (10×33)
+    raw_matrix = cosine_similarity(ideal_mat, tag_mat)
+
+    # 행별 Min-Max 정규화 + Temperature Scaling
+    enhanced = np.zeros_like(raw_matrix)
+    for i in range(raw_matrix.shape[0]):
+        row = raw_matrix[i]
+        row_min, row_max = row.min(), row.max()
+        if row_max - row_min > 0:
+            normalized = (row - row_min) / (row_max - row_min)
+        else:
+            normalized = np.zeros_like(row)
+        enhanced[i] = np.power(normalized, TEMPERATURE)
+
+    logger.info("Semantic Matrix 생성 완료 (10×33, temp=%.1f)", TEMPERATURE)
+    return enhanced
+
+
+def warmup_semantic_matrix() -> None:
+    """main.py lifespan에서 호출하여 Semantic Matrix를 미리 생성."""
+    _get_semantic_matrix()
+
+
+# ── 프로필 벡터 기반 키워드별 점수 계산 ───────────────────────────────────────
+
+def compute_keyword_scores(profile_vec: np.ndarray) -> dict[str, float]:
+    """
+    33차원 프로필 벡터 → 10개 이상형 키워드별 매칭 점수 (0~100%).
+
+    Args:
+        profile_vec: 33차원 누적 프로필 벡터 (각 값 0.0~1.0)
+
+    Returns:
+        {"안정적인 사람": 72.5, "긍정적인 사람": 65.3, ...}
+    """
+    sm = _get_semantic_matrix()
+    scores = {}
+    for i, kw in enumerate(IDEAL_KEYWORDS):
+        sim = cosine_similarity([sm[i]], [profile_vec])[0][0]
+        scores[kw] = round(sim * 100, 1)
+    return scores
+
+
+# ── 결과 컨테이너 (기존 ScoreBreakdown 호환) ─────────────────────────────────
 
 @dataclass(frozen=True)
 class MatchingScore:
-  """매칭 점수 계산 결과 (api/matching.py 응답 직렬화용)."""
-
-  matching_score: float
-  keyword_overlap: float        # Jaccard
-  keyword_semantic: float       # 의미 유사도 (0~1)
-  cosine_similarity: float      # stretched (0~1)
-  cosine_raw: float             # raw cosine 정규화 (0~1) — 디버깅용
-  cosine_available: bool        # 코사인 항 사용 여부
-
-
-# ── 1. cosine variance stretching ────────────────────────────────────────────
-
-def stretch_cosine(cosine_normalized: float) -> float:
-  """
-  (cos+1)/2 로 0~1 정규화된 코사인을 한국어 임베딩 분포 기반으로 stretch.
-
-  - cos_norm ≤ COSINE_BASELINE → 0
-  - cos_norm ≥ COSINE_SATURATION → 1
-  - 그 외 → (cos_norm - BASELINE) / (SATURATION - BASELINE)
-
-  :param cosine_normalized: (raw cosine + 1) / 2 (0~1 정규화 값)
-  :return: stretched 점수 (0~1)
-  """
-  if cosine_normalized <= COSINE_BASELINE:
-    return 0.0
-  if cosine_normalized >= COSINE_SATURATION:
-    return 1.0
-  return (cosine_normalized - COSINE_BASELINE) / (COSINE_SATURATION - COSINE_BASELINE)
+    """매칭 점수 결과 (기존 api/matching.py 응답과 호환)."""
+    matching_score: float
+    keyword_overlap: float        # 이상형 키워드 매칭률 (가중합산 기반)
+    keyword_semantic: float       # 사용하지 않음 (호환 필드, 0.0)
+    cosine_similarity: float      # 최종 가중합산 점수 (0~1)
+    cosine_raw: float             # 사용하지 않음 (호환 필드, 0.0)
+    cosine_available: bool        # 항상 True (Semantic Matrix 기반)
 
 
-# ── 2. Jaccard ────────────────────────────────────────────────────────────────
-
-def compute_jaccard(set_a: set[str], set_b: set[str]) -> float:
-  """두 집합의 Jaccard 유사도. 합집합이 비어 있으면 0.0."""
-  if not set_a and not set_b:
-    return 0.0
-  union = set_a | set_b
-  if not union:
-    return 0.0
-  return len(set_a & set_b) / len(union)
-
-
-# ── 3. 키워드 의미 유사도 ────────────────────────────────────────────────────
-
-def compute_keyword_semantic(
-  ideal_keywords: list[str],
-  personality_keywords: list[str],
-) -> float:
-  """
-  idealKeywords 와 personalityKeywords 사이의 의미 유사도 평균.
-
-  알고리즘:
-    1. 각 키워드를 KoSimCSE 로 임베딩 (lru_cache 적중 시 O(1))
-    2. personality 의 각 키워드에 대해 ideal 키워드들과 pairwise 코사인 계산
-    3. 각 personality 키워드에서 max(top1) 코사인을 추출 → 평균
-       (pkw 입장에서 가장 가까운 ideal 키워드와의 거리)
-    4. cosine 음수 보정 (0 floor) 후 stretch 적용해 0~1 환산
-
-  :param ideal_keywords: 기준 사용자 이상형 키워드 목록
-  :param personality_keywords: 후보 퍼스널리티 키워드 목록
-  :return: 의미 유사도 (0~1). 둘 중 하나라도 비어 있으면 0.0.
-  """
-  if not ideal_keywords or not personality_keywords:
-    return 0.0
-
-  # 키워드 임베딩 (lru_cache 적중 시 모델 추론 생략)
-  ideal_vecs = [kosimcse_service.embed_vec_cached(kw) for kw in ideal_keywords]
-  pkw_vecs = [kosimcse_service.embed_vec_cached(kw) for kw in personality_keywords]
-
-  # 행렬 연산으로 pairwise cosine 일괄 계산
-  ideal_mat = np.stack(ideal_vecs)         # (I, d)
-  pkw_mat = np.stack(pkw_vecs)             # (P, d)
-  # 이미 L2 정규화되어 있으므로 내적 = 코사인
-  pair_cosine = pkw_mat @ ideal_mat.T      # (P, I)
-
-  # personality 각 키워드에서 ideal 과의 최대 코사인 → 음수 floor 0
-  best_per_pkw = np.maximum(pair_cosine.max(axis=1), 0.0)  # (P,)
-
-  # 평균을 취하기 전에 stretch 를 동일 baseline 으로 적용 (코사인 raw → 0~1)
-  # cosine raw 는 정규화 안 된 값(-1~1)이므로 (raw+1)/2 → stretch 까지 한 번에 처리
-  stretched_per_pkw = np.array([
-    stretch_cosine((c + 1.0) / 2.0) for c in best_per_pkw
-  ])
-
-  # SEMANTIC_TOP_K 만 평균 (잡음 컷)
-  if len(stretched_per_pkw) > SEMANTIC_TOP_K:
-    stretched_per_pkw = np.sort(stretched_per_pkw)[::-1][:SEMANTIC_TOP_K]
-
-  return float(np.mean(stretched_per_pkw))
-
-
-# ── 4. 메인 점수 계산 ────────────────────────────────────────────────────────
+# ── 메인 점수 계산 (기존 api/matching.py 호출 시그니처 유지) ──────────────────
 
 def compute_matching_score(
-  user_normalized_vec: Optional[np.ndarray],
-  ideal_keywords: list[str],
-  candidate_embedding_b64: Optional[str],
-  candidate_keywords: list[str],
+    user_normalized_vec: Optional[np.ndarray],
+    ideal_keywords: list[str],
+    candidate_embedding_b64: Optional[str],
+    candidate_keywords: list[str],
 ) -> MatchingScore:
-  """
-  단일 후보에 대한 매칭 점수 계산 v2.
+    """
+    기존 api/matching.py의 호출 시그니처를 유지하면서
+    내부는 Semantic Matrix + 가중합산 알고리즘으로 교체.
 
-  점수 수식:
-    keyword_score = max(Jaccard, SEMANTIC_PENALTY × keyword_semantic)
-    cosine_score  = stretch_cosine((raw_cosine + 1) / 2)
-    final_score   = W_KEYWORD × keyword_score + W_COSINE × cosine_score
-                    (cosine 결손 시 keyword_score 단독, W_KEYWORD 가중치도 1.0 으로 확장)
+    실제로 사용하는 파라미터:
+      - ideal_keywords: 기준 사용자의 이상형 키워드 (최대 3개)
+      - candidate_keywords: 후보의 personality 키워드 목록
 
-  :param user_normalized_vec: 기준 사용자 L2 정규화 임베딩 (또는 None)
-  :param ideal_keywords:      기준 사용자 이상형 키워드 텍스트 목록
-  :param candidate_embedding_b64: 후보 임베딩 Base64 (또는 None)
-  :param candidate_keywords:  후보 퍼스널리티 키워드 텍스트 목록
-  :return: MatchingScore (모든 세부 점수 포함)
-  """
-  ideal_set = set(ideal_keywords)
-  candidate_set = set(candidate_keywords)
+    candidate_keywords를 33차원 프로필 벡터로 변환하여 매칭 점수 산출.
 
-  # ── 키워드 항 ────────────────────────────────────────────────────────────
-  jaccard = compute_jaccard(ideal_set, candidate_set)
-  semantic = compute_keyword_semantic(ideal_keywords, candidate_keywords)
-  keyword_score = max(jaccard, SEMANTIC_PENALTY * semantic)
+    NOTE: 실서비스에서는 Spring이 후보의 누적 프로필 벡터를 전달해야 함.
+          현재는 candidate_keywords(텍스트)를 받아서 프로필을 즉석 생성하는
+          임시 로직. 추후 Spring에서 프로필 벡터를 직접 전달하면 교체 필요.
+    """
+    sm = _get_semantic_matrix()
 
-  # ── 코사인 항 ────────────────────────────────────────────────────────────
-  cosine_available = (
-    user_normalized_vec is not None
-    and candidate_embedding_b64 is not None
-  )
+    # 후보의 personality_keywords → 간이 프로필 벡터 생성
+    # (실서비스에서는 DB에서 누적 프로필 벡터를 조회하여 전달)
+    candidate_profile = _keywords_to_profile(candidate_keywords)
 
-  if cosine_available:
-    cand_vec = kosimcse_service.base64_to_normalized_vec(candidate_embedding_b64)
-    raw_cos = kosimcse_service.cosine_vec(user_normalized_vec, cand_vec)
-    cosine_norm = (raw_cos + 1.0) / 2.0
-    cosine_stretched = stretch_cosine(cosine_norm)
-    final = W_KEYWORD * keyword_score + W_COSINE * cosine_stretched
-  else:
-    cosine_norm = 0.0
-    cosine_stretched = 0.0
-    # 코사인 항이 없으면 keyword 단독 (가중치 확장)
-    final = keyword_score
+    # 이상형 키워드별 점수 산출
+    all_scores = compute_keyword_scores(candidate_profile)
 
-  return MatchingScore(
-    matching_score=round(min(max(final, 0.0), 1.0), 6),
-    keyword_overlap=round(jaccard, 6),
-    keyword_semantic=round(semantic, 6),
-    cosine_similarity=round(cosine_stretched, 6),
-    cosine_raw=round(cosine_norm, 6),
-    cosine_available=cosine_available,
-  )
+    # 이상형 순위별 가중합산
+    weighted_sum = 0.0
+    weight_total = 0.0
+    keyword_hits = 0
+
+    for rank, kw in enumerate(ideal_keywords):
+        if kw not in all_scores:
+            continue
+        w = RANK_WEIGHTS[rank] if rank < len(RANK_WEIGHTS) else 0.5
+        score = all_scores[kw]
+        weighted_sum += score * w
+        weight_total += w
+        if score >= 50.0:  # 50% 이상이면 "매칭됨"으로 간주
+            keyword_hits += 1
+
+    final_score = weighted_sum / weight_total / 100.0 if weight_total > 0 else 0.0
+    keyword_overlap = keyword_hits / len(ideal_keywords) if ideal_keywords else 0.0
+
+    return MatchingScore(
+        matching_score=round(min(max(final_score, 0.0), 1.0), 6),
+        keyword_overlap=round(keyword_overlap, 6),
+        keyword_semantic=0.0,          # 호환 필드
+        cosine_similarity=round(final_score, 6),
+        cosine_raw=0.0,                # 호환 필드
+        cosine_available=True,
+    )
+
+
+# ── 임시: 키워드 목록 → 간이 33차원 프로필 벡터 ──────────────────────────────
+
+def _keywords_to_profile(keywords: list[str]) -> np.ndarray:
+    """
+    후보의 personality_keywords(텍스트 목록)를 33차원 프로필 벡터로 변환.
+
+    임시 로직: 키워드가 RAW_TAGS에 포함되면 해당 차원을 1.0으로 설정.
+    포함되지 않으면 KoSimCSE로 가장 유사한 태그를 찾아 매핑.
+
+    실서비스에서는 Spring이 유저의 누적 프로필 벡터를 직접 전달하므로
+    이 함수는 사용되지 않음.
+    """
+    profile = np.full(len(RAW_TAGS), 0.1)
+
+    for kw in keywords:
+        # 정확히 일치하는 태그가 있으면 활성화
+        if kw in RAW_TAGS:
+            profile[RAW_TAGS.index(kw)] = 0.9
+            continue
+
+        # 유사 태그 매핑 (간이)
+        kw_vec = kosimcse_service.embed_vec_cached(kw)
+        best_idx = -1
+        best_sim = -1.0
+        for j, tag in enumerate(RAW_TAGS):
+            tag_vec = kosimcse_service.embed_vec_cached(tag)
+            sim = float(np.dot(kw_vec, tag_vec))
+            if sim > best_sim:
+                best_sim = sim
+                best_idx = j
+        if best_idx >= 0 and best_sim > 0.4:
+            profile[best_idx] = max(profile[best_idx], 0.7)
+
+    return profile
