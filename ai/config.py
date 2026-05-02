@@ -21,7 +21,7 @@ AI_RESULT_ROUTING_KEY: str = "ai.result.v1"
 
 # ── 추론 설정 ─────────────────────────────────────────────────────────────────
 KCELECTRA_MAX_LENGTH: int = 512
-MIN_CONTENT_LENGTH: int = 100
+MIN_CONTENT_LENGTH: int = 200 #100 -> 200 으로 수정함
 
 # ── Consumer 동시성 ───────────────────────────────────────────────────────────
 # CPU 추론 기준 안전값. 필요 시 환경 변수로 오버라이드 가능.
