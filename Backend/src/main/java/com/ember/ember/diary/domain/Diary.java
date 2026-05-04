@@ -143,10 +143,11 @@ public class Diary extends BaseEntity {
      * PENDING: 분석 대기 (기본값)
      * PROCESSING: FastAPI에서 분석 중
      * COMPLETED: 분석 완료, diary_keywords 저장됨
+     * ANALYZED: AI 서버 분석 완료 (COMPLETED와 동일 의미, AI 팀 호환용)
      * FAILED: 분석 실패 (DLQ 소진 후)
      * SKIPPED: 동의 미획득 또는 조건 미충족으로 분석 생략
      */
     public enum AnalysisStatus {
-        PENDING, PROCESSING, COMPLETED, FAILED, SKIPPED
+        PENDING, PROCESSING, COMPLETED, ANALYZED, FAILED, SKIPPED
     }
 }
