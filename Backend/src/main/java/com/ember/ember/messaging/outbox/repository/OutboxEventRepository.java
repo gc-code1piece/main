@@ -2,9 +2,7 @@ package com.ember.ember.messaging.outbox.repository;
 
 import com.ember.ember.messaging.outbox.entity.OutboxEvent;
 import com.ember.ember.messaging.outbox.entity.OutboxEvent.OutboxStatus;
-import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -19,13 +17,13 @@ import java.util.Optional;
 public interface OutboxEventRepository extends JpaRepository<OutboxEvent, Long> {
 
     /**
-     * 다중 인스턴스 환경에서 중복 발행 방지를 위해 SKIP LOCKED 적용.
-     * 한 인스턴스가 처리 중인 행은 다른 인스턴스가 건너뜀.
+     * PENDING 이벤트 최대 100건 조회 (생성 순).
+     * 단일 인스턴스 + fixedDelay로 동시 실행이 없으므로 비관적 락 불필요.
+     * 각 이벤트는 OutboxEventProcessor.processEvent()의 REQUIRES_NEW 트랜잭션에서 처리.
      *
      * @param status 조회할 상태 (PENDING)
      * @return 최대 100건의 이벤트 목록 (created_at 오름차순)
      */
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query(value = """
             SELECT e FROM OutboxEvent e
             WHERE e.status = :status
