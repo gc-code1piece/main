@@ -1,9 +1,9 @@
 package com.ember.ember.global.config;
 
-import io.swagger.v3.oas.annotations.OpenAPIDefinition;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
-import io.swagger.v3.oas.annotations.info.Info;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.context.annotation.Bean;
@@ -11,31 +11,165 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 
 @Configuration
-@OpenAPIDefinition(info = @Info(
-        title = "Ember API 서버",
-        version = "v2.1",
-        description = """
-                ## WebSocket 채팅 (Swagger 외 별도 연결)
+@SecurityScheme(
+        name = "bearerAuth",
+        type = SecuritySchemeType.HTTP,
+        scheme = "bearer",
+        bearerFormat = "JWT"
+)
+public class SpringDocConfig {
+
+    @Bean
+    public OpenAPI customOpenAPI() {
+        String description = """
+                Ember 사용자 + Dev API (총 88개)
+
+                서버: https://ember-app.duckdns.org
+                인증: Bearer 토큰 (`GET /api/dev/token?userId=1` 로 발급)
+
+                # Dev API 사용법
+                - `GET /api/dev/token?userId={id}` — 카카오 로그인 없이 테스트 토큰 발급
+                - `POST /api/dev/register` — 신규 테스트 유저 생성 (ROLE_GUEST)
+                - `POST /api/dev/ai/simulate/{diaryId}` — AI 분석 결과 시뮬레이션 (2~3초 후 diary_keywords 생성)
+                - `GET /api/dev/redis/summary` — Redis 캐시 카테고리별 요약
+                - `GET /api/dev/redis/user/{userId}` — 유저별 캐시 현황
+                - `GET /api/dev/redis/get?key=` — Redis 키 값 + TTL 조회
+                - `DELETE /api/dev/redis/delete?key=` — Redis 키 삭제
+                - `GET /api/dev/redis/keys?pattern=` — 패턴으로 키 검색
+                - `POST /api/dev/exchange-rooms/{roomId}/force-complete` — 교환일기 강제 완주
+
+                # Rate Limiting
+                - 인증 전 API: 20회/분 (IP 기준)
+                - 인증 후 GET: 60회/분 (userId 기준)
+                - 인증 후 POST/PUT/PATCH/DELETE: 30회/분 (userId 기준)
+                - `POST /api/auth/social`: 5회/분, `POST /api/diaries`: 5회/분, `POST /api/matching/*`: 10회/분
+                - 초과 시 429 + X-RateLimit-Limit/Remaining/Reset 헤더 + Retry-After
+
+                # 에러 응답 형식
+                ```json
+                { "code": "D001", "message": "오늘 이미 일기를 작성했습니다.", "status": 409 }
+                ```
+
+                # 에러코드 목록
+
+                ## 공통 (C)
+                | 코드 | HTTP | 메시지 |
+                |------|------|--------|
+                | C001 | 400 | 잘못된 요청입니다. |
+                | C002 | 409 | 이미 존재하는 리소스입니다. |
+                | C003 | 500 | 서버 내부 오류입니다. |
+                | C004 | 429 | 요청 횟수가 초과되었습니다. |
+
+                ## 인증 (A)
+                | 코드 | HTTP | 메시지 |
+                |------|------|--------|
+                | A001 | 401 | 인증 토큰이 없습니다. |
+                | A002 | 401 | 만료된 토큰입니다. |
+                | A003 | 401 | 존재하지 않는 계정입니다. |
+                | A005 | 401 | 유효하지 않은 Refresh Token입니다. |
+                | A006 | 401 | 로그아웃된 토큰입니다. |
+                | A007 | 403 | 접근 권한이 없습니다. |
+                | A009 | 401 | 소셜 인증에 실패했습니다. |
+                | A011 | 401 | 유효하지 않은 복구 토큰입니다. |
+                | A012 | 400 | 계정 복구 가능 기간이 만료되었습니다. |
+
+                ## 사용자 (U)
+                | 코드 | HTTP | 메시지 |
+                |------|------|--------|
+                | U001 | 409 | 이미 사용 중인 닉네임입니다. |
+                | U002 | 400 | 만 18세 이상만 가입 가능합니다. |
+                | U004 | 400 | 이상형 키워드는 3~5개 선택해야 합니다. |
+                | U005 | 404 | 존재하지 않는 키워드입니다. |
+                | U006 | 400 | 닉네임 변경은 30일에 1회만 가능합니다. |
+
+                ## 일기 (D)
+                | 코드 | HTTP | 메시지 |
+                |------|------|--------|
+                | D001 | 409 | 오늘 이미 일기를 작성했습니다. |
+                | D002 | 400 | 글자 수 제한(200~1,000자)에 맞지 않습니다. |
+                | D003 | 404 | 존재하지 않는 주제입니다. |
+                | D004 | 404 | 존재하지 않는 일기입니다. |
+                | D005 | 403 | 본인의 일기가 아닙니다. |
+                | D006 | 400 | 당일 작성한 일기만 수정 가능합니다. |
+                | D007 | 404 | 존재하지 않는 임시저장 일기입니다. |
+                | D008 | 400 | 임시저장은 최대 3건까지 가능합니다. |
+
+                ## 매칭 (M)
+                | 코드 | HTTP | 메시지 |
+                |------|------|--------|
+                | M001 | 409 | 이미 교환 신청한 사용자입니다. |
+                | M002 | 400 | 자기 자신에게 신청할 수 없습니다. |
+                | M003 | 403 | 차단된 사용자입니다. |
+                | M004 | 400 | 일기를 먼저 작성해야 매칭이 가능합니다. |
+                | M005 | 409 | 동시에 진행할 수 있는 교환일기는 최대 3건입니다. |
+                | M006 | 404 | 존재하지 않는 매칭 요청입니다. |
+
+                ## 교환일기 (ER)
+                | 코드 | HTTP | 메시지 |
+                |------|------|--------|
+                | ER001 | 404 | 존재하지 않는 교환일기 방입니다. |
+                | ER002 | 403 | 교환일기 참여자가 아닙니다. |
+                | ER003 | 400 | 현재 내 차례가 아닙니다. |
+                | ER004 | 400 | 작성 제한 시간이 만료되었습니다. |
+                | ER005 | 400 | 본인 일기에는 리액션할 수 없습니다. |
+
+                ## 다음 단계 (NS)
+                | 코드 | HTTP | 메시지 |
+                |------|------|--------|
+                | NS001 | 400 | 교환일기가 완료되지 않아 선택할 수 없습니다. |
+                | NS002 | 409 | 이미 선택을 완료했습니다. |
+
+                ## 채팅/커플 (CR)
+                | 코드 | HTTP | 메시지 |
+                |------|------|--------|
+                | CR001 | 404 | 존재하지 않는 채팅방입니다. |
+                | CR002 | 403 | 채팅방 참여자가 아닙니다. |
+                | CR003 | 409 | 이미 커플 요청을 보냈습니다. |
+                | CR004 | 409 | 이미 커플 확정된 채팅방입니다. |
+                | CR007 | 400 | 이미 종료된 채팅방입니다. |
+
+                ## 신고/차단 (R/B)
+                | 코드 | HTTP | 메시지 |
+                |------|------|--------|
+                | R001 | 400 | 자기 자신을 신고할 수 없습니다. |
+                | R002 | 409 | 이미 신고한 사용자입니다. |
+                | B001 | 400 | 자기 자신을 차단할 수 없습니다. |
+                | B002 | 409 | 이미 차단한 사용자입니다. |
+                | B003 | 404 | 차단 기록이 없습니다. |
+
+                ## 기타
+                | 코드 | HTTP | 메시지 |
+                |------|------|--------|
+                | SC001 | 400 | 부적절한 내용이 포함되어 있습니다. |
+                | AC001 | 400 | 동의 이력이 없습니다. |
+                | N001 | 404 | 존재하지 않는 알림입니다. |
+                | SP001 | 429 | 진행 중인 문의가 너무 많습니다. |
+                | AP001 | 400 | 정지 상태의 계정만 이의신청 가능합니다. |
+                | AP002 | 409 | 이미 진행 중인 이의신청이 있습니다. |
+
+                ---
+
+                # WebSocket 채팅 (Swagger 외 별도 연결)
 
                 실시간 채팅은 REST가 아닌 **WebSocket STOMP** 프로토콜을 사용합니다.
 
-                ### 연결 정보
+                ## 연결 정보
                 - **엔드포인트**: `wss://ember-app.duckdns.org/ws/chat` (SockJS)
                 - **인증**: 연결 시 STOMP 헤더에 `Authorization: Bearer {accessToken}` 포함
 
-                ### 메시지 전송
+                ## 메시지 전송
                 - **Destination**: `/app/chat/{roomId}`
                 - **Body**: `{ "content": "메시지 내용", "type": "TEXT" }`
 
-                ### 메시지 수신 (구독)
+                ## 메시지 수신 (구독)
                 - **Subscribe**: `/topic/chat/{roomId}`
                 - **응답**: `{ "messageId", "senderId", "content", "type", "sequenceId", "createdAt" }`
 
-                ### 읽음 처리
+                ## 읽음 처리
                 - **Destination**: `/app/chat/{roomId}/read`
                 - **Body**: `{ "lastReadSequenceId": 10 }`
 
-                ### Flutter 예시 (stomp_dart_client)
+                ## Flutter 예시 (stomp_dart_client)
                 ```dart
                 final client = StompClient(
                   config: StompConfig.sockJS(
@@ -51,15 +185,14 @@ import org.springframework.context.annotation.Profile;
                 ```
 
                 > **참고**: 메시지 전송은 `POST /api/chat-rooms/{roomId}/messages` REST API로도 가능합니다 (테스트용).
-                """
-))
-@SecurityScheme(
-        name = "bearerAuth",
-        type = SecuritySchemeType.HTTP,
-        scheme = "bearer",
-        bearerFormat = "JWT"
-)
-public class SpringDocConfig {
+                """;
+
+        return new OpenAPI()
+                .info(new Info()
+                        .title("Ember API 서버")
+                        .version("v2.2")
+                        .description(description));
+    }
 
     /**
      * 사용자 API 전체 (관리자/dev 제외) — 모든 환경에서 노출

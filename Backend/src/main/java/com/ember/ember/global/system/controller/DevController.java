@@ -9,6 +9,9 @@ import com.ember.ember.messaging.event.AiAnalysisResultEvent;
 import com.ember.ember.messaging.event.AiAnalysisResultType;
 import com.ember.ember.user.domain.User;
 import com.ember.ember.user.repository.UserRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -26,6 +29,7 @@ import java.util.concurrent.TimeUnit;
  */
 @RestController
 @RequiredArgsConstructor
+@Tag(name = "Dev", description = "개발/테스트 API — 카카오 로그인 없이 토큰 발급, AI 시뮬레이션, Redis 캐시 관리")
 public class DevController {
 
     private final JwtTokenProvider jwtTokenProvider;
@@ -35,14 +39,14 @@ public class DevController {
     private final StringRedisTemplate stringRedisTemplate;
     private final UserRepository userRepository;
 
-    /** 테스트 토큰 발급 */
+    @Operation(summary = "테스트 토큰 발급", description = "카카오 로그인 없이 userId로 JWT accessToken 발급. 프론트 개발/테스트용.")
     @GetMapping("/api/dev/token")
-    public Map<String, String> issueTestToken(@RequestParam Long userId) {
+    public Map<String, String> issueTestToken(@Parameter(description = "토큰을 발급할 사용자 ID") @RequestParam Long userId) {
         String accessToken = jwtTokenProvider.createAccessToken(userId, "ROLE_USER");
         return Map.of("accessToken", accessToken);
     }
 
-    /** 신규 유저 생성 (온보딩 테스트용) — ROLE_GUEST 상태로 생성 후 토큰 반환 */
+    @Operation(summary = "신규 유저 생성", description = "ROLE_GUEST 상태로 테스트 유저 생성 후 토큰 반환. 약관 동의 → 프로필 등록 → 이상형 설정 온보딩 플로우 테스트용.")
     @PostMapping("/api/dev/register")
     @Transactional
     public Map<String, Object> registerTestUser() {
@@ -62,7 +66,7 @@ public class DevController {
         );
     }
 
-    /** 교환일기 방 deadlineAt 강제 변경 (테스트용: 만료 시간 조절) */
+    @Operation(summary = "교환일기 마감 시간 변경", description = "교환일기 방의 deadlineAt을 현재 시각 + N분으로 변경. 만료 테스트용.")
     @PostMapping("/api/dev/exchange-rooms/{roomId}/set-deadline")
     @Transactional
     public Map<String, Object> setDeadline(@PathVariable Long roomId,
@@ -82,7 +86,7 @@ public class DevController {
         );
     }
 
-    /** AI 분석 결과 시뮬레이션 (FastAPI 없이 파이프라인 테스트) */
+    @Operation(summary = "AI 분석 결과 시뮬레이션", description = "FastAPI 없이 AI 파이프라인 테스트. RabbitMQ에 Mock 분석 결과 발행 → 2~3초 후 diary_keywords에 감정/성격/라이프스타일/톤 태그 저장.")
     @PostMapping("/api/dev/ai/simulate/{diaryId}")
     public Map<String, Object> simulateAiResult(@PathVariable Long diaryId) {
         Diary diary = diaryRepository.findById(diaryId)
@@ -131,7 +135,7 @@ public class DevController {
 
     // ── Redis Dev API ─────────────────────────────────────────────────────
 
-    /** Redis 전체 요약 (캐시 카테고리별 키 수 + 총 키 수) */
+    @Operation(summary = "Redis 캐시 전체 요약", description = "캐시 카테고리별 키 수 + 총 키 수 조회. AI:DIARY, MATCHING:RECO, MSG:SEQ 등 카테고리로 분류.")
     @GetMapping("/api/dev/redis/summary")
     public Map<String, Object> redisSummary() {
         Set<String> allKeys = stringRedisTemplate.keys("*");
@@ -166,7 +170,7 @@ public class DevController {
         return summary;
     }
 
-    /** Redis 특정 키 조회 (값 + TTL) */
+    @Operation(summary = "Redis 키 조회", description = "특정 키의 값 + TTL(초) 조회.")
     @GetMapping("/api/dev/redis/get")
     public Map<String, Object> redisGet(@RequestParam String key) {
         String value = stringRedisTemplate.opsForValue().get(key);
@@ -181,7 +185,7 @@ public class DevController {
         return result;
     }
 
-    /** Redis 키 패턴 검색 (예: AI:DIARY:*, MATCHING:*, MSG:SEQ:*) */
+    @Operation(summary = "Redis 키 패턴 검색", description = "패턴으로 Redis 키 검색. 예: AI:DIARY:*, MATCHING:RECO:*, MSG:SEQ:*")
     @GetMapping("/api/dev/redis/keys")
     public Map<String, Object> redisKeys(@RequestParam String pattern) {
         Set<String> keys = stringRedisTemplate.keys(pattern);
@@ -201,14 +205,14 @@ public class DevController {
         );
     }
 
-    /** Redis 키 삭제 (테스트용 캐시 무효화) */
+    @Operation(summary = "Redis 키 삭제", description = "특정 Redis 키 삭제. 캐시 무효화 테스트용.")
     @DeleteMapping("/api/dev/redis/delete")
     public Map<String, Object> redisDelete(@RequestParam String key) {
         boolean deleted = Boolean.TRUE.equals(stringRedisTemplate.delete(key));
         return Map.of("key", key, "deleted", deleted);
     }
 
-    /** 사용자별 Redis 캐시 현황 조회 (userId 기준) */
+    @Operation(summary = "유저별 Redis 캐시 현황", description = "userId 기준으로 AI 분석, 매칭 추천, RT, 채팅 시퀀스 등 관련 캐시 키 현황 조회.")
     @GetMapping("/api/dev/redis/user/{userId}")
     public Map<String, Object> redisUserKeys(@PathVariable Long userId) {
         List<String> patterns = List.of(
@@ -252,7 +256,7 @@ public class DevController {
         return Map.of("userId", userId, "cache", userCache);
     }
 
-    /** 교환일기 방 상태 강제 변경 (테스트용) */
+    @Operation(summary = "교환일기 강제 완주", description = "교환일기 방을 4턴 완료 상태로 강제 변경. 관계 확장 테스트용.")
     @PostMapping("/api/dev/exchange-rooms/{roomId}/force-complete")
     @Transactional
     public Map<String, Object> forceComplete(@PathVariable Long roomId) {
