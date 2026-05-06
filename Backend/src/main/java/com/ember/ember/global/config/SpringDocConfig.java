@@ -27,11 +27,15 @@ public class SpringDocConfig {
                 서버: https://ember-app.duckdns.org
                 인증: Bearer 토큰 (`GET /api/dev/token?userId=1` 로 발급)
 
-                # 전체 API 플로우
+                # 전체 API 플로우 (실제 사용자)
 
-                ## 1단계: 회원가입 + 온보딩
+                ## 1단계: 카카오 로그인 + 온보딩
                 ```
-                POST /api/dev/register → 테스트 유저 생성 (accessToken 발급)
+                [Flutter] 카카오 SDK로 카카오 로그인 → kakaoAccessToken 획득
+                  ↓
+                POST /api/auth/social (provider=KAKAO, accessToken=카카오토큰)
+                  → 신규: 회원가입 + JWT 발급 (ROLE_GUEST)
+                  → 기존: 로그인 + JWT 발급 (ROLE_USER)
                   ↓
                 POST /api/consent (type=USER_TERMS) → 이용약관 동의
                 POST /api/consent (type=AI_TERMS) → AI 분석 동의
@@ -93,13 +97,35 @@ public class SpringDocConfig {
                 POST /api/chat-rooms/{roomId}/couple-reject → 커플 거절
                 ```
 
+                ## 토큰 관리
+                ```
+                POST /api/auth/refresh → accessToken 만료 시 갱신 (refreshToken 필요)
+                POST /api/auth/logout → 로그아웃 (AT 블랙리스트 + RT 삭제)
+                POST /api/users/me/fcm-token → FCM 푸시 토큰 등록 (앱 실행 시마다)
+                ```
+
                 ## 부가 기능
                 ```
                 GET /api/notifications → 알림 목록 (매칭/교환/채팅/커플 등)
+                PATCH /api/notifications/{id}/read → 알림 읽음 처리
                 GET /api/notices → 공지사항 / GET /api/faq → FAQ
                 POST /api/support/inquiry → 1:1 문의
                 POST /api/users/{targetUserId}/report → 신고
                 POST /api/users/{targetUserId}/block → 차단
+                ```
+
+                ## 마이페이지
+                ```
+                GET /api/users/me → 내 프로필 조회
+                PATCH /api/users/me/profile → 프로필 수정 (닉네임 30일 쿨다운)
+                GET /api/users/me/ideal-type → 이상형 키워드 조회
+                PUT /api/users/me/ideal-type → 이상형 키워드 수정
+                GET /api/users/me/ai-profile → AI 성격 분석 결과
+                GET /api/users/me/history/exchange-rooms → 교환일기 히스토리
+                GET /api/users/me/history/chat-rooms → 채팅 히스토리
+                PATCH /api/users/me/settings → 앱 설정 (다크모드/언어/연령필터)
+                PATCH /api/users/me/notification-settings → 알림 설정 수정
+                POST /api/users/me/deactivate → 회원 탈퇴 (30일 유예)
                 ```
 
                 ---
