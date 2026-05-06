@@ -11,7 +11,48 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 
 @Configuration
-@OpenAPIDefinition(info = @Info(title = "Ember API 서버", version = "v2.1"))
+@OpenAPIDefinition(info = @Info(
+        title = "Ember API 서버",
+        version = "v2.1",
+        description = """
+                ## WebSocket 채팅 (Swagger 외 별도 연결)
+
+                실시간 채팅은 REST가 아닌 **WebSocket STOMP** 프로토콜을 사용합니다.
+
+                ### 연결 정보
+                - **엔드포인트**: `wss://ember-app.duckdns.org/ws/chat` (SockJS)
+                - **인증**: 연결 시 STOMP 헤더에 `Authorization: Bearer {accessToken}` 포함
+
+                ### 메시지 전송
+                - **Destination**: `/app/chat/{roomId}`
+                - **Body**: `{ "content": "메시지 내용", "type": "TEXT" }`
+
+                ### 메시지 수신 (구독)
+                - **Subscribe**: `/topic/chat/{roomId}`
+                - **응답**: `{ "messageId", "senderId", "content", "type", "sequenceId", "createdAt" }`
+
+                ### 읽음 처리
+                - **Destination**: `/app/chat/{roomId}/read`
+                - **Body**: `{ "lastReadSequenceId": 10 }`
+
+                ### Flutter 예시 (stomp_dart_client)
+                ```dart
+                final client = StompClient(
+                  config: StompConfig.sockJS(
+                    url: 'https://ember-app.duckdns.org/ws/chat',
+                    stompConnectHeaders: {'Authorization': 'Bearer \$token'},
+                  ),
+                );
+                client.activate();
+                // 구독
+                client.subscribe(destination: '/topic/chat/\$roomId', callback: (frame) { ... });
+                // 전송
+                client.send(destination: '/app/chat/\$roomId', body: jsonEncode({...}));
+                ```
+
+                > **참고**: 메시지 전송은 `POST /api/chat-rooms/{roomId}/messages` REST API로도 가능합니다 (테스트용).
+                """
+))
 @SecurityScheme(
         name = "bearerAuth",
         type = SecuritySchemeType.HTTP,
