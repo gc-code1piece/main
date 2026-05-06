@@ -212,4 +212,7 @@ ai:
 springdoc:
   swagger-ui:
     enabled: true
+    path: /swagger-ui.html
     urls-primary-name: user-api
+  api-docs:
+    enabled: true
