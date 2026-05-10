@@ -49,8 +49,8 @@ public class SpringDocConfig {
 
                 ### 온보딩 (신규 가입 시)
                 ```
-                POST /api/consent (type=USER_TERMS) → 이용약관 동의
-                POST /api/consent (type=AI_TERMS) → AI 분석 동의
+                POST /api/consent (consentType=AI_ANALYSIS) → 일기 성격/감정 분석 동의
+                POST /api/consent (consentType=AI_DATA_USAGE) → 매칭 유사도 등 데이터 활용 동의
                   ↓
                 POST /api/users/nickname/generate → 랜덤 닉네임 생성
                 POST /api/users/profile → 프로필 등록 (닉네임, 성별, 생년월일, 지역)
@@ -64,16 +64,26 @@ public class SpringDocConfig {
 
                 ## 2단계: 일기 작성 + AI 분석
                 ```
-                POST /api/diaries → 일기 작성 (일 1회, 200~1000자)
+                GET /api/diaries/today → 당일 일기 작성 여부 확인
+                POST /api/diaries → 일기 작성 (일 1회, 200~1000자, visibility 필수)
                   ↓ (자동) AI 분석 파이프라인 → 감정/성격/라이프스타일/톤 태그 생성
                 GET /api/diaries/{diaryId} → 일기 상세 (AI 키워드 포함)
+                PATCH /api/diaries/{diaryId} → 당일 일기 수정 (AI 재분석 트리거)
+                GET /api/diaries → 내 일기 목록 (페이징)
+                GET /api/diaries/weekly-topic → 수요일 주간 주제 조회
+                POST /api/diaries/draft → 임시저장 생성 (최대 3건)
+                GET /api/diaries/drafts → 임시저장 목록 조회
+                DELETE /api/diaries/draft/{draftId} → 임시저장 삭제
                 GET /api/users/me/ai-profile → AI 성격 분석 결과 (일기 3편 이상)
                 ```
 
                 ## 3단계: 탐색 + 매칭 신청
                 ```
-                GET /api/diaries/explore → 상대방 일기 탐색 (이성 필터링, 커서 페이징)
+                GET /api/diaries/explore → 상대방 일기 탐색 (이성 필터링, sort=latest/recommended)
                 GET /api/diaries/{diaryId}/detail → 탐색 일기 상세 (성격 키워드, 다른 일기)
+                GET /api/matching/recommendations → AI 추천 목록 (KoSimCSE 유사도)
+                GET /api/matching/recommendations/{diaryId}/preview → 블라인드 미리보기
+                GET /api/matching/lifestyle-report → 라이프스타일 리포트 (일기 5편 이상)
                   ↓
                 POST /api/matching/{diaryId}/select → 교환 신청 (PENDING)
                 POST /api/matching/{diaryId}/skip → 넘기기 (7일간 재추천 제외)
@@ -85,13 +95,15 @@ public class SpringDocConfig {
                 ## 4단계: 교환일기 (4턴 릴레이)
                 ```
                 GET /api/exchange-rooms → 교환일기 방 목록
-                GET /api/exchange-rooms/{roomId} → 방 상세 (턴 상태, 데드라인)
+                GET /api/exchange-rooms/{roomId} → 방 상세 (턴 상태, 데드라인, 일기 목록)
                   ↓
-                POST /api/exchange-rooms/{roomId}/diaries → 교환일기 작성 (내 턴일 때만)
-                GET /api/exchange-rooms/{roomId}/diaries/{diaryId} → 상대 일기 열람
-                POST /api/exchange-rooms/{roomId}/diaries/{diaryId}/reaction → 리액션 (HEART/SAD/HAPPY/FIRE)
+                POST /api/exchange-rooms/{roomId}/diaries → 교환일기 작성 (내 턴일 때만, 200~1000자)
+                GET /api/exchange-rooms/{roomId}/diaries/{diaryId} → 상대 일기 열람 (readAt 기록)
+                POST /api/exchange-rooms/{roomId}/diaries/{diaryId}/reaction → 리액션 (type: HEART/SAD/HAPPY/FIRE)
                   ↓ (4턴 완료 후)
-                POST /api/exchange-rooms/{roomId}/next-step → 관계 확장 선택 (CHAT 또는 CONTINUE)
+                GET /api/exchange-rooms/{roomId}/report → AI 공통점 리포트 조회
+                POST /api/exchange-rooms/{roomId}/next-step → 관계 확장 선택 (choice: CHAT 또는 CONTINUE)
+                GET /api/exchange-rooms/{roomId}/next-step/status → 양측 선택 상태 조회
                   - 양측 CHAT → 채팅방 자동 생성
                   - 불일치 → 추가 라운드 (2턴)
                 ```
@@ -99,31 +111,45 @@ public class SpringDocConfig {
                 ## 5단계: 채팅 + 커플
                 ```
                 GET /api/chat-rooms → 채팅방 목록
-                POST /api/chat-rooms/{roomId}/messages → 메시지 전송 (REST)
+                POST /api/chat-rooms/{roomId}/messages → 메시지 전송 (content + type: TEXT)
                 GET /api/chat-rooms/{roomId}/messages → 메시지 이력 (커서 기반)
-                GET /api/chat-rooms/{roomId}/profile → 상대방 프로필 (성격 태그)
+                GET /api/chat-rooms/{roomId}/profile → 상대방 프로필 (성격 태그 포함)
                   ↓ (WebSocket STOMP 실시간 채팅은 하단 WebSocket 섹션 참조)
                   ↓
+                POST /api/exchange-rooms/{roomId}/chat → 채팅방 생성 (양측 CHAT 선택 시 자동 호출)
                 POST /api/chat-rooms/{roomId}/couple-request → 커플 요청 (72시간 만료)
                 POST /api/chat-rooms/{roomId}/couple-accept → 커플 수락 → 커플 성사!
                 POST /api/chat-rooms/{roomId}/couple-reject → 커플 거절
+                POST /api/chat-rooms/{roomId}/leave → 채팅방 나가기
                 ```
 
                 ## 토큰 관리
                 ```
                 POST /api/auth/refresh → accessToken 만료 시 갱신 (refreshToken 필요)
                 POST /api/auth/logout → 로그아웃 (AT 블랙리스트 + RT 삭제)
-                POST /api/users/me/fcm-token → FCM 푸시 토큰 등록 (앱 실행 시마다)
+                POST /api/auth/restore → 탈퇴 유예 계정 복구
+                POST /api/users/me/fcm-token → FCM 푸시 토큰 등록 (token + deviceType: ANDROID/IOS)
                 ```
 
                 ## 부가 기능
                 ```
-                GET /api/notifications → 알림 목록 (매칭/교환/채팅/커플 등)
-                PATCH /api/notifications/{id}/read → 알림 읽음 처리
-                GET /api/notices → 공지사항 / GET /api/faq → FAQ
-                POST /api/support/inquiry → 1:1 문의
-                POST /api/users/{targetUserId}/report → 신고
+                GET /api/notifications → 알림 목록 (최근 30일)
+                PATCH /api/notifications/{id}/read → 알림 읽음 처리 (멱등성)
+                PATCH /api/notifications/read-all → 전체 알림 읽음
+                GET /api/users/me/notification-settings → 알림 설정 조회 (6종 카테고리)
+                PATCH /api/users/me/notification-settings → 알림 설정 수정
+                GET /api/notices → 공지사항 목록 (고정 우선, 최신순)
+                GET /api/notices/{id} → 공지사항 상세
+                GET /api/notices/banners → 활성 배너 (최대 5개)
+                GET /api/notices/unread-count → 미읽음 공지 수
+                GET /api/faq → FAQ 목록
+                POST /api/support/inquiry → 1:1 문의 (category + title + content)
+                GET /api/support/inquiries → 내 문의 목록
+                GET /api/support/inquiries/{id} → 문의 상세
+                POST /api/users/{targetUserId}/report → 신고 (reason: HARASSMENT 등 + detail)
                 POST /api/users/{targetUserId}/block → 차단
+                DELETE /api/users/{targetUserId}/block → 차단 해제
+                GET /api/users/me/block-list → 차단 목록 (커서 페이징)
                 ```
 
                 ## 마이페이지
@@ -131,13 +157,21 @@ public class SpringDocConfig {
                 GET /api/users/me → 내 프로필 조회
                 PATCH /api/users/me/profile → 프로필 수정 (닉네임 30일 쿨다운)
                 GET /api/users/me/ideal-type → 이상형 키워드 조회
-                PUT /api/users/me/ideal-type → 이상형 키워드 수정
+                PUT /api/users/me/ideal-type → 이상형 키워드 수정 (keywordIds 배열)
                 GET /api/users/me/ai-profile → AI 성격 분석 결과
-                GET /api/users/me/history/exchange-rooms → 교환일기 히스토리
-                GET /api/users/me/history/chat-rooms → 채팅 히스토리
+                GET /api/users/me/history/exchange-rooms → 교환일기 히스토리 (커서 페이징)
+                GET /api/users/me/history/chat-rooms → 채팅 히스토리 (커서 페이징)
                 PATCH /api/users/me/settings → 앱 설정 (다크모드/언어/연령필터)
-                PATCH /api/users/me/notification-settings → 알림 설정 수정
                 POST /api/users/me/deactivate → 회원 탈퇴 (30일 유예)
+                POST /api/users/me/restore → 유예 계정 복구 (마이페이지)
+                DELETE /api/consent → AI 동의 철회
+                POST /api/users/me/appeals → 제재 이의신청 (20~500자)
+                ```
+
+                ## 시스템
+                ```
+                GET /api/health → 서버 헬스체크
+                GET /api/system/version → 앱 버전 확인 (platform + version)
                 ```
 
                 ---
@@ -152,6 +186,7 @@ public class SpringDocConfig {
                 - `DELETE /api/dev/redis/delete?key=` — Redis 키 삭제
                 - `GET /api/dev/redis/keys?pattern=` — 패턴으로 키 검색
                 - `POST /api/dev/exchange-rooms/{roomId}/force-complete` — 교환일기 강제 완주
+                - `POST /api/dev/exchange-rooms/{roomId}/set-deadline` — 교환일기 데드라인 설정
 
                 # Rate Limiting
                 - 인증 전 API: 20회/분 (IP 기준)
