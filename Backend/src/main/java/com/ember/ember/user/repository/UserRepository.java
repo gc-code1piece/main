@@ -56,7 +56,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("""
             SELECT u.id FROM User u
             WHERE u.id != :excludeUserId
-              AND u.gender != :gender
+              AND u.gender = :gender
               AND u.birthDate >= :minBirthDate
               AND u.birthDate <= :maxBirthDate
               AND (u.lastLoginAt IS NOT NULL AND u.lastLoginAt >= :activeThreshold)
