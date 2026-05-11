@@ -65,6 +65,9 @@ google-services.json
 .claude/
 .mcp.json
 
+# Serena MCP (로컬 프로젝트 메타데이터)
+.serena/
+
 # Nginx SSL 인증서
 nginx/certs/
 
