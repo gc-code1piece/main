@@ -49,9 +49,7 @@ class _ExchangeDiaryWriteScreenState extends State<ExchangeDiaryWriteScreen> {
         builder: (context, child) {
           return Theme(
             data: Theme.of(context).copyWith(
-              colorScheme: const ColorScheme.light(
-                primary: Color(0xFFE37474),
-              ),
+              colorScheme: const ColorScheme.light(primary: Color(0xFFE37474)),
             ),
             child: child!,
           );
@@ -63,38 +61,55 @@ class _ExchangeDiaryWriteScreenState extends State<ExchangeDiaryWriteScreen> {
 
   String _formatDate(DateTime date) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year.toString().substring(2)}';
   }
 
   Future<void> _submit() async {
-    if (_bodyController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('일기 내용을 입력해주세요.')),
-      );
+    final content = _bodyController.text.trim();
+    if (content.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('일기 내용을 입력해주세요.')));
+      return;
+    }
+    if (content.length < 200) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('교환일기는 200자 이상 작성해주세요.')));
       return;
     }
     setState(() => _isSubmitting = true);
     try {
       await ApiService.postExchangeDiary(
         roomId: widget.roomId,
-        content: _bodyController.text.trim(),
+        content: content,
         date:
-        '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}',
+            '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}',
       );
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('교환일기를 보냈어요!')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('교환일기를 보냈어요!')));
         Navigator.pop(context);
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('오류가 발생했습니다.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('오류가 발생했습니다.')));
       }
     }
     setState(() => _isSubmitting = false);
@@ -109,10 +124,10 @@ class _ExchangeDiaryWriteScreenState extends State<ExchangeDiaryWriteScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isOverLimit = _bodyLength >= 2000;
+    final bool isOverLimit = _bodyLength >= 1000;
 
     return Scaffold(
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       backgroundColor: const Color(0xFFE37474),
       body: SafeArea(
         child: Column(
@@ -123,8 +138,11 @@ class _ExchangeDiaryWriteScreenState extends State<ExchangeDiaryWriteScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.chevron_left,
-                        color: Colors.white, size: 28),
+                    icon: const Icon(
+                      Icons.chevron_left,
+                      color: Colors.white,
+                      size: 28,
+                    ),
                     onPressed: () => Navigator.pop(context),
                   ),
                   Expanded(
@@ -144,164 +162,176 @@ class _ExchangeDiaryWriteScreenState extends State<ExchangeDiaryWriteScreen> {
               ),
             ),
 
-            const Spacer(),
-
             // 흰 카드
-            Container(
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                color: Color(0xFFF8F8F8),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-              height: MediaQuery.of(context).size.height * 0.82,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 날짜 태그
-                  GestureDetector(
-                    onTap: _pickDate,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE37474),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.access_time,
-                              size: 12, color: Colors.white),
-                          const SizedBox(width: 4),
-                          Text(
-                            _formatDate(_selectedDate),
-                            style: const TextStyle(
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF8F8F8),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 날짜 태그
+                    GestureDetector(
+                      onTap: _pickDate,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE37474),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.access_time,
+                              size: 12,
                               color: Colors.white,
-                              fontSize: 13,
-                              fontFamily: 'Pretendard',
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+                            Text(
+                              _formatDate(_selectedDate),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontFamily: 'Pretendard',
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
 
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // 제목 + 글자수
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _titleController,
-                          style: const TextStyle(
-                            color: Colors.black87,
-                            fontSize: 18,
-                            fontFamily: 'Pretendard',
-                            fontWeight: FontWeight.w700,
-                          ),
-                          decoration: const InputDecoration(
-                            hintText: '제목',
-                            hintStyle: TextStyle(
-                              color: Color(0xFFB8B8B8),
+                    // 제목 + 글자수
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _titleController,
+                            style: const TextStyle(
+                              color: Colors.black87,
                               fontSize: 18,
                               fontFamily: 'Pretendard',
                               fontWeight: FontWeight.w700,
                             ),
-                            border: InputBorder.none,
-                            isDense: true,
-                            contentPadding: EdgeInsets.zero,
+                            decoration: const InputDecoration(
+                              hintText: '제목',
+                              hintStyle: TextStyle(
+                                color: Color(0xFFB8B8B8),
+                                fontSize: 18,
+                                fontFamily: 'Pretendard',
+                                fontWeight: FontWeight.w700,
+                              ),
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.zero,
+                            ),
                           ),
                         ),
-                      ),
-                      Text(
-                        '$_bodyLength/2000',
-                        style: TextStyle(
-                          color: isOverLimit
-                              ? const Color(0xFFE37474)
-                              : const Color(0xFFB8B8B8),
-                          fontSize: 13,
-                          fontFamily: 'Pretendard',
+                        Text(
+                          '$_bodyLength/1000',
+                          style: TextStyle(
+                            color: isOverLimit
+                                ? const Color(0xFFE37474)
+                                : const Color(0xFFB8B8B8),
+                            fontSize: 13,
+                            fontFamily: 'Pretendard',
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
 
-                  const Divider(color: Color(0xFFEEEEEE), height: 20),
+                    const Divider(color: Color(0xFFEEEEEE), height: 20),
 
-                  // 본문
-                  Expanded(
-                    child: TextField(
-                      controller: _bodyController,
-                      maxLines: null,
-                      expands: true,
-                      maxLength: 2000,
-                      buildCounter: (_, {required currentLength,
-                        required isFocused, maxLength}) => null,
-                      onChanged: (v) =>
-                          setState(() => _bodyLength = v.length),
-                      style: const TextStyle(
-                        color: Colors.black87,
-                        fontSize: 14,
-                        fontFamily: 'Pretendard',
-                        height: 1.64,
-                      ),
-                      decoration: const InputDecoration(
-                        hintText: '오늘 하루를 기록해보세요.',
-                        hintStyle: TextStyle(
-                          color: Color(0xFFB8B8B8),
+                    // 본문
+                    Expanded(
+                      child: TextField(
+                        controller: _bodyController,
+                        maxLines: null,
+                        expands: true,
+                        maxLength: 1000,
+                        buildCounter:
+                            (
+                              _, {
+                              required currentLength,
+                              required isFocused,
+                              maxLength,
+                            }) => null,
+                        onChanged: (v) =>
+                            setState(() => _bodyLength = v.length),
+                        style: const TextStyle(
+                          color: Colors.black87,
                           fontSize: 14,
                           fontFamily: 'Pretendard',
                           height: 1.64,
                         ),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
+                        decoration: const InputDecoration(
+                          hintText: '오늘 하루를 기록해보세요.',
+                          hintStyle: TextStyle(
+                            color: Color(0xFFB8B8B8),
+                            fontSize: 14,
+                            fontFamily: 'Pretendard',
+                            height: 1.64,
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
                       ),
                     ),
-                  ),
 
-                  // Done 버튼
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 24),
-                    child: Center(
-                      child: GestureDetector(
-                        onTap: _isSubmitting ? null : _submit,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 60, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: _isSubmitting
-                                ? const Color(0xFFD1D5DB)
-                                : const Color(0xFFE37474),
-                            borderRadius: BorderRadius.circular(52),
-                            border:
-                            Border.all(color: const Color(0xFFE95322)),
-                          ),
-                          child: _isSubmitting
-                              ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
+                    // Done 버튼
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: GestureDetector(
+                          onTap: _isSubmitting ? null : _submit,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 60,
+                              vertical: 10,
                             ),
-                          )
-                              : const Text(
-                            'Done',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontFamily: 'Pretendard',
-                              fontWeight: FontWeight.w500,
+                            decoration: BoxDecoration(
+                              color: _isSubmitting
+                                  ? const Color(0xFFD1D5DB)
+                                  : const Color(0xFFE37474),
+                              borderRadius: BorderRadius.circular(52),
+                              border: Border.all(
+                                color: const Color(0xFFE95322),
+                              ),
                             ),
+                            child: _isSubmitting
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Done',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 20,
+                                      fontFamily: 'Pretendard',
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],
