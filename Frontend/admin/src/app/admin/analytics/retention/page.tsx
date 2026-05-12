@@ -4,7 +4,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, TrendingDown, Users, UserMinus, UserPlus, Calendar, Download, RefreshCw, Loader2 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Users, UserMinus, UserPlus, Calendar, RefreshCw, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   AreaChart,
@@ -35,10 +35,6 @@ export default function RetentionAnalyticsPage() {
     Promise.all([refetchSurvival(), refetchCohort()]).then(() =>
       toast.success('데이터를 새로고침했습니다.')
     );
-  };
-
-  const handleExport = () => {
-    toast.success('리텐션 분석 리포트를 다운로드합니다.');
   };
 
   if (isLoading) {
@@ -77,16 +73,10 @@ export default function RetentionAnalyticsPage() {
         title="이탈/리텐션 분석"
         description="사용자 리텐션 및 이탈 패턴 분석 (Kaplan-Meier 생존 분석)"
         actions={
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleRefresh}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              새로고침
-            </Button>
-            <Button onClick={handleExport}>
-              <Download className="mr-2 h-4 w-4" />
-              리포트 다운로드
-            </Button>
-          </div>
+          <Button variant="outline" onClick={handleRefresh}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            새로고침
+          </Button>
         }
       />
 

@@ -4,7 +4,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Download, ArrowRight, ArrowDown, Users, BookOpen, Heart, MessageCircle, Sparkles, Loader2 } from 'lucide-react';
+import { RefreshCw, ArrowRight, ArrowDown, Users, BookOpen, Heart, MessageCircle, Sparkles, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   BarChart,
@@ -40,10 +40,6 @@ export default function FunnelAnalysisPage() {
 
   const handleRefresh = () => {
     refetch().then(() => toast.success('데이터를 새로고침했습니다.'));
-  };
-
-  const handleExport = () => {
-    toast.success('퍼널 분석 리포트를 다운로드합니다.');
   };
 
   if (isLoading) {
@@ -99,16 +95,10 @@ export default function FunnelAnalysisPage() {
         title="사용자 퍼널 분석"
         description="가입부터 커플 전환까지의 사용자 여정 분석"
         actions={
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleRefresh}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              새로고침
-            </Button>
-            <Button onClick={handleExport}>
-              <Download className="mr-2 h-4 w-4" />
-              리포트 다운로드
-            </Button>
-          </div>
+          <Button variant="outline" onClick={handleRefresh}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            새로고침
+          </Button>
         }
       />
 

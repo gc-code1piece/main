@@ -5,8 +5,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import KpiCard from '@/components/common/KpiCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Download, Heart, Activity, Clock, Crown } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { RefreshCw, Heart, Activity, Clock, Crown } from 'lucide-react';
 import {
   LineChart,
   Line,
@@ -70,10 +69,6 @@ export default function FunnelDeepPage() {
   const d7 = findNearest(7);
   const d30 = findNearest(30);
 
-  const handleExport = () => {
-    toast.success('CSV 다운로드는 백엔드 CSV 엔드포인트 준비 후 제공됩니다.');
-  };
-
   return (
     <div>
       <PageHeader
@@ -111,10 +106,6 @@ export default function FunnelDeepPage() {
             <Button variant="outline" size="sm" onClick={() => query.refetch()} disabled={query.isFetching}>
               <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
               새로고침
-            </Button>
-            <Button size="sm" onClick={handleExport}>
-              <Download className="mr-1.5 h-3.5 w-3.5" />
-              다운로드
             </Button>
           </div>
         }

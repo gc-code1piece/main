@@ -21,7 +21,7 @@ export const membersApi = {
 
   // 7.2 제재/신고 이력 (ADMIN+ only)
   getSanctionHistory: (userId: number) =>
-    apiClient.get<ApiResponse<unknown>>(`/api/admin/members/${userId}/sanction-history`),
+    apiClient.get<ApiResponse<unknown>>(`/api/admin/members/${userId}/sanctions`),
 
   // 7.2 회원이 작성한 일기 목록
   getDiaries: (userId: number, params?: { page?: number; size?: number }) =>

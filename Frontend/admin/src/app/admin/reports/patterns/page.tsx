@@ -6,7 +6,7 @@ import { AnalyticsLoading, AnalyticsError } from '@/components/common/AnalyticsS
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Download, AlertTriangle, Users, TrendingUp, Clock, UserX, Ban } from 'lucide-react';
+import { RefreshCw, AlertTriangle, Users, TrendingUp, Clock, UserX, Ban } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { reportsApi } from '@/lib/api/reports';
 import {
@@ -46,10 +46,6 @@ export default function ReportPatternsPage() {
   const handleRefresh = () => {
     refetch();
     toast.success('데이터를 새로고침했습니다.');
-  };
-
-  const handleExport = () => {
-    toast.success('신고 패턴 리포트를 다운로드합니다.');
   };
 
   // 서버 데이터가 있으면 사용, 없으면 기본값
@@ -109,16 +105,10 @@ export default function ReportPatternsPage() {
         title="신고 패턴 분석"
         description="신고 트렌드 및 패턴 분석 대시보드"
         actions={
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleRefresh}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              새로고침
-            </Button>
-            <Button onClick={handleExport}>
-              <Download className="mr-2 h-4 w-4" />
-              리포트 다운로드
-            </Button>
-          </div>
+          <Button variant="outline" onClick={handleRefresh}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            새로고침
+          </Button>
         }
       />
 

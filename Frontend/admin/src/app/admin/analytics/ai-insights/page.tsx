@@ -5,8 +5,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import KpiCard from '@/components/common/KpiCard';
-import { Brain, Target, FileText, Zap, Download, RefreshCw } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { Brain, Target, FileText, Zap, RefreshCw } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -86,10 +85,6 @@ export default function AiInsightsPage() {
   const totalSucceeded = modelData.reduce((s, m) => s + m.succeeded, 0);
   const overallSuccessRate = totalProcessed > 0 ? (totalSucceeded / totalProcessed) * 100 : 0;
 
-  const handleDownload = () => {
-    toast.success('CSV 다운로드는 백엔드 CSV 엔드포인트 준비 후 제공됩니다.');
-  };
-
   return (
     <div>
       <PageHeader
@@ -115,10 +110,6 @@ export default function AiInsightsPage() {
             <Button variant="outline" size="sm" onClick={() => query.refetch()} disabled={query.isFetching}>
               <RefreshCw className="mr-1.5 h-4 w-4" />
               새로고침
-            </Button>
-            <Button size="sm" onClick={handleDownload}>
-              <Download className="mr-1.5 h-4 w-4" />
-              다운로드
             </Button>
           </div>
         }

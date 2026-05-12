@@ -12,7 +12,6 @@ import {
   CheckCircle,
   Award,
   RefreshCw,
-  Download,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -24,7 +23,6 @@ import {
   Tooltip,
   ReferenceLine,
 } from 'recharts';
-import toast from 'react-hot-toast';
 import { useDiaryLengthQuality } from '@/hooks/useAnalytics';
 import {
   AnalyticsLoading,
@@ -85,10 +83,6 @@ export default function DiaryQualityPage() {
     return bk.find((b) => !isBelowMin(b.range))?.range ?? null;
   }, [data]);
 
-  const handleDownload = () => {
-    toast.success('CSV 다운로드는 백엔드 CSV 엔드포인트 준비 후 제공됩니다.');
-  };
-
   const stats = data?.lengthStats ?? data?.stats;
   const quality = data?.qualityStats ?? data?.quality;
   const buckets = data?.histogram ?? data?.buckets ?? [];
@@ -120,10 +114,6 @@ export default function DiaryQualityPage() {
             <Button variant="outline" size="sm" onClick={() => query.refetch()} disabled={query.isFetching}>
               <RefreshCw className={query.isFetching ? 'mr-1.5 h-4 w-4 animate-spin' : 'mr-1.5 h-4 w-4'} />
               새로고침
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleDownload}>
-              <Download className="mr-1.5 h-4 w-4" />
-              다운로드
             </Button>
           </>
         }

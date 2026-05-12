@@ -12,7 +12,6 @@ import {
   Crown,
   Grid,
   RefreshCw,
-  Download,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -26,7 +25,6 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-import toast from 'react-hot-toast';
 import { useDiaryTopicParticipation } from '@/hooks/useAnalytics';
 import {
   AnalyticsLoading,
@@ -92,10 +90,6 @@ export default function DiaryTopicPage() {
     ? (sortedTopics.reduce((s, t) => s + (t.diaryShare ?? 0), 0) / sortedTopics.length) * 100
     : 0;
 
-  const handleDownload = () => {
-    toast.success('CSV 다운로드는 백엔드 CSV 엔드포인트 준비 후 제공됩니다.');
-  };
-
   return (
     <div>
       <PageHeader
@@ -119,10 +113,6 @@ export default function DiaryTopicPage() {
             <Button variant="outline" size="sm" onClick={() => query.refetch()} disabled={query.isFetching}>
               <RefreshCw className={query.isFetching ? 'mr-1.5 h-4 w-4 animate-spin' : 'mr-1.5 h-4 w-4'} />
               새로고침
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleDownload}>
-              <Download className="mr-1.5 h-4 w-4" />
-              다운로드
             </Button>
           </>
         }
