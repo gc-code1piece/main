@@ -61,32 +61,42 @@ export default function AiInsightsPage() {
   const data: AiPerformanceResponse | undefined = query.data;
 
   // 백엔드 응답: diaryAnalysis / lifestyleAnalysis 두 섹션
+  // BE 필드: diaryAnalysis.{completed, failed, failRate, totalEvents}, lifestyleAnalysis.{totalRuns, avgDiaryCount, daily[]}
   const modelData = useMemo(() => {
     if (!data) return [];
     const sections: { model: string; total: number; succeeded: number; failed: number; pending: number; successRate: number; avgLatencyMs: number; color: string }[] = [];
     if (data.diaryAnalysis) {
-      const d = data.diaryAnalysis;
+      const d = data.diaryAnalysis as unknown as Record<string, unknown>;
+      const total = (d.totalEvents ?? d.total ?? 0) as number;
+      const completed = (d.completed ?? 0) as number;
+      const failed = (d.failed ?? 0) as number;
+      const successRate = total > 0 ? completed / total : 0;
       sections.push({
         model: 'KcELECTRA',
-        total: d.total,
-        succeeded: d.completed,
-        failed: d.failed,
-        pending: d.pending,
-        successRate: d.completionRate ?? 0,
-        avgLatencyMs: d.avgLatencyMs ?? 0,
+        total,
+        succeeded: completed,
+        failed,
+        pending: Math.max(0, total - completed - failed),
+        successRate,
+        avgLatencyMs: (d.avgLatencyMs ?? 0) as number,
         color: MODEL_COLORS['KcELECTRA'] ?? '#8b5cf6',
       });
     }
     if (data.lifestyleAnalysis) {
-      const l = data.lifestyleAnalysis;
+      const l = data.lifestyleAnalysis as unknown as Record<string, unknown>;
+      const total = (l.totalRuns ?? l.total ?? 0) as number;
+      const daily = (l.daily ?? []) as Array<Record<string, unknown>>;
+      const completed = daily.reduce((s: number, d) => s + ((d.completed ?? 0) as number), 0);
+      const failed = daily.reduce((s: number, d) => s + ((d.failed ?? 0) as number), 0);
+      const successRate = total > 0 ? completed / total : 0;
       sections.push({
         model: 'KoSimCSE',
-        total: l.total,
-        succeeded: l.completed,
-        failed: l.failed,
-        pending: l.pending,
-        successRate: l.completionRate ?? 0,
-        avgLatencyMs: l.avgLatencyMs ?? 0,
+        total,
+        succeeded: completed,
+        failed,
+        pending: Math.max(0, total - completed - failed),
+        successRate,
+        avgLatencyMs: (l.avgLatencyMs ?? 0) as number,
         color: MODEL_COLORS['KoSimCSE'] ?? '#3b82f6',
       });
     }
