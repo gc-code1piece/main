@@ -117,11 +117,11 @@ export default function AdminActivityLogsPage() {
 
   const logColumns: DataTableColumn<AuditLog>[] = [
     {
-      key: 'createdAt',
+      key: 'performedAt',
       header: '시간',
       cell: (log) => (
         <span className="whitespace-nowrap text-muted-foreground">
-          {formatDateTime(log.createdAt)}
+          {formatDateTime(log.performedAt ?? log.createdAt)}
         </span>
       ),
     },
@@ -129,12 +129,7 @@ export default function AdminActivityLogsPage() {
       key: 'admin',
       header: '관리자',
       cell: (log) => (
-        <div className="flex flex-col">
-          <span className="font-medium">{log.adminEmail}</span>
-          <Badge className={`mt-1 w-fit text-xs ${ROLE_COLORS[log.adminRole]}`}>
-            {ROLE_LABELS[log.adminRole] ?? log.adminRole}
-          </Badge>
-        </div>
+        <span className="font-medium">{log.adminName ?? log.adminEmail ?? '—'}</span>
       ),
     },
     {
@@ -150,10 +145,10 @@ export default function AdminActivityLogsPage() {
       ),
     },
     {
-      key: 'description',
+      key: 'detail',
       header: '상세',
       cellClassName: 'max-w-xs truncate',
-      cell: (log) => <span title={log.description}>{log.description}</span>,
+      cell: (log) => <span title={log.detail ?? log.description ?? ''}>{log.detail ?? log.description ?? '—'}</span>,
     },
     {
       key: 'ip',

@@ -38,13 +38,18 @@ export interface AdminAccountSearchParams {
 export interface AuditLog {
   id: number;
   adminId: number;
-  adminEmail: string;
-  adminRole: AdminRole;
+  adminName: string;
+  adminEmail?: string;
+  adminRole?: AdminRole;
   action: string;
-  description: string;
+  targetType?: string;
+  targetId?: number;
+  detail: string | null;
+  description?: string;
   ipAddress: string;
-  userAgent: string;
-  createdAt: string;
+  userAgent?: string;
+  performedAt: string;
+  createdAt?: string;
 }
 
 export interface AuditLogSearchParams {

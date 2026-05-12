@@ -72,6 +72,7 @@ export interface Report {
   createdAt: string;
   resolvedAt: string | null;
   resolvedBy: string | null;
+  resolvedByName: string | null;
   resolveNote: string | null;
   sanctionType: 'NONE' | SanctionType | null;
   targetPreviousReports: TargetPreviousReport[];
@@ -85,10 +86,12 @@ export interface TargetPreviousReport {
 }
 
 export interface ReportSummary {
-  totalUnresolved: number;
-  slaApproaching: number;
-  slaExceeded: number;
+  totalUnresolved?: number;
+  slaApproaching?: number;
+  slaExceeded?: number;
   pendingCount: number;
+  slaWarningCount: number;
+  slaExceededCount: number;
   underReviewCount: number;
   resolvedCount: number;
   dismissedCount: number;
