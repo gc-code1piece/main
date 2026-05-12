@@ -5,8 +5,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import KpiCard from '@/components/common/KpiCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, Target, Activity, Crown, RefreshCw, Download } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { Users, Target, Activity, Crown, RefreshCw } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -90,9 +89,6 @@ export default function SegmentAnalysisPage() {
   }, [data]);
 
   const top1 = chartRows[0];
-  const handleExport = () => {
-    toast.success('CSV 다운로드는 백엔드 CSV 엔드포인트 준비 후 제공됩니다.');
-  };
 
   const periodLabel: Record<AnalyticsPeriod, string> = { '7d': '7일', '30d': '30일', '90d': '90일' };
 
@@ -134,10 +130,6 @@ export default function SegmentAnalysisPage() {
             <Button variant="outline" size="sm" onClick={() => query.refetch()} disabled={query.isFetching}>
               <RefreshCw className="mr-1.5 h-4 w-4" />
               새로고침
-            </Button>
-            <Button size="sm" onClick={handleExport}>
-              <Download className="mr-1.5 h-4 w-4" />
-              다운로드
             </Button>
           </div>
         }

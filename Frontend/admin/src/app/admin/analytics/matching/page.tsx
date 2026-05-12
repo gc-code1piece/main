@@ -4,7 +4,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Heart, Users, Clock, TrendingUp, Target, Percent, Download, RefreshCw, Loader2 } from 'lucide-react';
+import { Heart, Users, Clock, TrendingUp, Target, Percent, RefreshCw, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   BarChart,
@@ -36,10 +36,6 @@ export default function MatchingAnalyticsPage() {
     );
   };
 
-  const handleExport = () => {
-    toast.success('매칭 분석 리포트를 다운로드합니다.');
-  };
-
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -68,16 +64,10 @@ export default function MatchingAnalyticsPage() {
         title="매칭 분석"
         description="매칭 성과 및 패턴 분석"
         actions={
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleRefresh}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              새로고침
-            </Button>
-            <Button onClick={handleExport}>
-              <Download className="mr-2 h-4 w-4" />
-              리포트 다운로드
-            </Button>
-          </div>
+          <Button variant="outline" onClick={handleRefresh}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            새로고침
+          </Button>
         }
       />
 

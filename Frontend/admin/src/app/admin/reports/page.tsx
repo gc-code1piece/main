@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/utils/format';
 import { REPORT_REASON_LABELS, REPORT_STATUS_LABELS, REPORT_STATUS_COLORS } from '@/lib/constants';
 import type { Report, ReportReason, ReportStatus, SlaStatus } from '@/types/report';
-import { RefreshCw, Download, Eye, AlertTriangle, Clock, ShieldAlert, Timer, CheckCircle2 } from 'lucide-react';
+import { RefreshCw, Eye, AlertTriangle, Clock, ShieldAlert, Timer, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useReportList } from '@/hooks/useReports';
 import { reportsApi } from '@/lib/api/reports';
@@ -192,10 +192,6 @@ export default function ReportsPage() {
             <Button variant="outline" onClick={handleRefresh}>
               <RefreshCw className="mr-2 h-4 w-4" />
               새로고침
-            </Button>
-            <Button variant="outline">
-              <Download className="mr-2 h-4 w-4" />
-              내보내기
             </Button>
           </div>
         }

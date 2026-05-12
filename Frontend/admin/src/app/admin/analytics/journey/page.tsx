@@ -7,14 +7,12 @@ import { Button } from '@/components/ui/button';
 import KpiCard from '@/components/common/KpiCard';
 import {
   RefreshCw,
-  Download,
   ArrowRight,
   Footprints,
   Clock,
   MapPin,
   CheckCircle,
 } from 'lucide-react';
-import toast from 'react-hot-toast';
 import {
   BarChart,
   Bar,
@@ -84,10 +82,6 @@ export default function JourneyAnalysisPage() {
   }, [barData]);
   const totalSamples = barData.reduce((s, d) => s + d.sampleSize, 0);
 
-  const handleExport = () => {
-    toast.success('CSV 다운로드는 백엔드 CSV 엔드포인트 준비 후 제공됩니다.');
-  };
-
   const periodLabel: Record<AnalyticsPeriod, string> = { '7d': '7일', '30d': '30일', '90d': '90일' };
 
   return (
@@ -115,10 +109,6 @@ export default function JourneyAnalysisPage() {
             <Button variant="outline" size="sm" onClick={() => query.refetch()} disabled={query.isFetching}>
               <RefreshCw className="mr-1.5 h-4 w-4" />
               새로고침
-            </Button>
-            <Button size="sm" onClick={handleExport}>
-              <Download className="mr-1.5 h-4 w-4" />
-              다운로드
             </Button>
           </div>
         }

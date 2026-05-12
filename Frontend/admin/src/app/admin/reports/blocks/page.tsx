@@ -11,7 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/utils/format';
-import { RefreshCw, Download, Eye, RotateCcw, Ban, Shield, Clock } from 'lucide-react';
+import { RefreshCw, Eye, RotateCcw, Ban, Shield, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { blocksApi } from '@/lib/api/blocks';
 import type { Block } from '@/types/report';
@@ -65,10 +65,6 @@ export default function BlockHistoryPage() {
   const handleRefresh = () => {
     refetch();
     toast.success('차단 이력을 새로고침했습니다.');
-  };
-
-  const handleExport = () => {
-    toast.success('차단 이력을 CSV로 내보냅니다.');
   };
 
   const handleCancelBlock = (blockId: number) => {
@@ -162,16 +158,10 @@ export default function BlockHistoryPage() {
         title="차단 이력 관리"
         description="사용자 간 차단 이력 조회 및 관리"
         actions={
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleRefresh}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              새로고침
-            </Button>
-            <Button onClick={handleExport}>
-              <Download className="mr-2 h-4 w-4" />
-              CSV 내보내기
-            </Button>
-          </div>
+          <Button variant="outline" onClick={handleRefresh}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            새로고침
+          </Button>
         }
       />
 

@@ -6,8 +6,7 @@ import KpiCard from '@/components/common/KpiCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Hash, TrendingUp, Repeat, Sparkles, RefreshCw, Download } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { Hash, TrendingUp, Repeat, Sparkles, RefreshCw } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -104,10 +103,6 @@ export default function KeywordsAnalysisPage() {
   const trendData = useMemo(() => buildTrendData(rows), [rows]);
   const top5Keywords = useMemo(() => rows.slice(0, 5).map((k) => k.keyword), [rows]);
 
-  const handleExport = () => {
-    toast.success('키워드 분석 리포트 다운로드는 백엔드 CSV 엔드포인트 준비 후 제공됩니다.');
-  };
-
   const periodLabel: Record<AnalyticsPeriod, string> = { '7d': '7일', '30d': '30일', '90d': '90일' };
 
   return (
@@ -143,10 +138,6 @@ export default function KeywordsAnalysisPage() {
             <Button variant="outline" size="sm" onClick={() => query.refetch()}>
               <RefreshCw className="mr-1.5 h-4 w-4" />
               새로고침
-            </Button>
-            <Button size="sm" onClick={handleExport}>
-              <Download className="mr-1.5 h-4 w-4" />
-              다운로드
             </Button>
           </div>
         }

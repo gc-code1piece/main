@@ -11,7 +11,6 @@ import {
   ArrowRight,
   AlertCircle,
   RefreshCw,
-  Download,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -23,7 +22,6 @@ import {
   Tooltip,
   Cell,
 } from 'recharts';
-import toast from 'react-hot-toast';
 import { useExchangeTurnFunnel } from '@/hooks/useAnalytics';
 import {
   AnalyticsLoading,
@@ -83,10 +81,6 @@ export default function TurnFunnelPage() {
   const overallRate = roomCount > 0 ? (chatCount / roomCount) * 100 : 0;
   const turn1Rate = stages.find((s) => s.stage === 'TURN_1_COMPLETE')?.rate ?? 0;
 
-  const handleDownload = () => {
-    toast.success('CSV 다운로드는 백엔드 CSV 엔드포인트 준비 후 제공됩니다.');
-  };
-
   return (
     <div>
       <PageHeader
@@ -110,10 +104,6 @@ export default function TurnFunnelPage() {
             <Button variant="outline" size="sm" onClick={() => query.refetch()} disabled={query.isFetching}>
               <RefreshCw className={query.isFetching ? 'mr-1.5 h-4 w-4 animate-spin' : 'mr-1.5 h-4 w-4'} />
               새로고침
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleDownload}>
-              <Download className="mr-1.5 h-4 w-4" />
-              다운로드
             </Button>
           </>
         }
