@@ -55,8 +55,8 @@ const TOOLTIP_STYLE = {
 export default function AiInsightsPage() {
   const [period, setPeriod] = useState<AnalyticsPeriod>('7d');
 
-  // BE는 startTs/endTs (ISO datetime) 사용
-  const { startTs, endTs } = periodToTimestampRange(period);
+  // BE는 startTs/endTs (ISO datetime) 사용 — useMemo로 안정화 (매 렌더마다 새 Date 생성 방지)
+  const { startTs, endTs } = useMemo(() => periodToTimestampRange(period), [period]);
   const query = useAiPerformance({ startTs, endTs });
   const data: AiPerformanceResponse | undefined = query.data;
 
