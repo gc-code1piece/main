@@ -85,7 +85,7 @@ export default function EventsManagementPage() {
   };
 
   const handleAddEvent = () => {
-    toast.success('새 이벤트 생성 모달이 열립니다.');
+    toast('이 기능은 준비 중입니다.', { icon: 'ℹ️' });
   };
 
   const handleToggleStatus = (event: Event) => {

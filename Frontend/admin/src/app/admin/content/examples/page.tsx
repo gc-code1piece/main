@@ -105,11 +105,11 @@ export default function ExampleDiariesPage() {
   };
 
   const handleEdit = () => {
-    toast('편집 모달은 다음 PR에서 구현됩니다.', { icon: '🚧' });
+    toast('이 기능은 준비 중입니다.', { icon: 'ℹ️' });
   };
 
   const handleAddDiary = () => {
-    toast('등록 모달은 다음 PR에서 구현됩니다.', { icon: '🚧' });
+    toast('이 기능은 준비 중입니다.', { icon: 'ℹ️' });
   };
 
   const allDiaries: ExampleDiaryResponse[] = listQuery.data ?? [];

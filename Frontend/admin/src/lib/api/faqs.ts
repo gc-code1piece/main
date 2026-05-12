@@ -9,8 +9,6 @@ import type {
 /**
  * FAQ 관리 API.
  * 출처: 관리자_API_통합명세서_v2.0 §22
- *
- * ⚠ 백엔드 미구현 — 본 모듈은 Mock 환경에서만 호출 시그니처를 검증한다.
  */
 export const faqsApi = {
   // 22.1 목록 조회 (ADMIN 이상)

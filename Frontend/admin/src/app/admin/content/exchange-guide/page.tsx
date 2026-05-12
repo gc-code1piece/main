@@ -48,11 +48,11 @@ export default function ExchangeGuidePage() {
   };
 
   const handleAddTutorial = () => {
-    toast.success('새 튜토리얼 추가 모달이 열립니다.');
+    toast('이 기능은 준비 중입니다.', { icon: 'ℹ️' });
   };
 
-  const handleChangeImage = (tutorialId: number, stepOrder: number) => {
-    toast.success(`튜토리얼 ${tutorialId} - Step ${stepOrder} 이미지 변경 모달이 열립니다.`);
+  const handleChangeImage = (_tutorialId: number, _stepOrder: number) => {
+    toast('이 기능은 준비 중입니다.', { icon: 'ℹ️' });
   };
 
   const handleRefresh = () => {

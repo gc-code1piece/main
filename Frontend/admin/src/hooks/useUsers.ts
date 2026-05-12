@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { membersApi } from '@/lib/api/members';
-import type { MemberSearchParams } from '@/types/user';
+import type { MemberSearchParams, ActivitySummary } from '@/types/user';
 import toast from 'react-hot-toast';
 
 export function useMemberList(params: MemberSearchParams) {
@@ -14,6 +14,22 @@ export function useMemberDetail(id: number) {
   return useQuery({
     queryKey: ['members', id],
     queryFn: () => membersApi.getDetail(id).then((res) => res.data.data),
+    enabled: !!id,
+  });
+}
+
+export function useActivitySummary(id: number) {
+  return useQuery<ActivitySummary>({
+    queryKey: ['members', id, 'activity-summary'],
+    queryFn: () => membersApi.getActivitySummary(id).then((res) => res.data.data),
+    enabled: !!id,
+  });
+}
+
+export function useMemberDiaries(id: number, page = 0, size = 5) {
+  return useQuery({
+    queryKey: ['members', id, 'diaries', page],
+    queryFn: () => membersApi.getDiaries(id, { page, size }).then((res) => res.data.data),
     enabled: !!id,
   });
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Plus, Trash2, Save } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 import PageHeader from '@/components/layout/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -99,7 +100,7 @@ export default function AdminNotificationsSubscriptionsPage() {
     // 채널이 비어있는 행 검증
     const invalid = items.find((item) => item.channels.length === 0);
     if (invalid) {
-      alert('각 행마다 최소 1개 이상의 채널을 선택해야 합니다.');
+      toast.error('각 행마다 최소 1개 이상의 채널을 선택해야 합니다.');
       return;
     }
     updateMutation.mutate({ subscriptions: items });

@@ -5,8 +5,6 @@ import type { SanctionAppeal, AppealSearchParams } from '@/types/support';
 /**
  * 이의신청 관리 API.
  * 출처: 관리자_API_통합명세서_v2.0 §17.2
- *
- * ⚠ 백엔드 미구현 — 본 모듈은 Mock 환경에서만 호출 시그니처를 검증한다.
  */
 export const appealsApi = {
   // 17.2.1 목록 조회 (VIEWER 이상)
