@@ -41,16 +41,15 @@ export default function TermsManagementPage() {
   };
 
   const handleAddTerm = () => {
-    toast.success('새 약관 작성 모달이 열립니다.');
+    toast('이 기능은 준비 중입니다.', { icon: 'ℹ️' });
   };
 
-  const handleEdit = (termId: number) => {
-    toast.success('약관 수정 모달이 열립니다.');
+  const handleEdit = (_termId: number) => {
+    toast('이 기능은 준비 중입니다.', { icon: 'ℹ️' });
   };
 
   const handleViewHistory = (termId: number) => {
     setSelectedTerm(termId);
-    toast.success('버전 이력을 조회합니다.');
   };
 
   const activeTerms = terms.filter(t => t.status === 'ACTIVE');

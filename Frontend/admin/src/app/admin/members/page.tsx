@@ -12,28 +12,39 @@ import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/utils/format';
 import { Eye } from 'lucide-react';
 import { useMemberList } from '@/hooks/useUsers';
-import type { AdminUserDetail } from '@/types/user';
+import type { AdminMemberListItem } from '@/types/user';
 
-const columns: DataTableColumn<AdminUserDetail>[] = [
+const columns: DataTableColumn<AdminMemberListItem>[] = [
   {
     key: 'nickname',
     header: '닉네임',
     cell: (user) => <span className="font-medium">{user.nickname}</span>,
   },
-  { key: 'realName', header: '실명', cell: (user) => user.realName },
+  { key: 'realName', header: '실명', cell: (user) => user.realName || '-' },
   {
     key: 'gender',
     header: '성별',
     cell: (user) => (user.gender === 'MALE' ? '남성' : '여성'),
   },
-  { key: 'region', header: '지역', cell: (user) => user.region },
+  {
+    key: 'sido',
+    header: '지역',
+    cell: (user) => [user.sido, user.sigungu].filter(Boolean).join(' ') || '-',
+  },
   {
     key: 'status',
     header: '상태',
     cell: (user) => <StatusBadge status={user.status} />,
   },
-  { key: 'diaryCount', header: '일기', align: 'right', cell: (user) => user.diaryCount },
-  { key: 'matchCount', header: '매칭', align: 'right', cell: (user) => user.matchCount },
+  {
+    key: 'lastLoginAt',
+    header: '최근 로그인',
+    cell: (user) => (
+      <span className="text-muted-foreground">
+        {user.lastLoginAt ? formatDateTime(user.lastLoginAt) : '-'}
+      </span>
+    ),
+  },
   {
     key: 'createdAt',
     header: '가입일',
@@ -61,8 +72,8 @@ export default function UsersPage() {
 
   const { data, isLoading, isError, error } = useMemberList({
     nickname: keyword || undefined,
-    cursor: page > 0 ? String(page) : undefined,
-    limit: 20,
+    page,
+    size: 20,
   });
 
   const handleSearch = () => {

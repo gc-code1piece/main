@@ -65,7 +65,7 @@ export default function FeatureFlagsPage() {
   };
 
   const handleAddFlag = () => {
-    toast.success('새 기능 플래그 추가 모달이 열립니다.');
+    toast('이 기능은 준비 중입니다.', { icon: 'ℹ️' });
   };
 
   const filteredFlags = flags.filter(

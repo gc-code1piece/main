@@ -16,49 +16,60 @@ export type Gender = 'MALE' | 'FEMALE';
 export type SuspicionType = 'BOT' | 'FAKE_PROFILE' | 'SPAM' | 'MULTI_ACCOUNT' | 'SCAM';
 export type SuspiciousAccountStatus = 'PENDING' | 'INVESTIGATING' | 'CONFIRMED' | 'CLEARED';
 
-export interface AdminUserDetail {
+// 회원 목록 항목 (GET /api/admin/members 응답)
+export interface AdminMemberListItem {
   id: number;
   nickname: string;
   realName: string;
   email: string;
   gender: Gender;
   birthDate: string;
-  region: string;
-  school: string;
+  sido: string;
+  sigungu: string;
+  status: UserStatus;
+  lastLoginAt: string;
+  createdAt: string;
+}
+
+// 회원 상세 (GET /api/admin/members/{id} 응답)
+export interface AdminUserDetail {
+  id: number;
+  email: string;
+  emailMasked: boolean;
+  nickname: string;
+  realName: string;
+  gender: Gender;
+  birthDate: string;
+  sido: string;
+  sigungu: string;
+  school: string | null;
   status: UserStatus;
   role: UserRole;
-  isProfileCompleted: boolean;
+  onboardingCompleted: boolean;
   createdAt: string;
   modifiedAt: string;
   lastLoginAt: string;
-  socialProvider: string;
-  // 활동 요약
-  diaryCount: number;
-  matchCount: number;
-  reportCount: number;
-  exchangeRoomCount: number;
-  // AI 분석
-  personalityKeywords: string[];
-  // 최근 일기
-  recentDiaries: RecentDiary[];
-  // 신고 이력
-  reportHistory: UserReportHistory[];
-  // 제재 정보 (정지 상태일 때)
-  suspendReason?: string;
-  suspendUntil?: string;
+  suspensionReason: string | null;
+  suspendedUntil: string | null;
 }
 
-export interface RecentDiary {
-  id: number;
-  title: string;
-  createdAt: string;
+// 활동 요약 (GET /api/admin/members/{id}/activity-summary 응답)
+export interface ActivitySummary {
+  totalDiaries: number;
+  totalMatches: number;
+  activeDays: number;
+  lastActiveAt: string;
 }
 
-export interface UserReportHistory {
+// 회원 일기 항목
+export interface MemberDiary {
   id: number;
-  reason: string;
-  status: string;
+  title: string | null;
+  contentPreview: string;
+  summary: string | null;
+  category: string | null;
   createdAt: string;
+  analysisStatus: string;
 }
 
 export interface SuspiciousAccount {
@@ -76,18 +87,13 @@ export interface SuspiciousAccount {
   activityCount: number;
 }
 
-// 기능명세서 기준 커서 기반 검색 파라미터
+// 백엔드 page/size 기반 검색 파라미터
 export interface MemberSearchParams {
-  cursor?: string;
-  limit?: number;
+  page?: number;
+  size?: number;
   status?: UserStatus;
   gender?: Gender;
   nickname?: string;
   email?: string;
-  signupDateFrom?: string;
-  signupDateTo?: string;
-  lastLoginFrom?: string;
-  lastLoginTo?: string;
-  socialProvider?: string;
   sortBy?: string;
 }

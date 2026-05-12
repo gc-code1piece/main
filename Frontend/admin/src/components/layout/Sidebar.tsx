@@ -102,7 +102,7 @@ const navItems: NavItem[] = [
     requiredRole: 'ADMIN',
     subItems: [
       { title: '랜덤 주제 관리', href: '/admin/content/topics' },
-      { title: '큐레이션 관리', href: '/admin/content/curations' },
+
       { title: '약관 관리', href: '/admin/content/terms' },
       { title: '약관 변경 이력', href: '/admin/content/terms/history', requiredRole: 'SUPER_ADMIN' },
       { title: '공지사항 관리', href: '/admin/content/notices' },

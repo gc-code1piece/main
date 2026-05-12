@@ -102,19 +102,19 @@ export default function NoticesManagementPage() {
   };
 
   const handleAddNotice = () => {
-    toast.success('새 공지사항 작성 모달이 열립니다. (URGENT/MAINTENANCE 선택 시 타겟이 ALL로 자동 잠김)');
+    toast('이 기능은 준비 중입니다.', { icon: 'ℹ️' });
   };
 
-  const handleEdit = (noticeId: number) => {
-    toast.success(`공지사항 #${noticeId} 수정 모달이 열립니다.`);
+  const handleEdit = (_noticeId: number) => {
+    toast('이 기능은 준비 중입니다.', { icon: 'ℹ️' });
   };
 
   const handleDelete = (noticeId: number) => {
     changeStatusMutation.mutate({ id: noticeId, status: 'HIDDEN' });
   };
 
-  const handleTogglePin = (noticeId: number) => {
-    toast.success(`공지사항 #${noticeId}의 고정 상태를 변경했습니다.`);
+  const handleTogglePin = (_noticeId: number) => {
+    toast('이 기능은 준비 중입니다.', { icon: 'ℹ️' });
   };
 
   // Filter by audience client-side (API doesn't support audience param)

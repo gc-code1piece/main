@@ -15,7 +15,9 @@ import {
   Clock,
   MessageCircle,
   ArrowRight,
+  Loader2,
 } from 'lucide-react';
+import { useDiaryLengthQuality } from '@/hooks/useAnalytics';
 
 // 일기 분석 서브 페이지 카드 목록
 const SUB_PAGES = [
@@ -58,6 +60,21 @@ const SUB_PAGES = [
 ] as const;
 
 export default function DiariesAnalyticsPage() {
+  const { data, isLoading } = useDiaryLengthQuality();
+
+  const quality = data?.qualityStats ?? data?.quality;
+  const lengthStats = data?.lengthStats ?? data?.stats;
+
+  const totalDiaries = quality?.total ?? '-';
+  const avgChars = lengthStats?.mean != null
+    ? `${Math.round(lengthStats.mean)}자`
+    : quality?.avgCharactersPerDiary != null
+      ? `${Math.round(quality.avgCharactersPerDiary)}자`
+      : '-';
+  const successRate = quality?.successRate != null
+    ? quality.successRate.toFixed(1)
+    : '-';
+
   return (
     <div>
       <PageHeader
@@ -67,26 +84,34 @@ export default function DiariesAnalyticsPage() {
 
       {/* 개요 KPI 4개 */}
       <div className="mb-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          title="총 일기 수"
-          value={156789}
-          icon={BookOpen}
-        />
-        <KpiCard
-          title="오늘 작성 수"
-          value={892}
-          icon={Edit}
-        />
-        <KpiCard
-          title="평균 글자 수"
-          value="287자"
-          icon={FileText}
-        />
-        <KpiCard
-          title="평균 품질 점수"
-          value="78.4"
-          icon={Star}
-        />
+        {isLoading ? (
+          <div className="col-span-4 flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <>
+            <KpiCard
+              title="총 일기 수"
+              value={totalDiaries}
+              icon={BookOpen}
+            />
+            <KpiCard
+              title="완료된 분석"
+              value={quality?.completed ?? '-'}
+              icon={Edit}
+            />
+            <KpiCard
+              title="평균 글자 수"
+              value={avgChars}
+              icon={FileText}
+            />
+            <KpiCard
+              title="평균 품질 점수"
+              value={successRate}
+              icon={Star}
+            />
+          </>
+        )}
       </div>
 
       {/* 6개 분석 서브 페이지 카드 그리드 */}
