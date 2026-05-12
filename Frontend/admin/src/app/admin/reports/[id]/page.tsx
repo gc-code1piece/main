@@ -257,7 +257,7 @@ export default function ReportDetailPage() {
                     <CheckCircle className="h-5 w-5" />
                     <span className="font-medium">처리 완료</span>
                   </div>
-                  <p className="mt-2 text-sm text-green-700">처리자: {report.resolvedBy}</p>
+                  <p className="mt-2 text-sm text-green-700">처리자: {report.resolvedByName ?? report.resolvedBy ?? '—'}</p>
                   <p className="text-sm text-green-700">처리 시간: {report.resolvedAt && formatDateTime(report.resolvedAt)}</p>
                   <p className="mt-2 text-sm text-green-600">처리 내용: {report.resolveNote}</p>
                   {report.sanctionType && report.sanctionType !== 'NONE' && (

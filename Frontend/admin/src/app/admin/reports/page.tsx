@@ -98,37 +98,12 @@ export default function ReportsPage() {
         cell: (r) => <Badge variant="outline">{REPORT_REASON_LABELS[r.reason]}</Badge>,
       },
       {
-        key: 'accumulated',
-        header: '누적',
-        align: 'right',
-        cell: (r) => (
-          <span className="font-medium text-destructive">{r.accumulatedReportCount}</span>
-        ),
-      },
-      {
         key: 'status',
         header: '상태',
         cell: (r) => (
           <Badge className={REPORT_STATUS_COLORS[r.status]}>
             {REPORT_STATUS_LABELS[r.status]}
           </Badge>
-        ),
-      },
-      {
-        key: 'slaProgress',
-        header: 'SLA 진행',
-        cell: (r) => (
-          <div className="flex items-center gap-2">
-            <div className="h-2 w-16 rounded-full bg-muted">
-              <div
-                className={`h-2 rounded-full ${getSlaBarColor(r.slaStatus)}`}
-                style={{ width: `${Math.min(r.slaProgress * 100, 100)}%` }}
-              />
-            </div>
-            <span className="font-mono-data text-xs tabular-nums text-muted-foreground">
-              {Math.round(r.slaProgress * 100)}%
-            </span>
-          </div>
         ),
       },
       {
@@ -205,7 +180,7 @@ export default function ReportsPage() {
               <AlertTriangle className="h-5 w-5 text-red-500" />
               <span className="text-sm text-muted-foreground">미처리 전체</span>
             </div>
-            <div className="mt-1 text-2xl font-bold">{summary?.totalUnresolved ?? '-'}</div>
+            <div className="mt-1 text-2xl font-bold">{summary?.pendingCount ?? summary?.totalUnresolved ?? '-'}</div>
           </CardContent>
         </Card>
         <Card className="cursor-pointer border-yellow-200">
@@ -214,7 +189,7 @@ export default function ReportsPage() {
               <Clock className="h-5 w-5 text-yellow-500" />
               <span className="text-sm text-muted-foreground">SLA 접근 중 (80%)</span>
             </div>
-            <div className="mt-1 text-2xl font-bold text-yellow-600">{summary?.slaApproaching ?? '-'}</div>
+            <div className="mt-1 text-2xl font-bold text-yellow-600">{summary?.slaWarningCount ?? summary?.slaApproaching ?? '-'}</div>
           </CardContent>
         </Card>
         <Card className="cursor-pointer border-red-200" onClick={() => setSlaOverdueOnly(true)}>
@@ -223,7 +198,7 @@ export default function ReportsPage() {
               <ShieldAlert className="h-5 w-5 text-red-500" />
               <span className="text-sm text-muted-foreground">SLA 초과</span>
             </div>
-            <div className="mt-1 text-2xl font-bold text-red-600">{summary?.slaExceeded ?? '-'}</div>
+            <div className="mt-1 text-2xl font-bold text-red-600">{summary?.slaExceededCount ?? summary?.slaExceeded ?? '-'}</div>
           </CardContent>
         </Card>
         <Card className="cursor-pointer border-gray-200" onClick={() => setAssignmentFilter('UNASSIGNED')}>
