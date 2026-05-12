@@ -91,10 +91,12 @@ apiClient.interceptors.response.use(
 
     if (!isDev) {
       if (error.response) {
+        const status = error.response.status;
         const { code, message } = error.response.data || {};
         const displayMessage = ERROR_MESSAGES[code] || message || '알 수 없는 오류가 발생했습니다.';
 
-        if (error.response.status !== 401) {
+        // 401(토큰 만료), 429(Rate Limit)는 토스트 안 띄움
+        if (status !== 401 && status !== 429) {
           toast.error(displayMessage);
         }
       } else {
