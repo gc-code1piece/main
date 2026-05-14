@@ -4,7 +4,9 @@ import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 import 'package:stomp_dart_client/stomp_dart_client.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'dart:async';
 import 'dart:convert';
+import 'dart:ui';
 
 // 백그라운드 메시지 핸들러 (top-level 함수여야 함)
 @pragma('vm:entry-point')
@@ -709,72 +711,137 @@ class _IdealTypeScreenState extends State<IdealTypeScreen> {
 // ══════════════════════════════════════
 // 3.3 튜토리얼
 // ══════════════════════════════════════
-class TutorialScreen extends StatelessWidget {
+class TutorialScreen extends StatefulWidget {
   const TutorialScreen({super.key});
 
   @override
+  State<TutorialScreen> createState() => _TutorialScreenState();
+}
+
+class _TutorialScreenState extends State<TutorialScreen> {
+  final app = AppState();
+  final _pageController = PageController();
+  int _currentPage = 0;
+  bool _loading = true;
+  List<Map<String, dynamic>> _pages = const [];
+
+  // 서버 응답 비어있을 때 폴백
+  static const List<Map<String, dynamic>> _fallback = [
+    {'icon': '📝', 'title': '매일 일기 쓰기', 'body': '하루를 돌아보며 일기를 작성해보세요'},
+    {'icon': '🤖', 'title': 'AI가 추천하는 상대', 'body': 'AI가 성격을 분석하고 맞는 상대를 추천해줍니다'},
+    {'icon': '📖', 'title': '교환 일기로 관계 형성', 'body': '서로 일기를 교환하며 내면을 알아가세요'},
+    {'icon': '💬', 'title': '채팅으로 만남', 'body': '교환이 끝나면 채팅으로 더 가까워지세요'},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final res = await app.dio.get('${app.baseUrl}/api/tutorials/pages', options: app.authHeaders);
+      final pages = (res.data['data']?['pages'] as List?) ?? [];
+      final mapped = pages.map<Map<String, dynamic>>((p) => {
+        'pageOrder': p['pageOrder'],
+        'title': p['title'] ?? '',
+        'body': p['body'] ?? '',
+        'imageUrl': p['imageUrl'],
+      }).toList()..sort((a, b) => (a['pageOrder'] ?? 0).compareTo(b['pageOrder'] ?? 0));
+      setState(() {
+        _pages = mapped.isEmpty ? _fallback : mapped;
+        _loading = false;
+      });
+    } catch (_) {
+      setState(() { _pages = _fallback; _loading = false; });
+    }
+  }
+
+  Future<void> _finish() async {
+    try {
+      await app.dio.post('${app.baseUrl}/api/users/tutorial/complete', options: app.authHeaders);
+    } catch (_) {}
+    if (!mounted) return;
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final pages = [
-      {'icon': '📝', 'title': '매일 일기 쓰기', 'desc': '하루를 돌아보며 일기를 작성해보세요'},
-      {'icon': '🤖', 'title': 'AI가 추천하는 상대', 'desc': 'AI가 성격을 분석하고 맞는 상대를 추천해줍니다'},
-      {'icon': '📖', 'title': '교환 일기로 관계 형성', 'desc': '서로 일기를 교환하며 내면을 알아가세요'},
-      {'icon': '💬', 'title': '채팅으로 만남', 'desc': '교환이 끝나면 채팅으로 더 가까워지세요'},
-    ];
+    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     return Scaffold(
-      body: PageView.builder(
-        itemCount: pages.length,
-        itemBuilder: (context, index) {
-          final page = pages[index];
-          return Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
+      body: SafeArea(
+        child: Column(children: [
+          // 페이지 인디케이터
+          Padding(
+            padding: const EdgeInsets.only(top: 24),
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(pages.length, (i) => Container(
-                    width: 8, height: 8,
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: i == index ? Colors.orange : Colors.white24),
-                  )),
-                ),
-                const Spacer(),
-                Text(page['icon']!, style: const TextStyle(fontSize: 64)),
-                const SizedBox(height: 24),
-                Text(page['title']!, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
-                Text(page['desc']!, style: const TextStyle(color: Colors.white54), textAlign: TextAlign.center),
-                const Spacer(),
-                if (index == pages.length - 1)
-                  SizedBox(width: double.infinity, height: 48,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final app = AppState();
-                        try {
-                          await app.dio.post('${app.baseUrl}/api/users/tutorial/complete',
-                            options: app.authHeaders);
-                        } catch (_) {}
-                        if (context.mounted) {
-                          Navigator.pushReplacement(context,
-                            MaterialPageRoute(builder: (_) => const HomeScreen()));
-                        }
-                      },
-                      child: const Text('시작하기')))
-                else
-                  const Text('스와이프하여 다음 →', style: TextStyle(color: Colors.white38)),
-                TextButton(
-                  onPressed: () {
-                    Navigator.pushReplacement(context,
-                      MaterialPageRoute(builder: (_) => const HomeScreen()));
-                  },
-                  child: const Text('건너뛰기', style: TextStyle(color: Colors.white38))),
-              ],
+              children: List.generate(_pages.length, (i) => AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: i == _currentPage ? 24 : 8, height: 8,
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  color: i == _currentPage ? Colors.orange : Colors.white24),
+              )),
             ),
-          );
-        },
+          ),
+          Expanded(
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: _pages.length,
+              onPageChanged: (i) => setState(() => _currentPage = i),
+              itemBuilder: (_, index) {
+                final page = _pages[index];
+                final imageUrl = page['imageUrl'] as String?;
+                return Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Spacer(),
+                      if (imageUrl != null && imageUrl.isNotEmpty)
+                        Image.network(imageUrl, width: 200, errorBuilder: (_, __, ___) =>
+                          Text(page['icon'] ?? '✨', style: const TextStyle(fontSize: 80)))
+                      else
+                        Text(page['icon'] ?? '✨', style: const TextStyle(fontSize: 80)),
+                      const SizedBox(height: 32),
+                      Text(page['title'] ?? '', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                      const SizedBox(height: 16),
+                      Text(page['body'] ?? '', style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.5), textAlign: TextAlign.center),
+                      const Spacer(),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          // 하단 버튼
+          Padding(
+            padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
+            child: Column(children: [
+              SizedBox(width: double.infinity, height: 48,
+                child: ElevatedButton(
+                  onPressed: () {
+                    if (_currentPage == _pages.length - 1) {
+                      _finish();
+                    } else {
+                      _pageController.nextPage(
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeOut);
+                    }
+                  },
+                  child: Text(_currentPage == _pages.length - 1 ? '시작하기' : '다음'),
+                ),
+              ),
+              TextButton(
+                onPressed: _finish,
+                child: const Text('건너뛰기', style: TextStyle(color: Colors.white54))),
+            ]),
+          ),
+        ]),
       ),
     );
   }
@@ -938,6 +1005,8 @@ class _DiaryWriteTabState extends State<DiaryWriteTab> {
   String? message;
   bool isEdit = false;
   String? weeklyTopic;
+  bool aiLoading = false;
+  Map<String, dynamic>? aiResult;
 
   @override
   void initState() {
@@ -1023,21 +1092,126 @@ class _DiaryWriteTabState extends State<DiaryWriteTab> {
           message = '일기 작성 완료! (id=$diaryId)';
           todayExists = true;
           todayDiaryId = diaryId;
+          aiLoading = true;
+          aiResult = null;
         });
-        // AI 분석 자동 트리거 (2초 딜레이)
-        Future.delayed(const Duration(seconds: 2), () async {
-          try {
-            await app.dio.post('${app.baseUrl}/api/dev/ai/simulate/$diaryId');
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('AI 분석 시작됨'), duration: Duration(seconds: 2)));
-            }
-          } catch (_) {}
-        });
+        _runAiAnalysis(diaryId);
       }
     } catch (e) {
       setState(() => message = app.errMsg(e));
     }
+  }
+
+  Future<void> _runAiAnalysis(int diaryId) async {
+    try {
+      await Future.delayed(const Duration(milliseconds: 800));
+      await app.dio.post('${app.baseUrl}/api/dev/ai/simulate/$diaryId');
+      for (int i = 0; i < 8; i++) {
+        await Future.delayed(const Duration(milliseconds: 700));
+        if (!mounted) return;
+        final res = await app.dio.get('${app.baseUrl}/api/diaries/$diaryId', options: app.authHeaders);
+        final data = res.data['data'] as Map<String, dynamic>;
+        if (data['summary'] != null || (data['emotionTags'] as List?)?.isNotEmpty == true) {
+          setState(() {
+            aiLoading = false;
+            aiResult = data;
+          });
+          return;
+        }
+      }
+      if (mounted) setState(() => aiLoading = false);
+    } catch (_) {
+      if (mounted) setState(() => aiLoading = false);
+    }
+  }
+
+  Widget _aiCard() {
+    if (aiLoading) {
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(top: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: [
+            Colors.purple.withOpacity(0.15),
+            Colors.pink.withOpacity(0.15),
+          ]),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.purple.withOpacity(0.4)),
+        ),
+        child: Row(children: const [
+          SizedBox(
+            width: 18, height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.purpleAccent),
+          ),
+          SizedBox(width: 12),
+          Expanded(child: Text('AI가 일기를 분석하고 있어요...',
+            style: TextStyle(fontWeight: FontWeight.bold))),
+        ]),
+      );
+    }
+    if (aiResult == null) return const SizedBox.shrink();
+    final r = aiResult!;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [
+          Colors.purple.withOpacity(0.18),
+          Colors.pink.withOpacity(0.12),
+        ]),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.purple.withOpacity(0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: const [
+            Icon(Icons.auto_awesome, color: Colors.purpleAccent, size: 18),
+            SizedBox(width: 6),
+            Text('AI 분석 결과', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          ]),
+          const SizedBox(height: 10),
+          if (r['summary'] != null) ...[
+            const Text('요약', style: TextStyle(fontSize: 11, color: Colors.white70)),
+            const SizedBox(height: 2),
+            Text(r['summary'], style: const TextStyle(fontSize: 13)),
+            const SizedBox(height: 10),
+          ],
+          if (r['category'] != null) ...[
+            _aiChipRow('카테고리', [r['category']], Colors.orange),
+            const SizedBox(height: 6),
+          ],
+          _aiChipRow('감정', r['emotionTags'], Colors.pink),
+          _aiChipRow('라이프스타일', r['lifestyleTags'], Colors.teal),
+          _aiChipRow('글쓰기 톤', r['toneTags'], Colors.amber),
+        ],
+      ),
+    );
+  }
+
+  Widget _aiChipRow(String label, dynamic tags, Color color) {
+    final list = tags is List ? tags : const [];
+    if (list.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 11, color: Colors.white70)),
+          const SizedBox(height: 4),
+          Wrap(spacing: 6, runSpacing: 4, children: list.map((t) =>
+            Chip(
+              label: Text(t.toString(), style: const TextStyle(fontSize: 11)),
+              backgroundColor: color.withOpacity(0.25),
+              side: BorderSide(color: color.withOpacity(0.5)),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+            )).toList().cast<Widget>()),
+        ],
+      ),
+    );
   }
 
   Future<void> _saveDraft() async {
@@ -1054,10 +1228,14 @@ class _DiaryWriteTabState extends State<DiaryWriteTab> {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final charCount = contentCtrl.text.length;
+    final isValid = charCount >= 200 && charCount <= 1000;
+    final progress = (charCount / 1000).clamp(0.0, 1.0);
+    final weekday = ['월','화','수','목','금','토','일'][now.weekday - 1];
+    final hasAi = aiLoading || aiResult != null;
 
     return Scaffold(
       appBar: widget.standaloneAppBar ? AppBar(
-        title: Text('${now.month}월 ${now.day}일 (${['월','화','수','목','금','토','일'][now.weekday - 1]})'),
+        title: const Text('오늘의 일기'),
         actions: [
           if (todayExists == true)
             const Padding(
@@ -1070,64 +1248,181 @@ class _DiaryWriteTabState extends State<DiaryWriteTab> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // 주간 주제 표시
+            // ── 날짜 헤더 카드 ──
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.orange.withOpacity(0.15),
+                    Colors.deepOrange.withOpacity(0.08),
+                  ],
+                  begin: Alignment.topLeft, end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.orange.withOpacity(0.25)),
+              ),
+              child: Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.edit_calendar, color: Colors.orangeAccent, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                  Text('${now.year}년 ${now.month}월 ${now.day}일',
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                  Text('$weekday요일 · ${todayExists == true ? "오늘 작성한 일기" : "오늘의 기록"}',
+                    style: const TextStyle(fontSize: 11, color: Colors.white60)),
+                ]),
+              ]),
+            ),
+
+            // ── 주간 주제 카드 (수요일) ──
             if (weeklyTopic != null)
               Container(
                 width: double.infinity,
                 margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                  gradient: LinearGradient(colors: [
+                    Colors.amber.withOpacity(0.15),
+                    Colors.orange.withOpacity(0.1),
+                  ]),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.amber.withOpacity(0.35)),
                 ),
                 child: Row(children: [
-                  const Icon(Icons.lightbulb_outline, color: Colors.orange, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text('이번 주 주제: $weeklyTopic',
-                    style: const TextStyle(color: Colors.orange, fontSize: 13))),
+                  const Icon(Icons.lightbulb, color: Colors.amber, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                    const Text('이번 주의 주제', style: TextStyle(fontSize: 10, color: Colors.amber, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 2),
+                    Text(weeklyTopic!, style: const TextStyle(fontSize: 14, color: Colors.amberAccent, fontWeight: FontWeight.w600)),
+                  ])),
                 ]),
               ),
-            Expanded(
-              child: TextField(
-                controller: contentCtrl,
-                maxLines: null,
-                expands: true,
-                textAlignVertical: TextAlignVertical.top,
-                onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                  hintText: '오늘 하루를 돌아보며 일기를 써보세요... (200~1,000자)',
-                  border: OutlineInputBorder(),
+
+            // ── 일기 본문 ──
+            if (hasAi)
+              SizedBox(
+                height: 140,
+                child: _diaryField(),
+              )
+            else
+              Expanded(child: _diaryField()),
+
+            const SizedBox(height: 10),
+
+            // ── 글자수 progress bar ──
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 6,
+                backgroundColor: Colors.white12,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  isValid ? Colors.greenAccent : (charCount < 200 ? Colors.orangeAccent : Colors.redAccent),
                 ),
               ),
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Text('$charCount / 1000자',
-                  style: TextStyle(
-                    color: charCount >= 200 && charCount <= 1000
-                      ? Colors.greenAccent : Colors.redAccent)),
-                const Spacer(),
-                TextButton(onPressed: _saveDraft, child: const Text('임시저장')),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: charCount >= 200 && charCount <= 1000
-                    ? _submit : null,
-                  child: Text(todayExists == true ? '수정' : '제출')),
-              ],
-            ),
+            const SizedBox(height: 6),
+            Row(children: [
+              Text('$charCount자',
+                style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.bold,
+                  color: isValid ? Colors.greenAccent : (charCount < 200 ? Colors.orangeAccent : Colors.redAccent),
+                )),
+              const SizedBox(width: 4),
+              Text(charCount < 200 ? '· 200자 이상 필요' : charCount > 1000 ? '· 1000자 초과' : '· 작성 완료',
+                style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+              const Spacer(),
+              const Text('1000자', style: TextStyle(fontSize: 11, color: Colors.white38)),
+            ]),
+
+            const SizedBox(height: 12),
+
+            // ── 제출/임시저장 버튼 ──
+            Row(children: [
+              SizedBox(
+                height: 50,
+                child: OutlinedButton.icon(
+                  onPressed: _saveDraft,
+                  icon: const Icon(Icons.save_outlined, size: 18),
+                  label: const Text('임시저장'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: SizedBox(
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: isValid ? _submit : null,
+                  icon: Icon(todayExists == true ? Icons.edit : Icons.check_circle, size: 20),
+                  label: Text(todayExists == true ? '일기 수정' : '오늘 일기 제출',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange[700],
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.grey[800],
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              )),
+            ]),
+
             if (message != null)
               Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(message!, style: TextStyle(
-                  color: message!.contains('완료') ? Colors.greenAccent : Colors.redAccent)),
+                padding: const EdgeInsets.only(top: 10),
+                child: Row(children: [
+                  Icon(message!.contains('완료') ? Icons.check_circle : Icons.error_outline,
+                    size: 14, color: message!.contains('완료') ? Colors.greenAccent : Colors.redAccent),
+                  const SizedBox(width: 4),
+                  Expanded(child: Text(message!,
+                    style: TextStyle(fontSize: 12,
+                      color: message!.contains('완료') ? Colors.greenAccent : Colors.redAccent))),
+                ]),
               ),
+
+            if (hasAi)
+              Expanded(child: SingleChildScrollView(child: _aiCard())),
           ],
         ),
       ),
     );
   }
+
+  Widget _diaryField() => TextField(
+    controller: contentCtrl,
+    maxLines: null,
+    expands: true,
+    textAlignVertical: TextAlignVertical.top,
+    onChanged: (_) => setState(() {}),
+    style: const TextStyle(fontSize: 14.5, height: 1.7),
+    decoration: InputDecoration(
+      hintText: '오늘 하루를 돌아보며 일기를 써보세요...\n(200~1,000자)',
+      hintStyle: TextStyle(color: Colors.grey[600]),
+      filled: true,
+      fillColor: Colors.grey[900]?.withOpacity(0.5),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: Colors.grey[800]!),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Colors.orangeAccent, width: 1.5),
+      ),
+      contentPadding: const EdgeInsets.all(14),
+    ),
+  );
 }
 
 // ── 일기 히스토리 바디 래퍼 ──
@@ -1232,9 +1527,14 @@ class DiaryDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final createdAt = diary['createdAt'] as String?;
+    final dateStr = createdAt != null && createdAt.length >= 10
+      ? createdAt.substring(0, 10) : '';
+    final hasAi = diary['summary'] != null || diary['emotionTags'] != null;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(diary['createdAt']?.toString().substring(0, 10) ?? ''),
+        title: const Text('일기 상세'),
         actions: [
           if (diary['isEditable'] == true)
             const Padding(
@@ -1244,50 +1544,157 @@ class DiaryDetailScreen extends StatelessWidget {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(diary['content'] ?? '', style: const TextStyle(fontSize: 16, height: 1.6)),
-            const Divider(height: 32),
-            if (diary['summary'] != null)
-              _tag('AI 요약', diary['summary']),
-            if (diary['category'] != null)
-              _tag('카테고리', diary['category']),
-            if (diary['emotionTags'] != null)
-              _tagList('감정', diary['emotionTags']),
-            if (diary['lifestyleTags'] != null)
-              _tagList('라이프스타일', diary['lifestyleTags']),
-            if (diary['toneTags'] != null)
-              _tagList('글쓰기 톤', diary['toneTags']),
-            if (diary['summary'] == null)
-              const Text('AI 분석 대기 중...', style: TextStyle(color: Colors.white38)),
+            // ── 날짜 헤더 카드 ──
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [
+                  Colors.orange.withOpacity(0.15),
+                  Colors.deepOrange.withOpacity(0.08),
+                ], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.orange.withOpacity(0.25)),
+              ),
+              child: Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.menu_book, color: Colors.orangeAccent, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                  Text(dateStr.isNotEmpty ? dateStr.replaceAll('-', '. ') : '나의 일기',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  Text('${(diary['content'] as String?)?.length ?? 0}자',
+                    style: const TextStyle(fontSize: 11, color: Colors.white60)),
+                ])),
+              ]),
+            ),
+
+            const SizedBox(height: 16),
+
+            // ── 일기 본문 카드 ──
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey[900]?.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.grey[800]!),
+              ),
+              child: Text(diary['content'] ?? '',
+                style: const TextStyle(fontSize: 15, height: 1.8, letterSpacing: 0.2)),
+            ),
+
+            const SizedBox(height: 20),
+
+            // ── AI 분석 섹션 ──
+            Row(children: [
+              const Icon(Icons.auto_awesome, size: 18, color: Colors.purpleAccent),
+              const SizedBox(width: 6),
+              const Text('AI 분석', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              const Spacer(),
+              if (!hasAi)
+                Text('분석 중...', style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+            ]),
+            const SizedBox(height: 10),
+
+            if (hasAi)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [
+                    Colors.purple.withOpacity(0.12),
+                    Colors.pink.withOpacity(0.08),
+                  ]),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.purple.withOpacity(0.3)),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  if (diary['summary'] != null) ...[
+                    const Text('요약', style: TextStyle(fontSize: 10, color: Colors.white60)),
+                    const SizedBox(height: 4),
+                    Text(diary['summary'], style: const TextStyle(fontSize: 13, height: 1.5)),
+                    const SizedBox(height: 12),
+                  ],
+                  if (diary['category'] != null) ...[
+                    Row(children: [
+                      const Text('카테고리: ', style: TextStyle(fontSize: 11, color: Colors.white60)),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.25),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(diary['category'], style: const TextStyle(fontSize: 11, color: Colors.orangeAccent, fontWeight: FontWeight.bold)),
+                      ),
+                    ]),
+                    const SizedBox(height: 12),
+                  ],
+                  _detailTagRow('감정', diary['emotionTags'], Colors.pink),
+                  _detailTagRow('라이프스타일', diary['lifestyleTags'], Colors.teal),
+                  _detailTagRow('글쓰기 톤', diary['toneTags'], Colors.amber),
+                ]),
+              )
+            else
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.grey[900]?.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(children: [
+                  const SizedBox(
+                    width: 24, height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.purpleAccent),
+                  ),
+                  const SizedBox(height: 10),
+                  Text('AI가 일기를 분석하고 있어요',
+                    style: TextStyle(color: Colors.grey[400], fontSize: 12)),
+                  const SizedBox(height: 4),
+                  Text('잠시 후 다시 확인해주세요',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 11)),
+                ]),
+              ),
+
+            const SizedBox(height: 24),
           ],
         ),
       ),
     );
   }
 
-  Widget _tag(String label, String value) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Row(children: [
-      Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white54)),
-      Expanded(child: Text(value)),
-    ]),
-  );
-
-  Widget _tagList(String label, List<dynamic> tags) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white54)),
+  Widget _detailTagRow(String label, dynamic tags, Color color) {
+    final list = tags is List ? tags : const [];
+    if (list.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(fontSize: 11, color: Colors.white60)),
         const SizedBox(height: 4),
-        Wrap(spacing: 6, children: tags.map((t) =>
-          Chip(label: Text('${t['label']}', style: const TextStyle(fontSize: 12)))).toList()),
-      ],
-    ),
-  );
+        Wrap(spacing: 6, runSpacing: 4, children: list.map((t) {
+          final txt = t is Map ? (t['label'] ?? t['name'] ?? '').toString() : t.toString();
+          return Chip(
+            label: Text(txt, style: const TextStyle(fontSize: 11)),
+            backgroundColor: color.withOpacity(0.25),
+            side: BorderSide(color: color.withOpacity(0.5)),
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          );
+        }).toList()),
+      ]),
+    );
+  }
 }
 
 // ── 임시저장 바디 래퍼 ──
@@ -1401,34 +1808,93 @@ class ExploreTab extends StatefulWidget {
   State<ExploreTab> createState() => _ExploreTabState();
 }
 
-class _ExploreTabState extends State<ExploreTab> {
+class _ExploreTabState extends State<ExploreTab> with SingleTickerProviderStateMixin {
   final app = AppState();
-  List<dynamic> diaries = [];
-  int? nextCursor;
-  bool loading = false;
-  String? message;
+  late final TabController _tabController;
+
+  // 최신 탭 상태
+  List<dynamic> latestDiaries = [];
+  int? latestCursor;
+  bool latestLoading = false;
+  String? latestMessage;
+
+  // 추천 탭 상태
+  List<dynamic> recommendations = [];
+  bool recoLoading = false;
+  String? recoMessage;
+
+  // 필터 (최신 탭에만 적용)
+  final Set<String> selectedAgeGroups = {};
+  String? selectedSido;
+  String? selectedCategory;
+  bool keywordFilter = false;
+
+  static const List<String> sidoOptions = [
+    '서울', '경기', '인천', '강원', '충북', '충남', '대전', '세종',
+    '전북', '전남', '광주', '경북', '경남', '대구', '울산', '부산', '제주',
+  ];
+  static const List<String> categoryOptions = ['일상', '감성', '성장', '관계', '기타'];
+  static const Map<String, String> ageGroupLabels = {
+    'TEENS': '10대', 'TWENTIES': '20대', 'THIRTIES': '30대', 'FORTIES': '40대',
+  };
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() => setState(() {}));
+    _loadLatest();
+    _loadRecommendations();
   }
 
-  Future<void> _load() async {
-    setState(() => loading = true);
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadLatest({bool reset = false}) async {
+    if (reset) latestCursor = null;
+    setState(() => latestLoading = true);
     try {
+      final query = <String, dynamic>{'sort': 'latest', 'size': 10};
+      if (latestCursor != null) query['cursor'] = latestCursor;
+      if (selectedAgeGroups.isNotEmpty) query['ageGroup'] = selectedAgeGroups.join(',');
+      if (selectedSido != null) query['sido'] = selectedSido;
+      if (selectedCategory != null) query['category'] = selectedCategory;
+      if (keywordFilter) query['keywordFilter'] = true;
+
       final res = await app.dio.get('${app.baseUrl}/api/diaries/explore',
-        options: app.authHeaders,
-        queryParameters: nextCursor != null ? {'cursor': nextCursor} : null);
+        options: app.authHeaders, queryParameters: query);
       final data = res.data['data'];
       setState(() {
-        diaries = data['diaries'] ?? [];
-        nextCursor = data['nextCursor'];
-        message = data['guidanceMessage'];
-        loading = false;
+        if (reset || latestCursor == null) {
+          latestDiaries = data['diaries'] ?? [];
+        } else {
+          latestDiaries.addAll(data['diaries'] ?? []);
+        }
+        latestCursor = data['nextCursor'];
+        latestMessage = data['guidanceMessage'];
+        latestLoading = false;
       });
     } catch (e) {
-      setState(() { message = app.errMsg(e); loading = false; });
+      setState(() { latestMessage = app.errMsg(e); latestLoading = false; });
+    }
+  }
+
+  Future<void> _loadRecommendations() async {
+    setState(() => recoLoading = true);
+    try {
+      final res = await app.dio.get('${app.baseUrl}/api/matching/recommendations',
+        options: app.authHeaders);
+      final data = res.data['data'];
+      setState(() {
+        recommendations = (data is Map ? data['recommendations'] : data) ?? [];
+        recoMessage = data is Map ? data['guidanceMessage'] : null;
+        recoLoading = false;
+      });
+    } catch (e) {
+      setState(() { recoMessage = app.errMsg(e); recoLoading = false; });
     }
   }
 
@@ -1437,82 +1903,524 @@ class _ExploreTabState extends State<ExploreTab> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('일기 탐색'),
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.orangeAccent,
+          tabs: const [
+            Tab(icon: Icon(Icons.auto_awesome, size: 18), text: '추천'),
+            Tab(icon: Icon(Icons.schedule, size: 18), text: '최신'),
+          ],
+        ),
         actions: [
-          IconButton(icon: const Icon(Icons.recommend), onPressed: _showAiRecommendations, tooltip: 'AI 추천'),
-          IconButton(icon: const Icon(Icons.mail), onPressed: _showReceivedRequests),
-          IconButton(icon: const Icon(Icons.analytics), onPressed: _showLifestyleReport),
+          // 필터는 최신 탭에서만 동작
+          if (_tabController.index == 1)
+            IconButton(icon: const Icon(Icons.tune), onPressed: _showFilterSheet, tooltip: '필터'),
+          IconButton(icon: const Icon(Icons.mail_outline), onPressed: _showReceivedRequests, tooltip: '받은 요청'),
+          IconButton(icon: const Icon(Icons.analytics_outlined), onPressed: _showLifestyleReport, tooltip: '라이프스타일'),
         ],
       ),
-      body: loading
-        ? const Center(child: CircularProgressIndicator())
-        : diaries.isEmpty
-          ? Center(child: Text(message ?? '탐색할 일기가 없습니다', style: const TextStyle(color: Colors.white54)))
-          : RefreshIndicator(
-              onRefresh: () async { nextCursor = null; await _load(); },
-              child: ListView.builder(
-                padding: const EdgeInsets.all(12),
-                itemCount: diaries.length,
-                itemBuilder: (context, index) {
-                  final d = diaries[index];
-                  return Card(
-                    child: ListTile(
-                      title: Text(d['previewContent'] ?? '', maxLines: 2, overflow: TextOverflow.ellipsis),
-                      subtitle: Row(children: [
-                        Text('${d['ageGroupLabel'] ?? ''} · ${d['region'] ?? ''}'),
-                        if (d['similarityBadge'] != null) ...[
-                          const SizedBox(width: 8),
-                          Chip(label: Text(d['similarityBadge'], style: const TextStyle(fontSize: 10))),
-                        ],
-                      ]),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => _showDiaryDetail(d),
-                    ),
-                  );
-                },
-              ),
-            ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildRecommendationsTab(),
+          _buildLatestTab(),
+        ],
+      ),
     );
   }
 
+  // ── 추천 탭 (블러 카드) ──
+  Widget _buildRecommendationsTab() {
+    if (recoLoading) return const Center(child: CircularProgressIndicator());
+    if (recommendations.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _loadRecommendations,
+        child: ListView(children: [
+          const SizedBox(height: 60),
+          const Icon(Icons.auto_awesome, size: 64, color: Colors.white24),
+          const SizedBox(height: 12),
+          Center(child: Text(recoMessage ?? 'AI 추천 결과가 없습니다',
+            style: const TextStyle(color: Colors.white54), textAlign: TextAlign.center)),
+          const SizedBox(height: 8),
+          const Center(child: Text('일기를 더 작성하면 정확한 추천이 가능해요',
+            style: TextStyle(color: Colors.white38, fontSize: 12))),
+          const SizedBox(height: 24),
+          // 디버그/안내 정보
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber.withOpacity(0.3)),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: const [
+                  Icon(Icons.info_outline, size: 14, color: Colors.amber),
+                  SizedBox(width: 6),
+                  Text('추천이 비어있는 이유?', style: TextStyle(fontSize: 11, color: Colors.amber, fontWeight: FontWeight.bold)),
+                ]),
+                const SizedBox(height: 6),
+                const Text(
+                  '• 누적 일기 3편 미만 (M001)\n'
+                  '• AI 분석 동의 미완료 (M004)\n'
+                  '• 유사도 0.5 미만 후보 (5.2 비고)\n'
+                  '• 일일 추천 한도 10개 초과 (M003)\n'
+                  '• 매칭 가능한 다른 사용자 없음',
+                  style: TextStyle(fontSize: 11, color: Colors.white60, height: 1.5),
+                ),
+              ]),
+            ),
+          ),
+        ]),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _loadRecommendations,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: recommendations.length,
+        itemBuilder: (_, i) => _recommendationCard(recommendations[i]),
+      ),
+    );
+  }
+
+  Widget _recommendationCard(Map<String, dynamic> r) {
+    final score = r['matchScore'];
+    final scorePct = score is num ? (score * 100).toInt() : null;
+    final badge = r['similarityBadge'] as String?;
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _openRecommendationPreview(r),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Icon(Icons.lock_outline, size: 16, color: Colors.amber),
+              const SizedBox(width: 4),
+              Text(r['ageGroup'] ?? '', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+              const Spacer(),
+              if (badge != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: _badgeColor(badge).withOpacity(0.25),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    scorePct != null ? '$badge · $scorePct%' : badge,
+                    style: TextStyle(color: _badgeColor(badge), fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ),
+            ]),
+            const SizedBox(height: 8),
+            // AI 요약 (블러)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Stack(children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  color: Colors.black.withOpacity(0.25),
+                  child: ImageFiltered(
+                    imageFilter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+                    child: Text(
+                      (r['previewContent'] ?? r['summary'] ?? 'AI 분석 중...') as String,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13, height: 1.5),
+                    ),
+                  ),
+                ),
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                        colors: [Colors.transparent, Colors.black.withOpacity(0.35)],
+                      ),
+                    ),
+                    alignment: Alignment.bottomCenter,
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: const Icon(Icons.lock_outline, size: 14, color: Colors.white70),
+                  ),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 8),
+            if (r['briefing'] != null || r['aiIntro'] != null)
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.purple.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.auto_awesome, size: 12, color: Colors.purpleAccent),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(r['briefing'] ?? r['aiIntro'] ?? '',
+                    style: const TextStyle(fontSize: 11, color: Colors.purpleAccent))),
+                ]),
+              ),
+            const SizedBox(height: 8),
+
+            // 이상형 매칭 키워드 (matchedKeywords)
+            if ((r['matchedKeywords'] as List?)?.isNotEmpty == true) ...[
+              Row(children: [
+                const Icon(Icons.favorite, size: 11, color: Colors.redAccent),
+                const SizedBox(width: 4),
+                Text('이상형 매칭: ${(r['matchedKeywords'] as List).join(", ")}',
+                  style: const TextStyle(fontSize: 10, color: Colors.redAccent)),
+              ]),
+              const SizedBox(height: 6),
+            ],
+
+            Wrap(spacing: 4, runSpacing: 4, children: [
+              ...((r['personalityKeywords'] as List?) ?? []).take(3).map((k) =>
+                Chip(label: Text('#$k', style: const TextStyle(fontSize: 10)),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  backgroundColor: Colors.purple.withOpacity(0.2))),
+              ...((r['emotionTags'] as List?) ?? []).take(2).map((t) =>
+                Chip(label: Text(t, style: const TextStyle(fontSize: 10)),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  backgroundColor: Colors.pink.withOpacity(0.2))),
+              if (r['category'] != null)
+                Chip(label: Text(r['category'], style: const TextStyle(fontSize: 10)),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  backgroundColor: Colors.orange.withOpacity(0.2)),
+            ]),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => _openRecommendationPreview(r),
+                icon: const Icon(Icons.lock_open, size: 14),
+                label: const Text('자세히 보기', style: TextStyle(fontSize: 12)),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Color _badgeColor(String badge) {
+    switch (badge.toUpperCase()) {
+      case 'HIGH': return Colors.greenAccent;
+      case 'MEDIUM': case 'MID': return Colors.amberAccent;
+      case 'LOW': return Colors.blueAccent;
+      default: return Colors.white70;
+    }
+  }
+
+  // ── 최신 탭 (풀 카드) ──
+  Widget _buildLatestTab() {
+    if (latestLoading && latestDiaries.isEmpty) return const Center(child: CircularProgressIndicator());
+
+    final hasFilters = selectedAgeGroups.isNotEmpty ||
+      selectedSido != null || selectedCategory != null || keywordFilter;
+
+    return Column(children: [
+      // 활성 필터 칩
+      if (hasFilters)
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          color: Colors.orange.withOpacity(0.05),
+          child: Wrap(spacing: 6, runSpacing: 4, children: [
+            ...selectedAgeGroups.map((g) => _filterChip(ageGroupLabels[g] ?? g, () {
+              setState(() => selectedAgeGroups.remove(g));
+              _loadLatest(reset: true);
+            })),
+            if (selectedSido != null)
+              _filterChip(selectedSido!, () {
+                setState(() => selectedSido = null);
+                _loadLatest(reset: true);
+              }),
+            if (selectedCategory != null)
+              _filterChip(selectedCategory!, () {
+                setState(() => selectedCategory = null);
+                _loadLatest(reset: true);
+              }),
+            if (keywordFilter)
+              _filterChip('이상형 매칭만', () {
+                setState(() => keywordFilter = false);
+                _loadLatest(reset: true);
+              }),
+          ]),
+        ),
+      Expanded(
+        child: latestDiaries.isEmpty
+          ? RefreshIndicator(
+              onRefresh: () => _loadLatest(reset: true),
+              child: ListView(children: [
+                const SizedBox(height: 100),
+                Center(child: Text(latestMessage ?? '조건에 맞는 일기가 없습니다',
+                  style: const TextStyle(color: Colors.white54))),
+              ]),
+            )
+          : RefreshIndicator(
+              onRefresh: () => _loadLatest(reset: true),
+              child: ListView.builder(
+                padding: const EdgeInsets.all(12),
+                itemCount: latestDiaries.length,
+                itemBuilder: (_, i) => _latestCard(latestDiaries[i]),
+              ),
+            ),
+      ),
+    ]);
+  }
+
+  Widget _filterChip(String label, VoidCallback onRemove) => Chip(
+    label: Text(label, style: const TextStyle(fontSize: 11)),
+    deleteIcon: const Icon(Icons.close, size: 14),
+    onDeleted: onRemove,
+    backgroundColor: Colors.orange.withOpacity(0.2),
+    side: BorderSide(color: Colors.orange.withOpacity(0.4)),
+    visualDensity: VisualDensity.compact,
+    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  );
+
+  Widget _latestCard(Map<String, dynamic> d) {
+    final badge = d['similarityBadge'] as String?;
+    // 카드엔 AI 요약(summary)만 살짝 보이게 노출. 전문은 상세에서.
+    final teaser = (d['summary'] ?? d['previewContent'] ?? '') as String;
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _showDiaryDetail(d),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              CircleAvatar(
+                radius: 14,
+                backgroundColor: Colors.orange.withOpacity(0.2),
+                child: const Icon(Icons.person, size: 16, color: Colors.orangeAccent),
+              ),
+              const SizedBox(width: 8),
+              Text(d['ageGroupLabel'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
+              if (d['region'] != null) ...[
+                const Text(' · ', style: TextStyle(color: Colors.white38)),
+                Text(d['region'] ?? '', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+              ],
+              const Spacer(),
+              if (badge != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: _badgeColor(badge).withOpacity(0.25),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.favorite, size: 11, color: _badgeColor(badge)),
+                    const SizedBox(width: 3),
+                    Text(badge, style: TextStyle(color: _badgeColor(badge), fontSize: 11, fontWeight: FontWeight.bold)),
+                  ]),
+                ),
+            ]),
+            const SizedBox(height: 10),
+
+            // AI 요약 (블러 처리 + 잠금 오버레이)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Stack(children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  color: Colors.black.withOpacity(0.25),
+                  child: ImageFiltered(
+                    imageFilter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
+                    child: Text(
+                      teaser.isEmpty ? 'AI 분석 중...' : teaser,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13, height: 1.5),
+                    ),
+                  ),
+                ),
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                        colors: [Colors.transparent, Colors.black.withOpacity(0.35)],
+                      ),
+                    ),
+                    alignment: Alignment.bottomRight,
+                    padding: const EdgeInsets.all(6),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: const [
+                      Icon(Icons.lock_outline, size: 12, color: Colors.white70),
+                      SizedBox(width: 4),
+                      Text('탭하여 자세히 보기',
+                        style: TextStyle(fontSize: 10, color: Colors.white70)),
+                    ]),
+                  ),
+                ),
+              ]),
+            ),
+
+            const SizedBox(height: 10),
+            Wrap(spacing: 4, runSpacing: 4, children: [
+              ...((d['personalityKeywords'] as List?) ?? []).take(3).map((k) =>
+                Chip(label: Text('#$k', style: const TextStyle(fontSize: 10)),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  backgroundColor: Colors.purple.withOpacity(0.2))),
+              ...((d['moodTags'] as List?) ?? []).take(2).map((t) =>
+                Chip(label: Text(t, style: const TextStyle(fontSize: 10)),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  backgroundColor: Colors.pink.withOpacity(0.2))),
+              if (d['category'] != null)
+                Chip(label: Text(d['category'], style: const TextStyle(fontSize: 10)),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  backgroundColor: Colors.orange.withOpacity(0.2)),
+            ]),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  // ── 필터 바텀시트 ──
+  void _showFilterSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + MediaQuery.of(ctx).viewInsets.bottom),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Center(child: Text('필터 설정', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+            const SizedBox(height: 16),
+            const Text('연령대 (복수 선택)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            const SizedBox(height: 6),
+            Wrap(spacing: 6, children: ageGroupLabels.entries.map((e) =>
+              FilterChip(
+                label: Text(e.value),
+                selected: selectedAgeGroups.contains(e.key),
+                onSelected: (v) => setLocal(() {
+                  if (v) selectedAgeGroups.add(e.key);
+                  else selectedAgeGroups.remove(e.key);
+                }),
+              )).toList()),
+            const SizedBox(height: 16),
+            const Text('지역', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            DropdownButton<String?>(
+              value: selectedSido,
+              isExpanded: true,
+              hint: const Text('전체'),
+              items: [
+                const DropdownMenuItem<String?>(value: null, child: Text('전체')),
+                ...sidoOptions.map((s) => DropdownMenuItem<String?>(value: s, child: Text(s))),
+              ],
+              onChanged: (v) => setLocal(() => selectedSido = v),
+            ),
+            const SizedBox(height: 8),
+            const Text('카테고리', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            DropdownButton<String?>(
+              value: selectedCategory,
+              isExpanded: true,
+              hint: const Text('전체'),
+              items: [
+                const DropdownMenuItem<String?>(value: null, child: Text('전체')),
+                ...categoryOptions.map((c) => DropdownMenuItem<String?>(value: c, child: Text(c))),
+              ],
+              onChanged: (v) => setLocal(() => selectedCategory = v),
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: const Text('이상형 키워드 필터', style: TextStyle(fontSize: 13)),
+              subtitle: const Text('내 이상형 키워드와 일치하는 일기만 보기',
+                style: TextStyle(fontSize: 11, color: Colors.white54)),
+              value: keywordFilter,
+              activeColor: Colors.orangeAccent,
+              onChanged: (v) => setLocal(() => keywordFilter = v),
+            ),
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(child: OutlinedButton(
+                onPressed: () {
+                  setLocal(() {
+                    selectedAgeGroups.clear();
+                    selectedSido = null;
+                    selectedCategory = null;
+                    keywordFilter = false;
+                  });
+                },
+                child: const Text('초기화'),
+              )),
+              const SizedBox(width: 8),
+              Expanded(child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  setState(() {});
+                  _loadLatest(reset: true);
+                  final parts = <String>[];
+                  if (selectedAgeGroups.isNotEmpty) parts.add('연령: ${selectedAgeGroups.map((g) => ageGroupLabels[g]).join(",")}');
+                  if (selectedSido != null) parts.add('지역: $selectedSido');
+                  if (selectedCategory != null) parts.add('카테고리: $selectedCategory');
+                  if (keywordFilter) parts.add('이상형 매칭');
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(parts.isEmpty ? '필터 없이 조회' : '필터 적용: ${parts.join(" · ")}'),
+                    duration: const Duration(seconds: 2),
+                  ));
+                },
+                child: const Text('적용'),
+              )),
+            ]),
+          ]),
+        );
+      }),
+    );
+  }
+
+  // ── 액션 ──
   void _showDiaryDetail(Map<String, dynamic> d) async {
     try {
-      // 상세 API 사용
       final detailRes = await app.dio.get(
         '${app.baseUrl}/api/diaries/${d['diaryId']}/detail',
         options: app.authHeaders);
       if (context.mounted) {
         Navigator.push(context, MaterialPageRoute(
           builder: (_) => ExploreDetailScreen(
-            diaryId: d['diaryId'],
-            preview: detailRes.data['data'])));
+            diaryId: d['diaryId'], preview: detailRes.data['data'])));
       }
     } catch (e) {
-      // detail 실패 시 preview 폴백
-      try {
-        final previewRes = await app.dio.get(
-          '${app.baseUrl}/api/matching/recommendations/${d['diaryId']}/preview',
-          options: app.authHeaders);
-        if (context.mounted) {
-          Navigator.push(context, MaterialPageRoute(
-            builder: (_) => ExploreDetailScreen(
-              diaryId: d['diaryId'],
-              preview: previewRes.data['data'])));
-        }
-      } catch (e2) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e2))));
-        }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
       }
     }
   }
 
-  void _showAiRecommendations() async {
+  void _openRecommendationPreview(Map<String, dynamic> r) async {
+    final diaryId = r['diaryId'];
+    if (diaryId == null) return;
     try {
-      final res = await app.dio.get('${app.baseUrl}/api/matching/recommendations',
+      final res = await app.dio.get(
+        '${app.baseUrl}/api/matching/recommendations/$diaryId/preview',
         options: app.authHeaders);
       if (context.mounted) {
         Navigator.push(context, MaterialPageRoute(
-          builder: (_) => AiRecommendationsScreen(data: res.data['data'])));
+          builder: (_) => ExploreDetailScreen(diaryId: diaryId, preview: res.data['data'])));
       }
     } catch (e) {
       if (context.mounted) {
@@ -1717,57 +2625,171 @@ class ExploreDetailScreen extends StatelessWidget {
   final Map<String, dynamic> preview;
   const ExploreDetailScreen({super.key, required this.diaryId, required this.preview});
 
+  Color _badgeColor(String? badge) {
+    switch ((badge ?? '').toUpperCase()) {
+      case 'HIGH': return Colors.greenAccent;
+      case 'MEDIUM': case 'MID': return Colors.amberAccent;
+      case 'LOW': return Colors.blueAccent;
+      default: return Colors.white70;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = AppState();
+    final ageLabel = preview['ageGroupLabel'] ?? preview['ageGroup'] ?? '';
+    final badge = preview['similarityBadge'] as String?;
+    final score = preview['matchScore'];
+    final scorePct = score is num ? (score * 100).toInt() : null;
+    final mainText = preview['preview'] ?? preview['content'] ?? preview['summary'] ?? '';
+    final keywords = (preview['keywords'] ?? preview['personalityKeywords']) as List? ?? [];
+    final moodTags = (preview['moodTags'] ?? preview['tags'] ?? preview['emotionTags']) as List? ?? [];
+    final otherDiaries = (preview['otherDiariesPreview'] ?? preview['otherDiaries']) as List? ?? [];
+
     return Scaffold(
-      appBar: AppBar(title: Text('${preview['ageGroup'] ?? ''} · 일기 미리보기')),
+      appBar: AppBar(title: Text('$ageLabel · 일기 미리보기')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(preview['preview'] ?? preview['content'] ?? '', style: const TextStyle(fontSize: 16, height: 1.6)),
+            // ── 헤더: 작성자 정보 + 유사도 배지 ──
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [
+                  Colors.orange.withOpacity(0.12),
+                  Colors.pink.withOpacity(0.08),
+                ]),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.orange.withOpacity(0.25)),
+              ),
+              child: Row(children: [
+                CircleAvatar(
+                  backgroundColor: Colors.orange.withOpacity(0.2),
+                  child: const Icon(Icons.person, color: Colors.orangeAccent),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                  Text(ageLabel.toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  if (preview['region'] != null)
+                    Text(preview['region'], style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                ])),
+                if (badge != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _badgeColor(badge).withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.favorite, size: 12, color: _badgeColor(badge)),
+                      const SizedBox(width: 4),
+                      Text(scorePct != null ? '$badge · $scorePct%' : badge,
+                        style: TextStyle(color: _badgeColor(badge), fontSize: 11, fontWeight: FontWeight.bold)),
+                    ]),
+                  ),
+              ]),
+            ),
+
             const SizedBox(height: 16),
-            if (preview['aiIntro'] != null)
+
+            // ── 본문 ──
+            if ((mainText as String).isNotEmpty)
               Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.grey[900]?.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[800]!),
+                ),
+                child: Text(mainText, style: const TextStyle(fontSize: 14.5, height: 1.7)),
+              ),
+
+            const SizedBox(height: 16),
+
+            // ── AI 인트로 ──
+            if (preview['aiIntro'] != null || preview['briefing'] != null)
+              Container(
+                width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8)),
-                child: Text('AI: ${preview['aiIntro']}', style: const TextStyle(color: Colors.orange)),
+                  gradient: LinearGradient(colors: [
+                    Colors.purple.withOpacity(0.15),
+                    Colors.pink.withOpacity(0.08),
+                  ]),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.purple.withOpacity(0.3)),
+                ),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Icon(Icons.auto_awesome, color: Colors.purpleAccent, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(preview['aiIntro'] ?? preview['briefing'],
+                    style: const TextStyle(color: Colors.purpleAccent, height: 1.5, fontSize: 13))),
+                ]),
               ),
-            const SizedBox(height: 12),
-            if (preview['keywords'] != null)
-              Wrap(spacing: 6, children: (preview['keywords'] as List).map((k) =>
-                Chip(label: Text(k is String ? k : k['label'] ?? '', style: const TextStyle(fontSize: 12)))).toList()),
-            if (preview['personalityKeywords'] != null)
-              Wrap(spacing: 6, children: (preview['personalityKeywords'] as List).map((k) =>
-                Chip(label: Text(k is String ? k : k['label'] ?? '', style: const TextStyle(fontSize: 12)),
-                  backgroundColor: Colors.purple.withOpacity(0.2))).toList()),
-            if (preview['tags'] != null)
-              Wrap(spacing: 6, children: (preview['tags'] as List).map((t) =>
-                Chip(label: Text('#$t', style: const TextStyle(fontSize: 11)),
-                  backgroundColor: Colors.deepPurple)).toList()),
-            const SizedBox(height: 12),
+
+            const SizedBox(height: 16),
+
+            // ── 키워드 / 분위기 / 카테고리 ──
+            if (keywords.isNotEmpty) ...[
+              const Text('성격 키워드', style: TextStyle(fontSize: 11, color: Colors.white60)),
+              const SizedBox(height: 6),
+              Wrap(spacing: 6, runSpacing: 4, children: keywords.map((k) {
+                final txt = k is String ? k : (k is Map ? (k['label'] ?? '').toString() : k.toString());
+                return Chip(
+                  label: Text('#$txt', style: const TextStyle(fontSize: 11)),
+                  backgroundColor: Colors.purple.withOpacity(0.2),
+                  side: BorderSide(color: Colors.purple.withOpacity(0.4)),
+                  visualDensity: VisualDensity.compact,
+                );
+              }).toList()),
+              const SizedBox(height: 12),
+            ],
+            if (moodTags.isNotEmpty) ...[
+              const Text('분위기', style: TextStyle(fontSize: 11, color: Colors.white60)),
+              const SizedBox(height: 6),
+              Wrap(spacing: 6, runSpacing: 4, children: moodTags.map((t) =>
+                Chip(
+                  label: Text(t.toString(), style: const TextStyle(fontSize: 11)),
+                  backgroundColor: Colors.pink.withOpacity(0.2),
+                  side: BorderSide(color: Colors.pink.withOpacity(0.4)),
+                  visualDensity: VisualDensity.compact,
+                )).toList()),
+              const SizedBox(height: 12),
+            ],
             if (preview['category'] != null)
-              Text('카테고리: ${preview['category']}', style: const TextStyle(color: Colors.white54)),
-            if (preview['matchScore'] != null)
-              Text('유사도: ${(preview['matchScore'] * 100).toStringAsFixed(0)}%',
-                style: const TextStyle(color: Colors.greenAccent)),
-            // 작성자의 다른 일기
-            if (preview['otherDiaries'] != null && (preview['otherDiaries'] as List).isNotEmpty) ...[
-              const SizedBox(height: 20),
+              Row(children: [
+                const Text('카테고리: ', style: TextStyle(fontSize: 12, color: Colors.white60)),
+                Chip(
+                  label: Text(preview['category'].toString(), style: const TextStyle(fontSize: 11)),
+                  backgroundColor: Colors.orange.withOpacity(0.25),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ]),
+
+            // ── 작성자의 다른 일기 ──
+            if (otherDiaries.isNotEmpty) ...[
+              const SizedBox(height: 24),
               const Divider(),
-              const Text('작성자의 다른 일기', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white54)),
               const SizedBox(height: 8),
-              ...(preview['otherDiaries'] as List).map((od) => Padding(
+              const Text('이 작성자의 다른 일기', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white70, fontSize: 13)),
+              const SizedBox(height: 8),
+              ...otherDiaries.map((od) => Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Card(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   child: ListTile(
                     dense: true,
-                    title: Text(od['contentPreview'] ?? od['preview'] ?? '', maxLines: 2, overflow: TextOverflow.ellipsis),
-                    subtitle: Text(od['createdAt']?.toString().substring(0, 10) ?? ''),
+                    leading: const Icon(Icons.article_outlined, size: 18),
+                    title: Text((od is Map ? od['contentPreview'] ?? od['preview'] ?? od['summary'] ?? '' : '') as String,
+                      maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12)),
+                    subtitle: od is Map && od['createdAt'] != null
+                      ? Text((od['createdAt'] as String).substring(0, 10),
+                        style: const TextStyle(fontSize: 10))
+                      : null,
                   ),
                 ),
               )),
@@ -1871,46 +2893,390 @@ class LifestyleReportScreen extends StatelessWidget {
   }
 
   Widget _buildReport() {
+    final emotion = data['emotionGraph'];
+    final emotionPct = emotion is num ? (emotion * 100).toInt() : null;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _section('평균 일기 길이', '${data['avgDiaryLength'] ?? 0}자'),
+      // 평균 일기 길이
+      _statTile(Icons.text_fields, '평균 일기 길이', '${data['avgDiaryLength'] ?? 0}자'),
+      // 작성 패턴
       if (data['weekdayPattern'] != null)
-        _section('작성 패턴', '평일 ${data['weekdayPattern']['weekday']}편 / 주말 ${data['weekdayPattern']['weekend']}편'),
-      if (data['commonKeywords'] != null && (data['commonKeywords'] as List).isNotEmpty)
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('자주 쓰는 키워드', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white54)),
-          const SizedBox(height: 8),
-          Wrap(spacing: 6, children: (data['commonKeywords'] as List).map((k) =>
-            Chip(label: Text('#$k', style: const TextStyle(fontSize: 12)))).toList()),
-          const SizedBox(height: 16),
+        _statTile(Icons.calendar_month, '작성 패턴',
+          '평일 ${data['weekdayPattern']['weekday']}편 · 주말 ${data['weekdayPattern']['weekend']}편'),
+
+      // 감정 표현 점수
+      if (emotionPct != null) ...[
+        const Text('감정 표현 점수', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white54)),
+        const SizedBox(height: 6),
+        Row(children: [
+          Expanded(child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: emotion / 1.0,
+              minHeight: 10,
+              backgroundColor: Colors.white12,
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.pinkAccent),
+            ),
+          )),
+          const SizedBox(width: 8),
+          Text('$emotionPct%', style: const TextStyle(fontSize: 13, color: Colors.pinkAccent, fontWeight: FontWeight.bold)),
         ]),
-      if (data['lifestyleTags'] != null && (data['lifestyleTags'] as List).isNotEmpty)
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('라이프스타일 태그', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white54)),
-          const SizedBox(height: 8),
-          Wrap(spacing: 6, children: (data['lifestyleTags'] as List).map((t) =>
-            Chip(label: Text(t, style: const TextStyle(fontSize: 12)),
-              backgroundColor: Colors.teal)).toList()),
-        ]),
-      if (data['aiDescription'] != null) ...[
         const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.orange.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8)),
-          child: Text('AI 분석: ${data['aiDescription']}', style: const TextStyle(color: Colors.orange)),
-        ),
       ],
+
+      // 활동 히트맵 (요일×시간대 카운트)
+      if (data['activityHeatmap'] != null && (data['activityHeatmap'] as List).isNotEmpty) ...[
+        const Text('활동 히트맵', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white54)),
+        const SizedBox(height: 8),
+        _heatmapGrid(data['activityHeatmap'] as List),
+        const SizedBox(height: 16),
+      ],
+
+      // 자주 쓰는 키워드
+      if (data['commonKeywords'] != null && (data['commonKeywords'] as List).isNotEmpty) ...[
+        const Text('자주 쓰는 키워드', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white54)),
+        const SizedBox(height: 8),
+        Wrap(spacing: 6, children: (data['commonKeywords'] as List).map((k) =>
+          Chip(label: Text('#$k', style: const TextStyle(fontSize: 12)),
+            backgroundColor: Colors.purple.withOpacity(0.2))).toList()),
+        const SizedBox(height: 16),
+      ],
+
+      // 라이프스타일 태그
+      if (data['lifestyleTags'] != null && (data['lifestyleTags'] as List).isNotEmpty) ...[
+        const Text('라이프스타일 태그', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white54)),
+        const SizedBox(height: 8),
+        Wrap(spacing: 6, children: (data['lifestyleTags'] as List).map((t) =>
+          Chip(label: Text(t.toString(), style: const TextStyle(fontSize: 12)),
+            backgroundColor: Colors.teal.withOpacity(0.2),
+            side: const BorderSide(color: Colors.teal))).toList()),
+        const SizedBox(height: 16),
+      ],
+
+      // AI 한줄 설명
+      if (data['aiDescription'] != null)
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [
+              Colors.orange.withOpacity(0.15),
+              Colors.amber.withOpacity(0.1),
+            ]),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.orange.withOpacity(0.3)),
+          ),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Icon(Icons.auto_awesome, color: Colors.orangeAccent, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text(data['aiDescription'],
+              style: const TextStyle(color: Colors.orangeAccent, height: 1.5))),
+          ]),
+        ),
     ]);
   }
 
-  Widget _section(String label, String value) => Padding(
-    padding: const EdgeInsets.only(bottom: 16),
+  Widget _statTile(IconData icon, String label, String value) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
     child: Row(children: [
+      Icon(icon, size: 16, color: Colors.white54),
+      const SizedBox(width: 8),
       Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white54)),
-      Text(value, style: const TextStyle(fontSize: 16)),
+      Text(value, style: const TextStyle(fontSize: 14)),
     ]),
   );
+
+  Widget _heatmapGrid(List heat) {
+    // 7일 × 24시간 그리드
+    int maxCount = 1;
+    for (final h in heat) {
+      final c = h is Map ? (h['count'] ?? 0) as int : 0;
+      if (c > maxCount) maxCount = c;
+    }
+    final cells = List.generate(7, (d) => List.filled(24, 0));
+    for (final h in heat) {
+      if (h is Map) {
+        final day = h['day'];
+        final hour = h['hour'];
+        final count = h['count'] ?? 0;
+        if (day is int && hour is int && day >= 0 && day < 7 && hour >= 0 && hour < 24) {
+          cells[day][hour] = count is int ? count : 0;
+        }
+      }
+    }
+    const dayLabel = ['일','월','화','수','목','금','토'];
+    return SizedBox(
+      height: 100,
+      child: Column(children: List.generate(7, (d) => Expanded(
+        child: Row(children: [
+          SizedBox(width: 18, child: Text(dayLabel[d], style: const TextStyle(fontSize: 9, color: Colors.white54))),
+          Expanded(child: Row(children: List.generate(24, (h) {
+            final v = cells[d][h];
+            final intensity = v / maxCount;
+            return Expanded(child: Container(
+              margin: const EdgeInsets.all(0.5),
+              decoration: BoxDecoration(
+                color: v == 0 ? Colors.white10 : Colors.tealAccent.withOpacity(0.2 + intensity * 0.8),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ));
+          }))),
+        ]),
+      ))),
+    );
+  }
+}
+
+// ══════════════════════════════════════
+// 개발자 도구 (Dev only)
+// ══════════════════════════════════════
+class DeveloperToolsScreen extends StatefulWidget {
+  const DeveloperToolsScreen({super.key});
+
+  @override
+  State<DeveloperToolsScreen> createState() => _DeveloperToolsScreenState();
+}
+
+class _DeveloperToolsScreenState extends State<DeveloperToolsScreen> {
+  final app = AppState();
+
+  void _snack(String msg) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  void _showJson(String title, dynamic data) {
+    if (!mounted) return;
+    showDialog(context: context, builder: (_) => AlertDialog(
+      title: Text(title),
+      content: SingleChildScrollView(
+        child: Text(const JsonEncoder.withIndent('  ').convert(data), style: const TextStyle(fontSize: 12)),
+      ),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))],
+    ));
+  }
+
+  void _showAiSimulateDialog() {
+    final diaryIdCtrl = TextEditingController();
+    showDialog(context: context, builder: (_) => AlertDialog(
+      title: const Text('AI 분석 시뮬레이션'),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: diaryIdCtrl, decoration: const InputDecoration(labelText: 'diaryId'), keyboardType: TextInputType.number),
+        const SizedBox(height: 8),
+        const Text('AI 서버 없이 가짜 분석 결과를 생성합니다.\n2~3초 후 일기 상세에서 AI 태그를 확인하세요.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+        TextButton(onPressed: () async {
+          Navigator.pop(context);
+          final diaryId = diaryIdCtrl.text.trim();
+          if (diaryId.isEmpty) return;
+          try {
+            final res = await app.dio.post('${app.baseUrl}/api/dev/ai/simulate/$diaryId');
+            _showJson('AI 시뮬레이션', res.data);
+          } catch (e) { _snack(app.errMsg(e)); }
+        }, child: const Text('실행', style: TextStyle(color: Colors.amber))),
+      ],
+    ));
+  }
+
+  void _showRedisGetDialog() {
+    final keyCtrl = TextEditingController();
+    showDialog(context: context, builder: (_) => AlertDialog(
+      title: const Text('Redis 키 조회'),
+      content: TextField(controller: keyCtrl, decoration: const InputDecoration(labelText: 'key (예: AI:DIARY:123)')),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+        TextButton(onPressed: () async {
+          Navigator.pop(context);
+          final key = keyCtrl.text.trim();
+          if (key.isEmpty) return;
+          try {
+            final res = await app.dio.get('${app.baseUrl}/api/dev/redis/get',
+              queryParameters: {'key': key});
+            _showJson('Redis [$key]', res.data);
+          } catch (e) { _snack(app.errMsg(e)); }
+        }, child: const Text('조회', style: TextStyle(color: Colors.amber))),
+      ],
+    ));
+  }
+
+  void _showRedisDeleteDialog() {
+    final keyCtrl = TextEditingController();
+    showDialog(context: context, builder: (_) => AlertDialog(
+      title: const Text('Redis 키 삭제'),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: keyCtrl, decoration: const InputDecoration(labelText: 'key')),
+        const SizedBox(height: 8),
+        const Text('삭제 후 복구 불가', style: TextStyle(fontSize: 12, color: Colors.redAccent)),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+        TextButton(onPressed: () async {
+          Navigator.pop(context);
+          final key = keyCtrl.text.trim();
+          if (key.isEmpty) return;
+          try {
+            final res = await app.dio.delete('${app.baseUrl}/api/dev/redis/delete',
+              queryParameters: {'key': key});
+            _showJson('삭제 결과', res.data);
+          } catch (e) { _snack(app.errMsg(e)); }
+        }, child: const Text('삭제', style: TextStyle(color: Colors.redAccent))),
+      ],
+    ));
+  }
+
+  void _showRedisPatternDialog() {
+    final patternCtrl = TextEditingController(text: '*');
+    showDialog(context: context, builder: (_) => AlertDialog(
+      title: const Text('Redis 패턴 검색'),
+      content: TextField(controller: patternCtrl, decoration: const InputDecoration(labelText: 'pattern (예: AI:DIARY:*)')),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+        TextButton(onPressed: () async {
+          Navigator.pop(context);
+          final pattern = patternCtrl.text.trim();
+          if (pattern.isEmpty) return;
+          try {
+            final res = await app.dio.get('${app.baseUrl}/api/dev/redis/keys',
+              queryParameters: {'pattern': pattern});
+            _showJson('패턴 [$pattern] 결과', res.data);
+          } catch (e) { _snack(app.errMsg(e)); }
+        }, child: const Text('검색', style: TextStyle(color: Colors.amber))),
+      ],
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('🔧 개발자 도구'),
+        backgroundColor: Colors.amber.withOpacity(0.15),
+      ),
+      body: ListView(
+        children: [
+          Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.amber.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.amber.withOpacity(0.4)),
+            ),
+            child: const Row(children: [
+              Icon(Icons.info_outline, color: Colors.amber, size: 18),
+              SizedBox(width: 8),
+              Expanded(child: Text(
+                '시연/디버깅용 기능입니다. 실제 사용자에겐 노출되지 않습니다.',
+                style: TextStyle(fontSize: 12, color: Colors.amber),
+              )),
+            ]),
+          ),
+
+          // ── AI 파이프라인 ──
+          const Padding(padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text('AI 파이프라인', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.amber))),
+          ListTile(
+            title: const Text('AI 분석 시뮬레이션'),
+            subtitle: const Text('diaryId 입력 → 가짜 AI 결과 생성', style: TextStyle(fontSize: 11)),
+            leading: const Icon(Icons.science, color: Colors.amber),
+            onTap: () => _showAiSimulateDialog(),
+          ),
+
+          // ── Redis 캐시 ──
+          const Divider(),
+          const Padding(padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text('Redis 캐시', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.amber))),
+          ListTile(
+            title: const Text('캐시 요약'),
+            subtitle: const Text('전체 캐시 키 수/메모리 현황', style: TextStyle(fontSize: 11)),
+            leading: const Icon(Icons.dashboard, color: Colors.amber),
+            onTap: () async {
+              try {
+                final res = await app.dio.get('${app.baseUrl}/api/dev/redis/summary');
+                _showJson('Redis 요약', res.data);
+              } catch (e) { _snack(app.errMsg(e)); }
+            },
+          ),
+          ListTile(
+            title: const Text('내 캐시 현황'),
+            subtitle: const Text('내 userId 기준 캐시 키 목록', style: TextStyle(fontSize: 11)),
+            leading: const Icon(Icons.person_search, color: Colors.amber),
+            onTap: () async {
+              if (app.userId == null) { _snack('로그인 후 이용하세요'); return; }
+              try {
+                final res = await app.dio.get('${app.baseUrl}/api/dev/redis/user/${app.userId}');
+                _showJson('내 캐시 (userId=${app.userId})', res.data);
+              } catch (e) { _snack(app.errMsg(e)); }
+            },
+          ),
+          ListTile(
+            title: const Text('키 직접 조회'),
+            subtitle: const Text('key 입력 → 값 조회', style: TextStyle(fontSize: 11)),
+            leading: const Icon(Icons.search, color: Colors.amber),
+            onTap: () => _showRedisGetDialog(),
+          ),
+          ListTile(
+            title: const Text('키 삭제'),
+            subtitle: const Text('key 입력 → 캐시 삭제', style: TextStyle(fontSize: 11)),
+            leading: const Icon(Icons.delete_outline, color: Colors.amber),
+            onTap: () => _showRedisDeleteDialog(),
+          ),
+          ListTile(
+            title: const Text('패턴 검색'),
+            subtitle: const Text('pattern 입력 (예: AI:DIARY:*) → 키 목록', style: TextStyle(fontSize: 11)),
+            leading: const Icon(Icons.filter_list, color: Colors.amber),
+            onTap: () => _showRedisPatternDialog(),
+          ),
+
+          // ── 인증 ──
+          const Divider(),
+          const Padding(padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text('인증', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.amber))),
+          ListTile(
+            title: const Text('토큰 갱신'),
+            subtitle: const Text('refreshToken으로 accessToken 재발급', style: TextStyle(fontSize: 11)),
+            leading: const Icon(Icons.refresh, color: Colors.amber),
+            onTap: () async {
+              try {
+                final res = await app.dio.post('${app.baseUrl}/api/auth/refresh',
+                  data: {'refreshToken': app.refreshToken});
+                app.accessToken = res.data['data']['accessToken'];
+                app.refreshToken = res.data['data']['refreshToken'];
+                _snack('토큰 갱신 성공!');
+              } catch (e) { _snack(app.errMsg(e)); }
+            },
+          ),
+
+          // ── 시스템 ──
+          const Divider(),
+          const Padding(padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text('시스템', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.amber))),
+          ListTile(
+            title: const Text('헬스체크'),
+            subtitle: const Text('GET /api/health — 서버 가용성', style: TextStyle(fontSize: 11)),
+            leading: const Icon(Icons.health_and_safety, color: Colors.amber),
+            onTap: () async {
+              try {
+                final res = await app.dio.get('${app.baseUrl}/api/health');
+                _showJson('헬스체크', res.data);
+              } catch (e) { _snack(app.errMsg(e)); }
+            },
+          ),
+          ListTile(
+            title: const Text('앱 버전 확인'),
+            subtitle: const Text('GET /api/system/version — 강제/권장 업데이트', style: TextStyle(fontSize: 11)),
+            leading: const Icon(Icons.system_update, color: Colors.amber),
+            onTap: () async {
+              try {
+                final res = await app.dio.get('${app.baseUrl}/api/system/version');
+                _showJson('앱 버전', res.data);
+              } catch (e) { _snack(app.errMsg(e)); }
+            },
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ══════════════════════════════════════
@@ -1930,17 +3296,6 @@ class _MoreTabState extends State<MoreTab> {
 
   void _snack(String msg) {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
-
-  void _showJson(String title, dynamic data) {
-    if (!mounted) return;
-    showDialog(context: context, builder: (_) => AlertDialog(
-      title: Text(title),
-      content: SingleChildScrollView(
-        child: Text(const JsonEncoder.withIndent('  ').convert(data), style: const TextStyle(fontSize: 12)),
-      ),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))],
-    ));
   }
 
   @override
@@ -2068,55 +3423,6 @@ class _MoreTabState extends State<MoreTab> {
             },
           ),
 
-          // ── AI 테스트 (Dev) ──
-          const Divider(),
-          const Padding(padding: EdgeInsets.all(12), child: Text('AI 파이프라인 (Dev)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.amber))),
-          ListTile(
-            title: const Text('AI 분석 시뮬레이션'), leading: const Icon(Icons.science, color: Colors.amber),
-            subtitle: const Text('diaryId 입력 -> 가짜 AI 결과 생성'),
-            onTap: () => _showAiSimulateDialog(),
-          ),
-
-          // ── Redis 모니터링 (Dev) ──
-          const Divider(),
-          const Padding(padding: EdgeInsets.all(12), child: Text('Redis 캐시 (Dev)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.amber))),
-          ListTile(
-            title: const Text('캐시 요약'), leading: const Icon(Icons.dashboard, color: Colors.amber),
-            subtitle: const Text('전체 캐시 키 수/메모리 현황'),
-            onTap: () async {
-              try {
-                final res = await app.dio.get('${app.baseUrl}/api/dev/redis/summary');
-                _showJson('Redis 요약', res.data);
-              } catch (e) { _snack(app.errMsg(e)); }
-            },
-          ),
-          ListTile(
-            title: const Text('내 캐시 현황'), leading: const Icon(Icons.person_search, color: Colors.amber),
-            subtitle: const Text('내 userId 기준 캐시 키 목록'),
-            onTap: () async {
-              if (app.userId == null) { _snack('로그인 후 이용하세요'); return; }
-              try {
-                final res = await app.dio.get('${app.baseUrl}/api/dev/redis/user/${app.userId}');
-                _showJson('내 캐시 (userId=${app.userId})', res.data);
-              } catch (e) { _snack(app.errMsg(e)); }
-            },
-          ),
-          ListTile(
-            title: const Text('키 직접 조회'), leading: const Icon(Icons.search, color: Colors.amber),
-            subtitle: const Text('key 입력 → 값 조회'),
-            onTap: () => _showRedisGetDialog(),
-          ),
-          ListTile(
-            title: const Text('키 삭제'), leading: const Icon(Icons.delete_outline, color: Colors.amber),
-            subtitle: const Text('key 입력 → 캐시 삭제'),
-            onTap: () => _showRedisDeleteDialog(),
-          ),
-          ListTile(
-            title: const Text('패턴 검색'), leading: const Icon(Icons.filter_list, color: Colors.amber),
-            subtitle: const Text('pattern 입력 (예: AI:DIARY:*) → 키 목록'),
-            onTap: () => _showRedisPatternDialog(),
-          ),
-
           // ── 공지/FAQ ──
           const Divider(),
           const Padding(padding: EdgeInsets.all(12), child: Text('공지/지원', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
@@ -2172,18 +3478,6 @@ class _MoreTabState extends State<MoreTab> {
           // ── 계정 ──
           const Divider(),
           const Padding(padding: EdgeInsets.all(12), child: Text('계정', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
-          ListTile(
-            title: const Text('토큰 갱신'), leading: const Icon(Icons.refresh),
-            onTap: () async {
-              try {
-                final res = await app.dio.post('${app.baseUrl}/api/auth/refresh',
-                  data: {'refreshToken': app.refreshToken});
-                app.accessToken = res.data['data']['accessToken'];
-                app.refreshToken = res.data['data']['refreshToken'];
-                _snack('토큰 갱신 성공!');
-              } catch (e) { _snack(app.errMsg(e)); }
-            },
-          ),
           ListTile(
             title: const Text('이의신청'), leading: const Icon(Icons.gavel),
             onTap: () => _showAppealDialog(),
@@ -2252,6 +3546,23 @@ class _MoreTabState extends State<MoreTab> {
               ));
             },
           ),
+
+          // ── 개발자 도구 (시연 시 진입 안 함) ──
+          const SizedBox(height: 24),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.build, size: 18, color: Colors.amber),
+              label: const Text('🔧 개발자 도구', style: TextStyle(color: Colors.amber)),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: Colors.amber.withOpacity(0.4)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const DeveloperToolsScreen())),
+            ),
+          ),
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -2348,30 +3659,6 @@ class _MoreTabState extends State<MoreTab> {
     ));
   }
 
-  void _showAiSimulateDialog() {
-    final diaryIdCtrl = TextEditingController();
-    showDialog(context: context, builder: (_) => AlertDialog(
-      title: const Text('AI 분석 시뮬레이션'),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: diaryIdCtrl, decoration: const InputDecoration(labelText: 'diaryId'), keyboardType: TextInputType.number),
-        const SizedBox(height: 8),
-        const Text('AI 서버 없이 가짜 분석 결과를 생성합니다.\n2~3초 후 일기 상세에서 AI 태그를 확인하세요.', style: TextStyle(fontSize: 12, color: Colors.grey)),
-      ]),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
-        TextButton(onPressed: () async {
-          Navigator.pop(context);
-          final diaryId = diaryIdCtrl.text.trim();
-          if (diaryId.isEmpty) return;
-          try {
-            final res = await app.dio.post('${app.baseUrl}/api/dev/ai/simulate/$diaryId');
-            _showJson('AI 시뮬레이션', res.data);
-          } catch (e) { _snack(app.errMsg(e)); }
-        }, child: const Text('실행', style: TextStyle(color: Colors.amber))),
-      ],
-    ));
-  }
-
   void _showInquiryDialog() {
     final titleCtrl = TextEditingController();
     final contentCtrl = TextEditingController();
@@ -2397,72 +3684,6 @@ class _MoreTabState extends State<MoreTab> {
     ));
   }
 
-  void _showRedisGetDialog() {
-    final keyCtrl = TextEditingController();
-    showDialog(context: context, builder: (_) => AlertDialog(
-      title: const Text('Redis 키 조회'),
-      content: TextField(controller: keyCtrl, decoration: const InputDecoration(labelText: 'key (예: AI:DIARY:123)')),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
-        TextButton(onPressed: () async {
-          Navigator.pop(context);
-          final key = keyCtrl.text.trim();
-          if (key.isEmpty) return;
-          try {
-            final res = await app.dio.get('${app.baseUrl}/api/dev/redis/get',
-              queryParameters: {'key': key});
-            _showJson('Redis [$key]', res.data);
-          } catch (e) { _snack(app.errMsg(e)); }
-        }, child: const Text('조회', style: TextStyle(color: Colors.amber))),
-      ],
-    ));
-  }
-
-  void _showRedisDeleteDialog() {
-    final keyCtrl = TextEditingController();
-    showDialog(context: context, builder: (_) => AlertDialog(
-      title: const Text('Redis 키 삭제'),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: keyCtrl, decoration: const InputDecoration(labelText: 'key')),
-        const SizedBox(height: 8),
-        const Text('삭제 후 복구 불가', style: TextStyle(fontSize: 12, color: Colors.redAccent)),
-      ]),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
-        TextButton(onPressed: () async {
-          Navigator.pop(context);
-          final key = keyCtrl.text.trim();
-          if (key.isEmpty) return;
-          try {
-            final res = await app.dio.delete('${app.baseUrl}/api/dev/redis/delete',
-              queryParameters: {'key': key});
-            _showJson('삭제 결과', res.data);
-          } catch (e) { _snack(app.errMsg(e)); }
-        }, child: const Text('삭제', style: TextStyle(color: Colors.redAccent))),
-      ],
-    ));
-  }
-
-  void _showRedisPatternDialog() {
-    final patternCtrl = TextEditingController(text: '*');
-    showDialog(context: context, builder: (_) => AlertDialog(
-      title: const Text('Redis 패턴 검색'),
-      content: TextField(controller: patternCtrl, decoration: const InputDecoration(labelText: 'pattern (예: AI:DIARY:*)')),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
-        TextButton(onPressed: () async {
-          Navigator.pop(context);
-          final pattern = patternCtrl.text.trim();
-          if (pattern.isEmpty) return;
-          try {
-            final res = await app.dio.get('${app.baseUrl}/api/dev/redis/keys',
-              queryParameters: {'pattern': pattern});
-            _showJson('패턴 [$pattern] 결과', res.data);
-          } catch (e) { _snack(app.errMsg(e)); }
-        }, child: const Text('검색', style: TextStyle(color: Colors.amber))),
-      ],
-    ));
-  }
 }
 
 // ══════════════════════════════════════
@@ -2632,17 +3853,17 @@ class AiProfileScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // 성격 키워드
-              if (data['personalityKeywords'] != null)
-                _tagSection('성격 키워드', data['personalityKeywords'], Colors.purple),
-              if (data['emotionKeywords'] != null || data['emotionTags'] != null)
-                _tagSection('감정 태그', data['emotionKeywords'] ?? data['emotionTags'], Colors.pink),
-              if (data['lifestyleKeywords'] != null || data['lifestyleTags'] != null)
-                _tagSection('라이프스타일 태그', data['lifestyleKeywords'] ?? data['lifestyleTags'], Colors.teal),
-              if (data['relationshipKeywords'] != null || data['relationshipTags'] != null)
-                _tagSection('관계 성향', data['relationshipKeywords'] ?? data['relationshipTags'], Colors.blue),
-              if (data['toneKeywords'] != null || data['toneTags'] != null)
-                _tagSection('글쓰기 톤', data['toneKeywords'] ?? data['toneTags'], Colors.amber),
+              // 성격 키워드 (dominantPersonalityTags 우선, 명세 v12 기준)
+              _tagSection('성격 키워드',
+                data['dominantPersonalityTags'] ?? data['personalityTags'] ?? data['personalityKeywords'], Colors.purple),
+              _tagSection('감정 태그',
+                data['dominantEmotionTags'] ?? data['emotionTags'] ?? data['emotionKeywords'], Colors.pink),
+              _tagSection('라이프스타일 태그',
+                data['dominantLifestyleTags'] ?? data['lifestyleTags'] ?? data['lifestyleKeywords'], Colors.teal),
+              _tagSection('관계 성향',
+                data['dominantRelationshipTags'] ?? data['relationshipTags'] ?? data['relationshipKeywords'], Colors.blue),
+              _tagSection('글쓰기 톤',
+                data['dominantToneTags'] ?? data['toneTags'] ?? data['toneKeywords'], Colors.amber),
 
               // AI 한줄 설명
               if (data['aiDescription'] != null || data['summary'] != null) ...[
@@ -2964,7 +4185,7 @@ class _NotificationListScreenState extends State<NotificationListScreen> {
                         width: 8, height: 8,
                         decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.orange),
                       ),
-                  onTap: () => _markAsRead(n),
+                  onTap: () => _onTap(n),
                 );
               },
             ),
@@ -2986,6 +4207,39 @@ class _NotificationListScreenState extends State<NotificationListScreen> {
     try {
       await app.dio.patch('${app.baseUrl}/api/notifications/$id/read', options: app.authHeaders);
       _reload();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
+    }
+  }
+
+  // 알림 탭 시 읽음 처리 + navTarget 딥링크 이동
+  void _onTap(Map<String, dynamic> n) async {
+    _markAsRead(n);
+    final target = n['navTarget'] as String?;
+    if (target == null || !mounted) return;
+    // /exchange-rooms/123, /chat-rooms/45, /matching/requests, /notices/7 등 처리
+    try {
+      if (target.startsWith('/exchange-rooms/')) {
+        final id = int.tryParse(target.substring('/exchange-rooms/'.length));
+        if (id != null) Navigator.push(context, MaterialPageRoute(builder: (_) => ExchangeRoomScreen(roomId: id)));
+      } else if (target.startsWith('/chat-rooms/')) {
+        final id = int.tryParse(target.substring('/chat-rooms/'.length));
+        if (id != null) Navigator.push(context, MaterialPageRoute(
+          builder: (_) => ChatRoomScreen(chatRoomId: id, partnerName: n['title'] ?? '대화')));
+      } else if (target == '/matching/requests') {
+        final res = await app.dio.get('${app.baseUrl}/api/matching/requests', options: app.authHeaders);
+        if (mounted) Navigator.push(context, MaterialPageRoute(
+          builder: (_) => ReceivedRequestsScreen(requests: res.data['data'] ?? [])));
+      } else if (target.startsWith('/notices/')) {
+        final id = int.tryParse(target.substring('/notices/'.length));
+        if (id != null) {
+          final res = await app.dio.get('${app.baseUrl}/api/notices/$id', options: app.authHeaders);
+          if (mounted) Navigator.push(context, MaterialPageRoute(
+            builder: (_) => NoticeDetailScreen(notice: res.data['data'])));
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('이동 대상: $target')));
+      }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
     }
@@ -3336,25 +4590,64 @@ class _NoticeListScreenState extends State<NoticeListScreen> {
         // 배너 영역
         if (banners.isNotEmpty)
           SizedBox(
-            height: 80,
+            height: 110,
             child: PageView.builder(
               itemCount: banners.length,
               itemBuilder: (_, i) {
-                final b = banners[i];
-                return Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.orange.withOpacity(0.3), Colors.deepOrange.withOpacity(0.2)],
+                final b = banners[i] as Map<String, dynamic>;
+                final imageUrl = b['imageUrl'] as String?;
+                final linkUrl = b['linkUrl'] as String?;
+                final isPinned = b['pinned'] == true || b['isPinned'] == true;
+                return GestureDetector(
+                  onTap: linkUrl != null && linkUrl.isNotEmpty
+                    ? () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('링크: $linkUrl')))
+                    : null,
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.orange.withOpacity(0.3), Colors.deepOrange.withOpacity(0.2)],
+                      ),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    borderRadius: BorderRadius.circular(10),
+                    child: Stack(children: [
+                      if (imageUrl != null && imageUrl.isNotEmpty)
+                        Positioned.fill(
+                          child: Image.network(imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+                        ),
+                      if (imageUrl != null && imageUrl.isNotEmpty)
+                        Positioned.fill(
+                          child: Container(color: Colors.black.withOpacity(0.35)),
+                        ),
+                      if (isPinned)
+                        const Positioned(
+                          top: 6, left: 8,
+                          child: Icon(Icons.push_pin, size: 14, color: Colors.amber),
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+                          if (b['title'] != null)
+                            Text(b['title'],
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          if (b['content'] != null) ...[
+                            const SizedBox(height: 4),
+                            Text(b['content'],
+                              style: const TextStyle(fontSize: 12, color: Colors.white70),
+                              maxLines: 2, overflow: TextOverflow.ellipsis),
+                          ],
+                          if (linkUrl != null && linkUrl.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            const Text('자세히 보기 →', style: TextStyle(fontSize: 10, color: Colors.amberAccent)),
+                          ],
+                        ]),
+                      ),
+                    ]),
                   ),
-                  padding: const EdgeInsets.all(12),
-                  child: Center(child: Text(
-                    b['title'] ?? b['content'] ?? '',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
-                  )),
                 );
               },
             ),
@@ -3873,17 +5166,50 @@ class _ExchangeRoomScreenState extends State<ExchangeRoomScreen> {
   Map<String, dynamic>? room;
   bool loading = true;
   final contentCtrl = TextEditingController();
+  Timer? _countdownTimer;
+  Duration? _remaining;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 30), (_) => _updateRemaining());
+  }
+
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+    super.dispose();
+  }
+
+  void _updateRemaining() {
+    if (!mounted || room == null) return;
+    final deadline = room!['deadline'] as String?;
+    if (deadline == null) {
+      if (_remaining != null) setState(() => _remaining = null);
+      return;
+    }
+    try {
+      final dt = DateTime.parse(deadline);
+      final diff = dt.difference(DateTime.now());
+      setState(() => _remaining = diff.isNegative ? Duration.zero : diff);
+    } catch (_) {}
+  }
+
+  String _formatRemaining(Duration d) {
+    if (d.inSeconds <= 0) return '만료됨';
+    final h = d.inHours;
+    final m = d.inMinutes % 60;
+    if (h >= 24) return '${d.inDays}일 ${h % 24}시간';
+    if (h > 0) return '$h시간 $m분';
+    return '$m분';
   }
 
   Future<void> _load() async {
     try {
       final res = await app.dio.get('${app.baseUrl}/api/exchange-rooms/${widget.roomId}', options: app.authHeaders);
       setState(() { room = res.data['data']; loading = false; });
+      _updateRemaining();
     } catch (e) {
       setState(() => loading = false);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
@@ -3924,6 +5250,74 @@ class _ExchangeRoomScreenState extends State<ExchangeRoomScreen> {
     }
   }
 
+  Future<void> _openDiaryRead(int diaryId) async {
+    try {
+      final res = await app.dio.get(
+        '${app.baseUrl}/api/exchange-rooms/${widget.roomId}/diaries/$diaryId',
+        options: app.authHeaders);
+      final data = res.data['data'] as Map<String, dynamic>;
+      if (!mounted) return;
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.grey[900],
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (_) => DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.6,
+          maxChildSize: 0.95,
+          builder: (_, scrollCtrl) => SingleChildScrollView(
+            controller: scrollCtrl,
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Center(child: Container(
+                width: 36, height: 4,
+                decoration: BoxDecoration(color: Colors.grey[700], borderRadius: BorderRadius.circular(2)),
+              )),
+              const SizedBox(height: 14),
+              Row(children: [
+                Icon(Icons.auto_stories, size: 18, color: Colors.blue[300]),
+                const SizedBox(width: 6),
+                Text('${data['turnNumber'] ?? ''}번째 일기',
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                const Spacer(),
+                if (data['readAt'] != null)
+                  Text('읽음 ✓', style: TextStyle(fontSize: 11, color: Colors.green[300])),
+              ]),
+              const SizedBox(height: 14),
+              Text(data['content'] ?? '', style: const TextStyle(fontSize: 15, height: 1.7)),
+              const SizedBox(height: 16),
+              if (data['createdAt'] != null)
+                Text('작성: ${(data['createdAt'] as String).substring(0, 16).replaceAll('T', ' ')}',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+            ]),
+          ),
+        ),
+      );
+      _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
+    }
+  }
+
+  Future<void> _createChatRoom() async {
+    try {
+      final res = await app.dio.post(
+        '${app.baseUrl}/api/exchange-rooms/${widget.roomId}/chat',
+        options: app.authHeaders);
+      final data = res.data['data'] as Map<String, dynamic>;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('채팅방 생성 완료 (id: ${data['chatRoomId']})'),
+        duration: const Duration(seconds: 2)));
+      Navigator.pushAndRemoveUntil(context,
+        MaterialPageRoute(builder: (_) => const HomeScreen(initialTab: 2)),
+        (_) => false);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
+    }
+  }
+
   Future<void> _chooseNextStep(String choice) async {
     try {
       final res = await app.dio.post('${app.baseUrl}/api/exchange-rooms/${widget.roomId}/next-step',
@@ -3941,32 +5335,130 @@ class _ExchangeRoomScreenState extends State<ExchangeRoomScreen> {
   Future<void> _viewReport() async {
     try {
       final res = await app.dio.get('${app.baseUrl}/api/exchange-rooms/${widget.roomId}/report', options: app.authHeaders);
-      final data = res.data['data'];
-      if (mounted) {
-        showDialog(context: context, builder: (_) => AlertDialog(
-          title: const Text('AI 공통점 리포트'),
-          content: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('상태: ${data['status']}', style: const TextStyle(fontWeight: FontWeight.bold)),
-            if (data['commonKeywords'] != null) ...[
-              const SizedBox(height: 8),
-              const Text('공통 키워드:', style: TextStyle(fontWeight: FontWeight.bold)),
-              Wrap(children: (data['commonKeywords'] as List).map((k) =>
-                Chip(label: Text(k), backgroundColor: Colors.orange.withOpacity(0.2))).toList()),
-            ],
-            if (data['emotionSimilarity'] != null)
-              Text('감정 유사도: ${(data['emotionSimilarity'] * 100).toStringAsFixed(0)}%'),
-            if (data['aiDescription'] != null) ...[
-              const SizedBox(height: 8),
-              Text(data['aiDescription']),
-            ],
-          ])),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))],
-        ));
-      }
+      final data = res.data['data'] as Map<String, dynamic>;
+      if (!mounted) return;
+
+      final emotion = data['emotionSimilarity'];
+      final emotionPct = emotion is num ? (emotion * 100).toInt() : null;
+      final tempA = data['writingTempA'] as String?;
+      final tempB = data['writingTempB'] as String?;
+
+      showDialog(context: context, builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 600),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: const [
+                Icon(Icons.celebration, color: Colors.amber, size: 22),
+                SizedBox(width: 8),
+                Text('우리의 공통점', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ]),
+              const SizedBox(height: 16),
+
+              // 공통 키워드
+              if (data['commonKeywords'] != null && (data['commonKeywords'] as List).isNotEmpty) ...[
+                const Text('공통 키워드', style: TextStyle(fontSize: 12, color: Colors.white60)),
+                const SizedBox(height: 6),
+                Wrap(spacing: 6, runSpacing: 6, children: (data['commonKeywords'] as List).map((k) =>
+                  Chip(label: Text('#$k', style: const TextStyle(fontSize: 12)),
+                    backgroundColor: Colors.orange.withOpacity(0.25),
+                    side: BorderSide(color: Colors.orange.withOpacity(0.4)))).toList()),
+                const SizedBox(height: 16),
+              ],
+
+              // 감정 유사도
+              if (emotionPct != null) ...[
+                const Text('감정 유사도', style: TextStyle(fontSize: 12, color: Colors.white60)),
+                const SizedBox(height: 6),
+                Row(children: [
+                  Expanded(child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: (emotion / 1.0).toDouble(),
+                      minHeight: 10,
+                      backgroundColor: Colors.white12,
+                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.pinkAccent),
+                    ),
+                  )),
+                  const SizedBox(width: 8),
+                  Text('$emotionPct%', style: const TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold)),
+                ]),
+                const SizedBox(height: 16),
+              ],
+
+              // 라이프스타일 패턴
+              if (data['lifestylePatterns'] != null && (data['lifestylePatterns'] as List).isNotEmpty) ...[
+                const Text('공통 라이프스타일', style: TextStyle(fontSize: 12, color: Colors.white60)),
+                const SizedBox(height: 6),
+                Wrap(spacing: 6, runSpacing: 6, children: (data['lifestylePatterns'] as List).map((p) =>
+                  Chip(label: Text(p.toString(), style: const TextStyle(fontSize: 12)),
+                    backgroundColor: Colors.teal.withOpacity(0.25),
+                    side: BorderSide(color: Colors.teal.withOpacity(0.5)))).toList()),
+                const SizedBox(height: 16),
+              ],
+
+              // 글쓰기 톤 비교
+              if (tempA != null || tempB != null) ...[
+                const Text('글쓰기 온도', style: TextStyle(fontSize: 12, color: Colors.white60)),
+                const SizedBox(height: 6),
+                Row(children: [
+                  Expanded(child: _tempCard('나', tempA, Colors.orangeAccent)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _tempCard('상대', tempB, Colors.blueAccent)),
+                ]),
+                const SizedBox(height: 16),
+              ],
+
+              // AI 한줄 설명
+              if (data['aiDescription'] != null)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [
+                      Colors.purple.withOpacity(0.15),
+                      Colors.pink.withOpacity(0.1),
+                    ]),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.purple.withOpacity(0.3)),
+                  ),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Icon(Icons.auto_awesome, color: Colors.purpleAccent, size: 16),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text(data['aiDescription'],
+                      style: const TextStyle(color: Colors.purpleAccent, height: 1.5, fontSize: 13))),
+                  ]),
+                ),
+
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기')),
+              ),
+            ]),
+          ),
+        ),
+      ));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
     }
   }
+
+  Widget _tempCard(String who, String? temp, Color color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.12),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: color.withOpacity(0.4)),
+    ),
+    child: Column(children: [
+      Text(who, style: TextStyle(fontSize: 10, color: color)),
+      const SizedBox(height: 4),
+      Text(temp ?? '-', style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.bold)),
+    ]),
+  );
 
   Future<void> _checkNextStepStatus() async {
     try {
@@ -4006,6 +5498,36 @@ class _ExchangeRoomScreenState extends State<ExchangeRoomScreen> {
         ],
       ),
       body: Column(children: [
+        // ── 데드라인 카운트다운 (내 차례 + 데드라인 있을 때) ──
+        if (status == 'ACTIVE' && isMyTurn && _remaining != null)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: _remaining!.inHours < 12
+                ? Colors.red.withOpacity(0.15)
+                : _remaining!.inHours < 24
+                  ? Colors.orange.withOpacity(0.15)
+                  : Colors.blue.withOpacity(0.10),
+              border: Border(bottom: BorderSide(color: Colors.grey[800]!)),
+            ),
+            child: Row(children: [
+              Icon(Icons.timer_outlined, size: 16,
+                color: _remaining!.inHours < 12 ? Colors.redAccent : _remaining!.inHours < 24 ? Colors.orangeAccent : Colors.blueAccent),
+              const SizedBox(width: 6),
+              Text('남은 시간: ',
+                style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+              Text(_formatRemaining(_remaining!),
+                style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.bold,
+                  color: _remaining!.inHours < 12 ? Colors.redAccent : _remaining!.inHours < 24 ? Colors.orangeAccent : Colors.blueAccent,
+                )),
+              const Spacer(),
+              if (_remaining!.inHours < 24)
+                Text('내 차례 만료 임박', style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+            ]),
+          ),
+
         // ── 턴 진행 프로그레스 ──
         Container(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -4106,6 +5628,11 @@ class _ExchangeRoomScreenState extends State<ExchangeRoomScreen> {
                         width: 1,
                       ),
                     ),
+                    child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: !isMe && d['diaryId'] != null
+                      ? () => _openDiaryRead(d['diaryId'] as int)
+                      : null,
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Container(
                         padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
@@ -4160,6 +5687,7 @@ class _ExchangeRoomScreenState extends State<ExchangeRoomScreen> {
                         ]),
                       ),
                     ]),
+                    ),
                   );
                 },
               ),
@@ -4200,6 +5728,26 @@ class _ExchangeRoomScreenState extends State<ExchangeRoomScreen> {
               Text('${partner['nickname']}님이 일기를 작성중이에요',
                 style: TextStyle(color: Colors.blue[300], fontSize: 13)),
             ]),
+          ),
+
+        // ── 채팅방 생성 (양측 CHAT 선택 후) ──
+        if (status == 'CHAT_CONNECTED' && room!['chatRoomCreated'] != true)
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.1),
+              border: Border(top: BorderSide(color: Colors.blue.withOpacity(0.3)))),
+            child: SizedBox(width: double.infinity, child: ElevatedButton.icon(
+              onPressed: _createChatRoom,
+              icon: const Icon(Icons.chat_bubble),
+              label: const Text('채팅방 입장'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[600],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            )),
           ),
 
         // ── 관계 확장 선택 (COMPLETED 상태) ──
@@ -4448,28 +5996,60 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   bool loading = true;
   bool hasMore = false;
   bool sending = false;
+  StompClient? _stomp;
+  bool _stompConnected = false;
 
   @override
   void initState() {
     super.initState();
     _loadMessages();
-    _startPolling();
+    _connectStomp();
   }
 
   @override
   void dispose() {
-    _polling = false;
+    _stomp?.deactivate();
     super.dispose();
   }
 
-  bool _polling = true;
+  void _connectStomp() {
+    final wsUrl = '${app.baseUrl.replaceFirst('https://', 'wss://').replaceFirst('http://', 'ws://')}/ws/chat';
+    _stomp = StompClient(
+      config: StompConfig(
+        url: wsUrl,
+        onConnect: (frame) {
+          if (!mounted) return;
+          setState(() => _stompConnected = true);
+          _stomp!.subscribe(
+            destination: '/topic/chat/${widget.chatRoomId}',
+            callback: _onStompMessage,
+          );
+        },
+        onDisconnect: (_) {
+          if (mounted) setState(() => _stompConnected = false);
+        },
+        onWebSocketError: (e) => debugPrint('[STOMP] error: $e'),
+        onStompError: (frame) => debugPrint('[STOMP] error frame: ${frame.body}'),
+        stompConnectHeaders: {'Authorization': 'Bearer ${app.accessToken}'},
+        webSocketConnectHeaders: {'Authorization': 'Bearer ${app.accessToken}'},
+        reconnectDelay: const Duration(seconds: 5),
+      ),
+    );
+    _stomp!.activate();
+  }
 
-  void _startPolling() async {
-    while (_polling && mounted) {
-      await Future.delayed(const Duration(seconds: 3));
-      if (_polling && mounted && !sending) {
-        _loadMessages();
+  void _onStompMessage(StompFrame frame) {
+    if (frame.body == null || !mounted) return;
+    try {
+      final msg = jsonDecode(frame.body!);
+      final seqId = msg['sequenceId'] ?? msg['messageId'];
+      final dup = messages.any((m) => (m['sequenceId'] ?? m['messageId']) == seqId);
+      if (!dup) {
+        setState(() => messages.add(msg));
+        _scrollToBottom();
       }
+    } catch (e) {
+      debugPrint('[STOMP] parse error: $e');
     }
   }
 
@@ -4514,35 +6094,172 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       await app.dio.post('${app.baseUrl}/api/chat-rooms/${widget.chatRoomId}/messages',
         data: {'content': content, 'type': 'TEXT'}, options: app.authHeaders);
       msgCtrl.clear();
-      await _loadMessages();
+      // STOMP 미연결 시에만 REST로 강제 갱신 (정상 시 subscription으로 자동 수신)
+      if (!_stompConnected) await _loadMessages();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
     }
     setState(() => sending = false);
   }
 
+  int? _calcAge(String? birthDate) {
+    if (birthDate == null || birthDate.length < 10) return null;
+    try {
+      final dob = DateTime.parse(birthDate);
+      final now = DateTime.now();
+      int age = now.year - dob.year;
+      if (now.month < dob.month || (now.month == dob.month && now.day < dob.day)) age--;
+      return age;
+    } catch (_) { return null; }
+  }
+
   Future<void> _showPartnerProfile() async {
     try {
       final res = await app.dio.get('${app.baseUrl}/api/chat-rooms/${widget.chatRoomId}/profile',
         options: app.authHeaders);
-      final p = res.data['data'];
-      if (mounted) {
-        showDialog(context: context, builder: (_) => AlertDialog(
-          title: Text(p['nickname'] ?? '???'),
-          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('성별: ${p['gender'] ?? '비공개'}'),
-            Text('생년월일: ${p['birthDate'] ?? '비공개'}'),
-            Text('지역: ${p['sido'] ?? '비공개'}'),
-            if (p['personalityKeywords'] != null && (p['personalityKeywords'] as List).isNotEmpty) ...[
-              const SizedBox(height: 8),
-              const Text('성격 태그:', style: TextStyle(fontWeight: FontWeight.bold)),
-              Wrap(spacing: 4, children: (p['personalityKeywords'] as List).map((k) =>
-                Chip(label: Text(k is String ? k : k['label'] ?? '', style: const TextStyle(fontSize: 11)),
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap)).toList()),
-            ],
+      final p = res.data['data'] as Map<String, dynamic>;
+      if (!mounted) return;
+
+      final age = _calcAge(p['birthDate'] as String?);
+      final gender = p['gender'] as String?;
+      final genderLabel = gender == 'MALE' ? '남성' : gender == 'FEMALE' ? '여성' : null;
+      final sido = p['sido'] as String?;
+      final tags = (p['personalityTags'] ?? p['personalityKeywords']) as List? ?? [];
+      final partnerUserId = p['userId'] as int?;
+
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: Colors.grey[900],
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (ctx) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Center(child: Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(color: Colors.grey[700], borderRadius: BorderRadius.circular(2)),
+            )),
+            const SizedBox(height: 16),
+
+            // 닉네임 + 아바타
+            Row(children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: Colors.orange.withOpacity(0.2),
+                child: const Icon(Icons.person, size: 28, color: Colors.orangeAccent),
+              ),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                Text(p['nickname'] ?? '익명',
+                  style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Wrap(spacing: 8, children: [
+                  if (age != null)
+                    Text('만 $age세', style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+                  if (genderLabel != null)
+                    Text('· $genderLabel', style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+                  if (sido != null)
+                    Text('· $sido', style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+                ]),
+              ])),
+            ]),
+
+            const SizedBox(height: 20),
+            Divider(color: Colors.grey[800], height: 1),
+            const SizedBox(height: 16),
+
+            // AI 키워드
+            const Row(children: [
+              Icon(Icons.auto_awesome, size: 14, color: Colors.purpleAccent),
+              SizedBox(width: 6),
+              Text('성격 키워드', style: TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.bold)),
+            ]),
+            const SizedBox(height: 8),
+            if (tags.isEmpty)
+              Text('분석된 키워드가 없습니다',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]))
+            else
+              Wrap(spacing: 6, runSpacing: 6, children: tags.map<Widget>((t) {
+                final txt = t is String ? t : (t is Map ? (t['label'] ?? '').toString() : t.toString());
+                return Chip(
+                  label: Text('#$txt', style: const TextStyle(fontSize: 12)),
+                  backgroundColor: Colors.purple.withOpacity(0.2),
+                  side: BorderSide(color: Colors.purple.withOpacity(0.4)),
+                  visualDensity: VisualDensity.compact,
+                );
+              }).toList()),
+
+            const SizedBox(height: 20),
+            Divider(color: Colors.grey[800], height: 1),
+            const SizedBox(height: 12),
+
+            // 액션
+            Column(children: [
+              if (partnerUserId != null)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.flag_outlined, color: Colors.orangeAccent),
+                  title: const Text('신고하기', style: TextStyle(fontSize: 14)),
+                  onTap: () { Navigator.pop(ctx); _reportPartner(partnerUserId); },
+                ),
+              if (partnerUserId != null)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.person_off_outlined, color: Colors.redAccent),
+                  title: const Text('차단하기', style: TextStyle(fontSize: 14)),
+                  onTap: () { Navigator.pop(ctx); _blockPartner(partnerUserId); },
+                ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.exit_to_app, color: Colors.redAccent),
+                title: const Text('채팅방 나가기', style: TextStyle(fontSize: 14, color: Colors.redAccent)),
+                onTap: () { Navigator.pop(ctx); _leaveChatRoom(); },
+              ),
+            ]),
           ]),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))],
-        ));
+        ),
+      );
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
+    }
+  }
+
+  Future<void> _reportPartner(int userId) async {
+    final confirmed = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('신고하기'),
+      content: const Text('이 사용자를 신고하시겠어요?\n(사유: HARASSMENT)'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+        TextButton(onPressed: () => Navigator.pop(context, true),
+          child: const Text('신고', style: TextStyle(color: Colors.redAccent))),
+      ],
+    ));
+    if (confirmed != true) return;
+    try {
+      await app.dio.post('${app.baseUrl}/api/users/$userId/report',
+        data: {'reason': 'HARASSMENT'}, options: app.authHeaders);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('신고가 접수되었습니다.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
+    }
+  }
+
+  Future<void> _blockPartner(int userId) async {
+    final confirmed = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('차단하기'),
+      content: const Text('차단하면 매칭/교환/채팅이 모두 종료됩니다.\n정말 차단하시겠어요?'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+        TextButton(onPressed: () => Navigator.pop(context, true),
+          child: const Text('차단', style: TextStyle(color: Colors.redAccent))),
+      ],
+    ));
+    if (confirmed != true) return;
+    try {
+      await app.dio.post('${app.baseUrl}/api/users/$userId/block', options: app.authHeaders);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('차단했습니다.')));
+        Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(app.errMsg(e))));
@@ -4614,7 +6331,20 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.partnerName),
+        title: Row(children: [
+          Text(widget.partnerName),
+          const SizedBox(width: 8),
+          Container(
+            width: 8, height: 8,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _stompConnected ? Colors.greenAccent : Colors.redAccent,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(_stompConnected ? '실시간' : '오프라인',
+            style: const TextStyle(fontSize: 11, color: Colors.white54)),
+        ]),
         actions: [
           IconButton(icon: const Icon(Icons.person), onPressed: _showPartnerProfile, tooltip: '프로필'),
           PopupMenuButton<String>(
@@ -4679,25 +6409,28 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 ),
         ),
 
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: Colors.grey[900], border: Border(top: BorderSide(color: Colors.grey[800]!))),
-          child: Row(children: [
-            Expanded(child: TextField(
-              controller: msgCtrl,
-              decoration: const InputDecoration(
-                hintText: '메시지를 입력하세요',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.grey[900], border: Border(top: BorderSide(color: Colors.grey[800]!))),
+            child: Row(children: [
+              Expanded(child: TextField(
+                controller: msgCtrl,
+                decoration: const InputDecoration(
+                  hintText: '메시지를 입력하세요',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                onSubmitted: (_) => _send(),
+              )),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: Icon(Icons.send, color: sending ? Colors.grey : Colors.orangeAccent),
+                onPressed: sending ? null : _send,
               ),
-              onSubmitted: (_) => _send(),
-            )),
-            const SizedBox(width: 8),
-            IconButton(
-              icon: Icon(Icons.send, color: sending ? Colors.grey : Colors.orangeAccent),
-              onPressed: sending ? null : _send,
-            ),
-          ]),
+            ]),
+          ),
         ),
       ]),
     );
