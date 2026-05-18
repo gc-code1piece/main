@@ -87,6 +87,17 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
             @Param("excludeUserIds") List<Long> excludeUserIds,
             Pageable pageable);
 
+    /**
+     * 여러 사용자의 최신 일기를 각 1건씩 조회 (추천순 탐색용).
+     * 유저별 가장 최근 일기만 반환한다.
+     */
+    @Query("""
+            SELECT d FROM Diary d JOIN FETCH d.user u
+            WHERE d.user.id IN :userIds
+              AND d.id = (SELECT MAX(d2.id) FROM Diary d2 WHERE d2.user.id = d.user.id)
+            """)
+    List<Diary> findLatestDiaryPerUserIn(@Param("userIds") List<Long> userIds);
+
     // ── AI 모니터링 대시보드용 쿼리 (Phase 3B §12) ───────────────────────────────
 
     /** 전체 사용자 기준 analysisStatus별 일기 건수 집계. */
