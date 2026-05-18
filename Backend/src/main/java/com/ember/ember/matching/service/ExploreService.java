@@ -54,6 +54,7 @@ public class ExploreService {
     private final NotificationRepository notificationRepository;
     private final FcmService fcmService;
     private final SimilarityService similarityService;
+    private final MatchingService matchingService;
 
     /**
      * 5.1 일기 탐색 (Pull 방식) — 커서 기반 페이징, 정렬/필터 지원
@@ -63,6 +64,11 @@ public class ExploreService {
         long diaryCount = diaryRepository.countByUserId(userId);
         if (diaryCount < MIN_DIARY_COUNT) {
             throw new BusinessException(ErrorCode.MATCHING_NO_DIARY);
+        }
+
+        // sort=recommended 분기: AI 추천순
+        if ("recommended".equalsIgnoreCase(sort)) {
+            return exploreRecommended(userId);
         }
 
         // 제외 대상: 7일 이내 skip한 사용자
@@ -123,6 +129,73 @@ public class ExploreService {
         String guidanceMessage = items.isEmpty() ? "새로운 일기가 올라오면 알려드릴게요!" : null;
 
         return new ExploreResponse(items, nextCursor, hasNext, guidanceMessage, actualSort);
+    }
+
+    /**
+     * AI 추천순 탐색.
+     * MatchingService에서 추천 userId 목록을 가져온 뒤,
+     * 각 유저의 최신 일기를 조회하여 explore 카드 형태로 반환한다.
+     */
+    private ExploreResponse exploreRecommended(Long userId) {
+        try {
+            MatchingService.RecommendationResult result = matchingService.getRecommendations(userId);
+            List<RecommendationItem> recoItems = result.response().getItems();
+
+            if (recoItems.isEmpty()) {
+                return new ExploreResponse(List.of(), null, false, "아직 추천할 상대가 없어요. 일기를 더 작성해보세요!", "recommended");
+            }
+
+            // 추천 유저들의 최신 일기 배치 조회
+            List<Long> recoUserIds = recoItems.stream()
+                    .map(RecommendationItem::getUserId)
+                    .collect(Collectors.toList());
+
+            List<Diary> latestDiaries = diaryRepository.findLatestDiaryPerUserIn(recoUserIds);
+
+            // userId → Diary 매핑
+            Map<Long, Diary> userDiaryMap = latestDiaries.stream()
+                    .collect(Collectors.toMap(d -> d.getUser().getId(), d -> d, (a, b) -> a));
+
+            // 키워드 배치 조회
+            List<Long> diaryIds = latestDiaries.stream().map(Diary::getId).collect(Collectors.toList());
+            Map<Long, List<DiaryKeyword>> keywordMap = diaryIds.isEmpty()
+                    ? Map.of()
+                    : diaryKeywordRepository.findByDiaryIdIn(diaryIds).stream()
+                        .collect(Collectors.groupingBy(k -> k.getDiary().getId()));
+
+            // 추천 순서 유지하며 카드 생성 (추천 전용 필드 포함)
+            List<ExploreResponse.ExploreDiaryItem> items = recoItems.stream()
+                    .filter(r -> userDiaryMap.containsKey(r.getUserId()))
+                    .map(r -> {
+                        Diary diary = userDiaryMap.get(r.getUserId());
+                        ExploreResponse.ExploreDiaryItem item = toExploreItem(userId, diary, keywordMap.getOrDefault(diary.getId(), List.of()));
+                        // recommended 전용: 매칭 점수 + breakdown 주입
+                        return ExploreResponse.ExploreDiaryItem.builder()
+                                .diaryId(item.getDiaryId())
+                                .authorId(item.getAuthorId())
+                                .ageGroupLabel(item.getAgeGroupLabel())
+                                .sido(item.getSido())
+                                .sigungu(item.getSigungu())
+                                .previewContent(item.getPreviewContent())
+                                .category(item.getCategory())
+                                .createdAt(item.getCreatedAt())
+                                .similarityBadge(item.getSimilarityBadge())
+                                .personalityKeywords(item.getPersonalityKeywords())
+                                .moodTags(item.getMoodTags())
+                                .matchingScore(r.getMatchingScore())
+                                .keywordOverlap(r.getBreakdown() != null ? r.getBreakdown().getKeywordOverlap() : null)
+                                .cosineSimilarity(r.getBreakdown() != null ? r.getBreakdown().getCosineSimilarity() : null)
+                                .build();
+                    })
+                    .collect(Collectors.toList());
+
+            return new ExploreResponse(items, null, false, null, "recommended");
+
+        } catch (Exception e) {
+            // AI 장애 시 최신순 폴백
+            log.warn("[ExploreService] 추천순 조회 실패, 최신순 폴백 — userId={}, error={}", userId, e.getMessage());
+            return explore(userId, null, "latest", null, null, null, false);
+        }
     }
 
     /**
