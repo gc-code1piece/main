@@ -27,8 +27,11 @@ jobs:
             cd ~/ember
 
             # 1. 최신 코드 (로컬 변경사항 리셋 후 pull)
+            # dashboard.html은 레포 외 로컬 관리 파일 — 배포 시 보호
+            [ -f dashboard.html ] && cp dashboard.html /tmp/dashboard_backup.html
             git fetch origin main
             git reset --hard origin/main
+            [ -f /tmp/dashboard_backup.html ] && cp /tmp/dashboard_backup.html dashboard.html
 
             # 2. .env 재생성
             cat << EOF > .env
