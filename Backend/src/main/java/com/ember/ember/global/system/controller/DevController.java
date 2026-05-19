@@ -7,8 +7,13 @@ import com.ember.ember.exchange.repository.ExchangeRoomRepository;
 import com.ember.ember.global.security.jwt.JwtTokenProvider;
 import com.ember.ember.messaging.event.AiAnalysisResultEvent;
 import com.ember.ember.messaging.event.AiAnalysisResultType;
+import com.ember.ember.messaging.event.DiaryAnalyzeRequestedEvent;
+import com.ember.ember.messaging.outbox.entity.OutboxEvent;
+import com.ember.ember.messaging.outbox.repository.OutboxEventRepository;
 import com.ember.ember.user.domain.User;
 import com.ember.ember.user.repository.UserRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -38,6 +43,10 @@ public class DevController {
     private final RabbitTemplate rabbitTemplate;
     private final StringRedisTemplate stringRedisTemplate;
     private final UserRepository userRepository;
+    private final OutboxEventRepository outboxEventRepository;
+    private final ObjectMapper objectMapper;
+
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     @Operation(summary = "테스트 토큰 발급", description = "카카오 로그인 없이 userId로 JWT accessToken 발급. 프론트 개발/테스트용.")
     @GetMapping("/api/dev/token")
@@ -63,6 +72,58 @@ public class DevController {
                 "accessToken", accessToken,
                 "role", "ROLE_GUEST",
                 "message", "신규 유저가 생성되었습니다. 약관 동의부터 시작하세요."
+        );
+    }
+
+    @Operation(summary = "시드 일기 작성 (날짜 지정)", description = "하루 1회 제한 없이 날짜를 지정하여 일기 작성. AI 파이프라인 정상 트리거. 시드 데이터 생성용.")
+    @PostMapping("/api/dev/diaries")
+    @Transactional
+    public Map<String, Object> createDevDiary(@RequestBody Map<String, Object> body) {
+        Long userId = Long.valueOf(body.get("userId").toString());
+        String content = (String) body.get("content");
+        String dateStr = (String) body.getOrDefault("date", null);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("유저 없음: " + userId));
+
+        LocalDate date = dateStr != null ? LocalDate.parse(dateStr) : LocalDate.now(KST);
+
+        // 같은 유저+날짜 중복 방지
+        if (diaryRepository.existsByUserIdAndDate(userId, date)) {
+            return Map.of("error", "DUPLICATE", "message", "이미 해당 날짜에 일기가 존재합니다.", "date", date.toString());
+        }
+
+        // Diary 저장
+        Diary diary = Diary.builder()
+                .user(user)
+                .content(content)
+                .date(date)
+                .build();
+        diaryRepository.save(diary);
+
+        // OutboxEvent 발행 → AI 파이프라인 트리거
+        String messageId = UUID.randomUUID().toString();
+        String publishedAt = ZonedDateTime.now(KST).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+
+        DiaryAnalyzeRequestedEvent analyzeEvent = new DiaryAnalyzeRequestedEvent(
+                messageId, DiaryAnalyzeRequestedEvent.VERSION,
+                diary.getId(), userId, content, publishedAt, null
+        );
+
+        try {
+            String payload = objectMapper.writeValueAsString(analyzeEvent);
+            OutboxEvent outboxEvent = OutboxEvent.of("DIARY", diary.getId(), "DIARY_ANALYZE_REQUESTED", payload);
+            outboxEventRepository.save(outboxEvent);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("OutboxEvent 직렬화 실패", e);
+        }
+
+        return Map.of(
+                "diaryId", diary.getId(),
+                "userId", userId,
+                "date", date.toString(),
+                "analysisStatus", "PENDING",
+                "message", "일기 생성 + AI 분석 요청 완료"
         );
     }
 
