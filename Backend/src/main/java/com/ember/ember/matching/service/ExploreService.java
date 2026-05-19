@@ -6,6 +6,7 @@ import com.ember.ember.diary.repository.DiaryKeywordRepository;
 import com.ember.ember.diary.repository.DiaryRepository;
 import com.ember.ember.exchange.domain.ExchangeRoom;
 import com.ember.ember.exchange.repository.ExchangeRoomRepository;
+import com.ember.ember.cache.service.CacheService;
 import com.ember.ember.global.exception.BusinessException;
 import com.ember.ember.global.notification.FcmService;
 import com.ember.ember.global.response.ErrorCode;
@@ -31,6 +32,8 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -54,6 +57,7 @@ public class ExploreService {
     private final NotificationRepository notificationRepository;
     private final FcmService fcmService;
     private final SimilarityService similarityService;
+    private final CacheService cacheService;
     private final MatchingService matchingService;
 
     /**
@@ -136,17 +140,32 @@ public class ExploreService {
      * MatchingService에서 추천 userId 목록을 가져온 뒤,
      * 각 유저의 최신 일기를 조회하여 explore 카드 형태로 반환한다.
      */
+    private static final String RECO_CACHE_FRESH = "MATCHING:RECO:%d";
+    private static final String RECO_CACHE_STALE = "MATCHING:RECO:stale:%d";
+
     private ExploreResponse exploreRecommended(Long userId) {
         try {
-            // MatchingService 호출 (캐시 히트 시 읽기만, 미스 시 AI 호출 + 캐시 저장)
-            MatchingService.RecommendationResult result;
-            try {
-                result = matchingService.getRecommendations(userId);
-            } catch (Exception ex) {
-                log.warn("[ExploreService] 추천 계산 실패 — userId={}, error={}", userId, ex.getMessage());
-                return new ExploreResponse(List.of(), null, false, "추천을 불러오는 중 문제가 발생했어요. 최신순으로 탐색해보세요!", "recommended");
+            // 캐시에서 직접 읽기 (MatchingService 트랜잭션 충돌 회피)
+            String freshKey = String.format(RECO_CACHE_FRESH, userId);
+            String staleKey = String.format(RECO_CACHE_STALE, userId);
+            Optional<RecommendationResponse> cached = cacheService.get(freshKey, RecommendationResponse.class);
+            if (cached.isEmpty()) {
+                cached = cacheService.get(staleKey, RecommendationResponse.class);
             }
-            List<RecommendationItem> recoItems = result.response().getItems();
+            if (cached.isEmpty()) {
+                // 캐시 없으면 별도 스레드에서 추천 계산 (트랜잭션 분리)
+                try {
+                    RecommendationResponse fresh = CompletableFuture.supplyAsync(() ->
+                            matchingService.getRecommendations(userId).response()
+                    ).get(15, TimeUnit.SECONDS);
+                    cached = Optional.of(fresh);
+                } catch (Exception ex) {
+                    log.warn("[ExploreService] 추천 계산 실패 — userId={}, error={}", userId, ex.getMessage());
+                    return new ExploreResponse(List.of(), null, false,
+                            "아직 추천할 상대가 없어요. 일기를 더 작성해보세요!", "recommended");
+                }
+            }
+            List<RecommendationItem> recoItems = cached.get().getItems();
 
             if (recoItems.isEmpty()) {
                 return new ExploreResponse(List.of(), null, false, "아직 추천할 상대가 없어요. 일기를 더 작성해보세요!", "recommended");
