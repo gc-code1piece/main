@@ -138,7 +138,14 @@ public class ExploreService {
      */
     private ExploreResponse exploreRecommended(Long userId) {
         try {
-            MatchingService.RecommendationResult result = matchingService.getRecommendations(userId);
+            // MatchingService 호출 (캐시 히트 시 읽기만, 미스 시 AI 호출 + 캐시 저장)
+            MatchingService.RecommendationResult result;
+            try {
+                result = matchingService.getRecommendations(userId);
+            } catch (Exception ex) {
+                log.warn("[ExploreService] 추천 계산 실패 — userId={}, error={}", userId, ex.getMessage());
+                return new ExploreResponse(List.of(), null, false, "추천을 불러오는 중 문제가 발생했어요. 최신순으로 탐색해보세요!", "recommended");
+            }
             List<RecommendationItem> recoItems = result.response().getItems();
 
             if (recoItems.isEmpty()) {
@@ -195,9 +202,8 @@ public class ExploreService {
             return new ExploreResponse(items, null, false, null, "recommended");
 
         } catch (Exception e) {
-            // AI 장애 시 최신순 폴백
-            log.warn("[ExploreService] 추천순 조회 실패, 최신순 폴백 — userId={}, error={}", userId, e.getMessage());
-            return explore(userId, null, "latest", null, null, null, false);
+            log.error("[ExploreService] 추천순 조회 실패 — userId={}, error={}", userId, e.getMessage(), e);
+            return new ExploreResponse(List.of(), null, false, "추천을 불러오는 중 문제가 발생했어요.", "recommended");
         }
     }
 
