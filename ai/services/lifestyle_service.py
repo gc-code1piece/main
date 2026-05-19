@@ -119,9 +119,9 @@ def _aggregate_lifestyle_tags(
   # dominant_patterns: top DOMINANT_MAX 중 최소 DOMINANT_MIN 보장
   dominant_patterns = [label for label, _ in sorted_items[:_DOMINANT_MAX]]
 
-  # keywords 목록 구성 (type=LIFESTYLE, 집계된 score로 재구성)
+  # keywords 목록 구성 (type=LIFESTYLE, 집계된 score로 재구성, 0~1 클램핑)
   keywords: list[AnalysisTag] = [
-    AnalysisTag(type="LIFESTYLE", label=label, score=round(score, 4))
+    AnalysisTag(type="LIFESTYLE", label=label, score=round(min(score, 1.0), 4))
     for label, score in sorted_items
   ]
 
