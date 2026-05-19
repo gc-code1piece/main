@@ -45,6 +45,7 @@ public class DevController {
     private final UserRepository userRepository;
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
+    private final jakarta.persistence.EntityManager entityManager;
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
@@ -125,6 +126,80 @@ public class DevController {
                 "analysisStatus", "PENDING",
                 "message", "일기 생성 + AI 분석 요청 완료"
         );
+    }
+
+    @Operation(summary = "유저 완전 삭제", description = "유저와 연관된 모든 데이터를 FK 순서대로 삭제. 테스트 데이터 정리용.")
+    @DeleteMapping("/api/dev/users/{userId}")
+    @Transactional
+    public Map<String, Object> deleteUserCompletely(@PathVariable Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("유저 없음: " + userId));
+        String nickname = user.getNickname() != null ? user.getNickname() : "유저" + userId;
+
+        // FK 순서대로 네이티브 쿼리 삭제
+        String[] sqls = {
+            "DELETE FROM diary_keywords WHERE diary_id IN (SELECT id FROM diaries WHERE user_id = :uid)",
+            "DELETE FROM outbox_events WHERE aggregate_type = 'DIARY' AND aggregate_id IN (SELECT id FROM diaries WHERE user_id = :uid)",
+            "DELETE FROM notifications WHERE user_id = :uid",
+            "DELETE FROM user_notification_settings WHERE user_id = :uid",
+            "DELETE FROM messages WHERE sender_id = :uid",
+            "DELETE FROM messages WHERE chat_room_id IN (SELECT id FROM chat_rooms WHERE user_a_id = :uid OR user_b_id = :uid)",
+            "DELETE FROM couple_requests WHERE requester_id = :uid OR receiver_id = :uid",
+            "DELETE FROM couples WHERE user_a_id = :uid OR user_b_id = :uid",
+            "DELETE FROM chat_rooms WHERE user_a_id = :uid OR user_b_id = :uid",
+            "DELETE FROM exchange_diaries WHERE author_id = :uid",
+            "DELETE FROM exchange_diaries WHERE room_id IN (SELECT id FROM exchange_rooms WHERE user_a_id = :uid OR user_b_id = :uid)",
+            "DELETE FROM exchange_reports WHERE room_id IN (SELECT id FROM exchange_rooms WHERE user_a_id = :uid OR user_b_id = :uid)",
+            "DELETE FROM exchange_rooms WHERE user_a_id = :uid OR user_b_id = :uid",
+            "DELETE FROM matching_passes WHERE user_id = :uid OR target_user_id = :uid",
+            "DELETE FROM matchings WHERE from_user_id = :uid OR to_user_id = :uid",
+            "DELETE FROM diary_drafts WHERE user_id = :uid",
+            "DELETE FROM diaries WHERE user_id = :uid",
+            "DELETE FROM user_ideal_keywords WHERE user_id = :uid",
+            "DELETE FROM user_consents WHERE user_id = :uid",
+            "DELETE FROM user_activity_events WHERE user_id = :uid",
+            "DELETE FROM fcm_tokens WHERE user_id = :uid",
+            "DELETE FROM social_accounts WHERE user_id = :uid",
+            "DELETE FROM user_vectors WHERE user_id = :uid",
+            "DELETE FROM user_settings WHERE user_id = :uid",
+            "DELETE FROM blocks WHERE blocker_id = :uid OR blocked_id = :uid",
+            "DELETE FROM reports WHERE reporter_id = :uid OR reported_user_id = :uid",
+            "DELETE FROM appeals WHERE user_id = :uid",
+            "DELETE FROM sanction_histories WHERE user_id = :uid",
+            "DELETE FROM users WHERE id = :uid",
+        };
+
+        for (String sql : sqls) {
+            try {
+                entityManager.createNativeQuery(sql).setParameter("uid", userId).executeUpdate();
+            } catch (Exception ignored) {
+                // 테이블이 없는 경우 무시
+            }
+        }
+
+        return Map.of(
+                "userId", userId,
+                "nickname", nickname,
+                "message", "유저 및 연관 데이터 완전 삭제 완료"
+        );
+    }
+
+    @Operation(summary = "유저 일기 전체 삭제", description = "유저의 일기 + AI 태그 + OutboxEvent 삭제. 시드 데이터 재생성용.")
+    @DeleteMapping("/api/dev/users/{userId}/diaries")
+    @Transactional
+    public Map<String, Object> deleteUserDiariesApi(@PathVariable Long userId) {
+        String[] sqls = {
+            "DELETE FROM diary_keywords WHERE diary_id IN (SELECT id FROM diaries WHERE user_id = :uid)",
+            "DELETE FROM outbox_events WHERE aggregate_type = 'DIARY' AND aggregate_id IN (SELECT id FROM diaries WHERE user_id = :uid)",
+            "DELETE FROM diaries WHERE user_id = :uid",
+        };
+
+        int deleted = 0;
+        for (String sql : sqls) {
+            deleted += entityManager.createNativeQuery(sql).setParameter("uid", userId).executeUpdate();
+        }
+
+        return Map.of("userId", userId, "deletedRows", deleted, "message", "일기 및 관련 데이터 삭제 완료");
     }
 
     @Operation(summary = "교환일기 마감 시간 변경", description = "교환일기 방의 deadlineAt을 현재 시각 + N분으로 변경. 만료 테스트용.")

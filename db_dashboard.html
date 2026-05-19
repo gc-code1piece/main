@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ember DB 실시간 대시보드</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Pretendard', -apple-system, sans-serif; background: #0f1117; color: #e1e4e8; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { font-size: 1.8rem; color: #fff; margin-bottom: 4px; }
+        .subtitle { color: #8b949e; font-size: 0.85rem; margin-bottom: 16px; }
+        .live-dot { display: inline-block; width: 8px; height: 8px; background: #3fb950; border-radius: 50%; margin-right: 6px; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+        .status-bar { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; font-size: 0.8rem; color: #8b949e; }
+        .refresh-btn { background: #21262d; border: 1px solid #30363d; color: #58a6ff; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 0.78rem; }
+
+        /* Summary */
+        .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-bottom: 24px; }
+        .sum-card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 12px; text-align: center; }
+        .sum-card .num { font-size: 1.6rem; font-weight: 700; color: #58a6ff; }
+        .sum-card .label { font-size: 0.7rem; color: #8b949e; }
+
+        /* Layout */
+        .main-layout { display: grid; grid-template-columns: 280px 1fr; gap: 16px; height: calc(100vh - 220px); }
+        @media (max-width: 900px) { .main-layout { grid-template-columns: 1fr; height: auto; } }
+
+        /* User List */
+        .user-list { background: #161b22; border: 1px solid #30363d; border-radius: 12px; overflow-y: auto; }
+        .user-list-header { padding: 12px 16px; border-bottom: 1px solid #30363d; font-size: 0.85rem; font-weight: 600; color: #fff; position: sticky; top: 0; background: #161b22; z-index: 1; }
+        .user-item { padding: 10px 16px; border-bottom: 1px solid #21262d; cursor: pointer; transition: background 0.15s; }
+        .user-item:hover { background: #1c2128; }
+        .user-item.active { background: #1c2128; border-left: 3px solid #58a6ff; }
+        .user-item .name { font-size: 0.88rem; font-weight: 600; color: #fff; }
+        .user-item .info { font-size: 0.72rem; color: #8b949e; margin-top: 2px; }
+        .user-item .badges { margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap; }
+
+        /* Detail Panel */
+        .detail-panel { background: #161b22; border: 1px solid #30363d; border-radius: 12px; overflow-y: auto; padding: 20px; }
+        .detail-panel h2 { font-size: 1.2rem; color: #fff; margin-bottom: 16px; }
+        .detail-empty { text-align: center; color: #484f58; padding: 60px 20px; font-size: 0.9rem; }
+
+        /* Section cards */
+        .section-card { background: #0d1117; border: 1px solid #21262d; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+        .section-card h3 { font-size: 0.9rem; color: #d2a8ff; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+        .section-card h3 .count { font-size: 0.7rem; background: #21262d; color: #8b949e; padding: 1px 8px; border-radius: 10px; }
+
+        /* Diary cards */
+        .diary-item { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+        .diary-item .meta { font-size: 0.72rem; color: #8b949e; margin-bottom: 4px; display: flex; justify-content: space-between; }
+        .diary-item .content { font-size: 0.82rem; color: #e1e4e8; line-height: 1.5; }
+        .diary-item .tags { margin-top: 6px; display: flex; gap: 4px; flex-wrap: wrap; }
+
+        /* Chat bubbles */
+        .chat-container { max-height: 300px; overflow-y: auto; padding: 8px 0; }
+        .chat-bubble { max-width: 70%; padding: 8px 12px; border-radius: 12px; margin-bottom: 6px; font-size: 0.82rem; line-height: 1.4; }
+        .chat-bubble.me { background: #E37474; color: #fff; margin-left: auto; border-bottom-right-radius: 4px; }
+        .chat-bubble.other { background: #21262d; color: #e1e4e8; border-bottom-left-radius: 4px; }
+        .chat-bubble .sender { font-size: 0.68rem; color: rgba(255,255,255,0.6); margin-bottom: 2px; }
+        .chat-bubble .time { font-size: 0.65rem; opacity: 0.6; margin-top: 2px; text-align: right; }
+
+        /* Exchange turn */
+        .turn-item { display: flex; gap: 10px; margin-bottom: 10px; }
+        .turn-num { min-width: 28px; height: 28px; background: #238636; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; }
+        .turn-content { flex: 1; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 10px; }
+        .turn-content .writer { font-size: 0.72rem; color: #58a6ff; margin-bottom: 4px; }
+        .turn-content .text { font-size: 0.8rem; color: #e1e4e8; }
+        .turn-content .reaction { font-size: 0.75rem; color: #d29922; margin-top: 4px; }
+
+        /* Matching flow */
+        .match-item { display: flex; align-items: center; gap: 8px; padding: 8px; background: #161b22; border: 1px solid #30363d; border-radius: 8px; margin-bottom: 6px; font-size: 0.82rem; }
+        .match-arrow { color: #58a6ff; font-weight: 700; }
+
+        /* Badge */
+        .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 0.68rem; font-weight: 600; }
+        .b-green { background: #0d3117; color: #3fb950; border: 1px solid #238636; }
+        .b-yellow { background: #3d1f00; color: #f0883e; border: 1px solid #9e6a03; }
+        .b-red { background: #3d0f0f; color: #f85149; border: 1px solid #da3633; }
+        .b-blue { background: #0d1d3a; color: #58a6ff; border: 1px solid #388bfd; }
+        .b-gray { background: #21262d; color: #8b949e; border: 1px solid #30363d; }
+        .b-purple { background: #1c1230; color: #d2a8ff; border: 1px solid #6e40aa; }
+        .b-pink { background: #3d0f2a; color: #f778ba; border: 1px solid #da3633; }
+
+        .api-btn { background: #21262d; border: 1px solid #388bfd; color: #58a6ff; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.78rem; font-weight: 600; transition: all 0.15s; }
+        .api-btn:hover { background: #388bfd; color: #fff; }
+        .footer { margin-top: 20px; text-align: center; color: #484f58; font-size: 0.72rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1><span class="live-dot"></span>Ember DB 실시간 대시보드</h1>
+    <p class="subtitle">유저를 클릭하면 해당 유저의 일기, 매칭, 교환일기, 채팅을 한눈에 볼 수 있습니다. 5초마다 자동 갱신.</p>
+
+    <div class="status-bar">
+        <span id="lastUpdate">갱신 중...</span>
+        <button class="refresh-btn" onclick="loadAll()">새로고침</button>
+        <span id="connStatus"></span>
+    </div>
+
+    <div class="summary" id="summary"></div>
+
+    <!-- Dev 도구 (독립 섹션) -->
+    <div style="background:#161b22;border:1px solid #f0883e40;border-radius:12px;padding:16px;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <span style="font-size:1rem;font-weight:600;color:#f0883e;">Dev 도구</span>
+            <span id="devSelectedUser" style="font-size:0.82rem;color:#58a6ff;background:#0d1117;padding:3px 10px;border-radius:6px;">유저 미선택</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+            <span style="font-size:0.75rem;color:#8b949e;">시드 일기:</span>
+            <label style="font-size:0.72rem;color:#8b949e;">일수</label>
+            <input id="seedDays" type="number" value="7" min="1" max="30" style="width:50px;background:#0d1117;border:1px solid #30363d;color:#58a6ff;padding:4px 8px;border-radius:6px;font-size:0.78rem;">
+            <label style="font-size:0.72rem;color:#8b949e;">딜레이(ms)</label>
+            <input id="seedDelay" type="number" value="500" min="100" max="3000" step="100" style="width:65px;background:#0d1117;border:1px solid #30363d;color:#58a6ff;padding:4px 8px;border-radius:6px;font-size:0.78rem;">
+            <button onclick="seedForSelected()" class="api-btn" style="border-color:#f0883e;color:#f0883e;font-weight:600;">시드 생성</button>
+            <button onclick="deleteSelectedUserDiaries()" class="api-btn" style="border-color:#da3633;color:#da3633;">일기 전체 삭제</button>
+            <button onclick="deleteSelectedUser()" class="api-btn" style="border-color:#da3633;color:#da3633;">유저 삭제</button>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+            <span style="font-size:0.75rem;color:#8b949e;">유저 생성:</span>
+            <button onclick="createTestUser()" class="api-btn" style="border-color:#3fb950;color:#3fb950;">새 유저 (GUEST)</button>
+            <button onclick="createTestUserFull()" class="api-btn" style="border-color:#3fb950;color:#3fb950;">유저 + 온보딩 완료</button>
+        </div>
+        <div id="seedProgress" style="font-size:0.75rem;color:#8b949e;min-height:20px;"></div>
+    </div>
+
+    <div class="main-layout">
+        <!-- 좌측: 유저 목록 -->
+        <div class="user-list" id="userList">
+            <div class="user-list-header">유저 목록</div>
+        </div>
+
+        <!-- 우측: 상세 패널 -->
+        <div class="detail-panel" id="detailPanel">
+            <div class="detail-empty">← 왼쪽에서 유저를 선택하세요</div>
+        </div>
+    </div>
+
+    <div class="footer">Ember DB Dashboard | 5초 자동갱신 + Supabase Realtime</div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://bnglgtmnwoypjbkiymjs.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJuZ2xndG1ud295cGpia2l5bWpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyOTI0NzIsImV4cCI6MjA4OTg2ODQ3Mn0.cZ4nrrFor_ucfGgEMz9Y9aKeaXKjLQhwOV9c6PffGFI';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ── 팀원 계정 ──
+const TEAM_MEMBERS = {
+    59: { name: '박종수', emoji: '🔵' },
+    8:  { name: '박종수(구)', emoji: '🔵' },
+    58: { name: '한은진', emoji: '🟣' },
+    60: { name: '김주영', emoji: '🟡' },
+    61: { name: '이동원', emoji: '🟢' },
+    25: { name: '이동원(구)', emoji: '🟢' },
+};
+
+// ── 전역 데이터 ──
+let allUsers = [];
+let allDiaries = [];
+let allMatchings = [];
+let allExRooms = [];
+let allExDiaries = [];
+let allChatRooms = [];
+let allMessages = [];
+let allCouples = [];
+let allNotifications = [];
+let allKeywords = [];
+let selectedUserId = null;
+let lastApiResult = { text: '버튼을 클릭하면 배포 서버 API 결과가 여기에 표시됩니다.', color: '#8b949e' };
+
+// ── 유틸 ──
+function statusBadge(status) {
+    if (!status) return '';
+    const map = {
+        'ACTIVE':'b-green','MATCHED':'b-green','ACCEPTED':'b-green','ANALYZED':'b-green',
+        'COMPLETED':'b-green','COUPLE_CONFIRMED':'b-green','CHAT_CREATED':'b-blue',
+        'PENDING':'b-yellow','ANALYZING':'b-yellow','IN_PROGRESS':'b-yellow','WAITING_NEXT_STEP':'b-yellow',
+        'EXPIRED':'b-red','REJECTED':'b-red','FAILED':'b-red','CANCELLED':'b-red','ENDED':'b-red',
+        'DEACTIVATED':'b-red','CHAT_CONNECTED':'b-blue',
+        'ROLE_USER':'b-green','ROLE_GUEST':'b-yellow',
+        'MALE':'b-blue','FEMALE':'b-pink',
+        'EXCHANGE_ONLY':'b-purple','PRIVATE':'b-gray',
+    };
+    return `<span class="badge ${map[status]||'b-gray'}">${status}</span>`;
+}
+function timeAgo(d) {
+    if (!d) return '-';
+    const diff = (Date.now() - new Date(d).getTime()) / 1000;
+    if (diff < 60) return Math.floor(diff)+'초 전';
+    if (diff < 3600) return Math.floor(diff/60)+'분 전';
+    if (diff < 86400) return Math.floor(diff/3600)+'시간 전';
+    return Math.floor(diff/86400)+'일 전';
+}
+function truncate(s, n=60) { return s && s.length > n ? s.slice(0,n)+'...' : (s||'-'); }
+function getUserName(id) {
+    const team = TEAM_MEMBERS[id];
+    const u = allUsers.find(u => u.id === id);
+    const nick = u ? (u.nickname || u.real_name || `유저${id}`) : `유저${id}`;
+    return team ? `${team.emoji}${nick}(${team.name})` : nick;
+}
+
+// ── 데이터 로드 ──
+async function loadAll() {
+    try {
+        const [r1,r2,r3,r4,r5,r6,r7,r8,r9,r10] = await Promise.all([
+            sb.from('users').select('id,nickname,real_name,gender,sido,role,status,created_at').order('id',{ascending:false}).limit(60),
+            sb.from('diaries').select('id,user_id,content,analysis_status,visibility,created_at').order('id',{ascending:false}).limit(100),
+            sb.from('matchings').select('id,from_user_id,to_user_id,diary_id,status,created_at,matched_at').order('id',{ascending:false}).limit(60),
+            sb.from('exchange_rooms').select('id,user_a_id,user_b_id,status,turn_count,round_count,current_turn_user_id,deadline_at,created_at').order('id',{ascending:false}).limit(40),
+            sb.from('exchange_diaries').select('id,room_id,author_id,content,turn_number,reaction,created_at').order('id',{ascending:false}).limit(80),
+            sb.from('chat_rooms').select('id,user_a_id,user_b_id,status,exchange_room_id,created_at').order('id',{ascending:false}).limit(30),
+            sb.from('messages').select('id,chat_room_id,sender_id,content,type,is_read,created_at').order('created_at',{ascending:false}).limit(100),
+            sb.from('couples').select('*').order('id',{ascending:false}).limit(20),
+            sb.from('notifications').select('id,user_id,type,title,body,is_read,sent_at').order('id',{ascending:false}).limit(60),
+            sb.from('diary_keywords').select('*').limit(200),
+        ]);
+
+        allUsers = r1.data || [];
+        allDiaries = r2.data || [];
+        allMatchings = r3.data || [];
+        allExRooms = r4.data || [];
+        allExDiaries = r5.data || [];
+        allChatRooms = r6.data || [];
+        allMessages = r7.data || [];
+        allCouples = r8.data || [];
+        allNotifications = r9.data || [];
+        allKeywords = r10.data || [];
+
+        renderSummary();
+        renderUserList();
+        if (selectedUserId) renderDetail(selectedUserId);
+
+        document.getElementById('lastUpdate').textContent = '갱신: ' + new Date().toLocaleTimeString('ko-KR');
+        document.getElementById('connStatus').innerHTML = '<span class="live-dot"></span>연결됨';
+    } catch(e) {
+        document.getElementById('connStatus').textContent = '오류: ' + e.message;
+    }
+}
+
+function renderSummary() {
+    document.getElementById('summary').innerHTML = [
+        {num: allUsers.length, label:'유저'},
+        {num: allDiaries.length, label:'일기'},
+        {num: allMatchings.filter(m=>m.status==='MATCHED').length, label:'매칭 성사'},
+        {num: allExRooms.length, label:'교환방'},
+        {num: allChatRooms.length, label:'채팅방'},
+        {num: allMessages.length, label:'메시지'},
+        {num: allCouples.length, label:'커플'},
+        {num: allMatchings.filter(m=>m.status==='PENDING').length, label:'대기중'},
+    ].map(s=>`<div class="sum-card"><div class="num">${s.num}</div><div class="label">${s.label}</div></div>`).join('');
+}
+
+function renderUserList() {
+    const list = document.getElementById('userList');
+    const header = '<div class="user-list-header">유저 목록 ('+allUsers.length+'명)</div>';
+    const items = allUsers.map(u => {
+        const diaryCount = allDiaries.filter(d => d.user_id === u.id).length;
+        const matchCount = allMatchings.filter(m => m.from_user_id === u.id || m.to_user_id === u.id).length;
+        const isActive = u.id === selectedUserId;
+        const team = TEAM_MEMBERS[u.id];
+        const teamTag = team ? `<span style="font-size:0.72rem;background:#1c2128;padding:1px 6px;border-radius:4px;color:#58a6ff;">${team.emoji} ${team.name}</span>` : '';
+        return `<div class="user-item ${isActive?'active':''}" onclick="selectUser(${u.id})" ${team ? 'style="border-left:3px solid #58a6ff;"' : ''}>
+            <div class="name">${u.nickname || u.real_name || '(미설정)'} <span style="color:#8b949e;font-size:0.72rem;">#${u.id}</span> ${teamTag}</div>
+            <div class="info">${u.sido||'-'} · 일기 ${diaryCount}개 · 매칭 ${matchCount}건</div>
+            <div class="badges">${statusBadge(u.gender)} ${statusBadge(u.role)}</div>
+        </div>`;
+    }).join('');
+    list.innerHTML = header + items;
+}
+
+function selectUser(userId) {
+    selectedUserId = userId;
+    renderUserList();
+    renderDetail(userId);
+    // Dev 도구 선택 유저 표시
+    const u = allUsers.find(u => u.id === userId);
+    const name = u ? (u.nickname || u.real_name || '유저') : '유저';
+    const el = document.getElementById('devSelectedUser');
+    if (el) el.innerHTML = `<span style="color:#fff;font-weight:600;">${name}</span> <span style="color:#8b949e;">#${userId}</span>`;
+}
+
+function seedForSelected() {
+    if (!selectedUserId) { document.getElementById('seedProgress').innerHTML = '<span style="color:#f85149;">유저를 먼저 선택하세요</span>'; return; }
+    seedDiaries(selectedUserId);
+}
+function deleteSelectedUserDiaries() {
+    if (!selectedUserId) { document.getElementById('seedProgress').innerHTML = '<span style="color:#f85149;">유저를 먼저 선택하세요</span>'; return; }
+    deleteUserDiaries(selectedUserId);
+}
+function deleteSelectedUser() {
+    if (!selectedUserId) { document.getElementById('seedProgress').innerHTML = '<span style="color:#f85149;">유저를 먼저 선택하세요</span>'; return; }
+    deleteUser(selectedUserId);
+}
+
+function renderDetail(userId) {
+    const panel = document.getElementById('detailPanel');
+    const user = allUsers.find(u => u.id === userId);
+    if (!user) { panel.innerHTML = '<div class="detail-empty">유저를 찾을 수 없습니다</div>'; return; }
+
+    let html = `<h2>${user.nickname || user.real_name || '유저'} #${user.id}</h2>`;
+    html += `<div style="margin-bottom:16px;font-size:0.82rem;color:#8b949e;">
+        ${statusBadge(user.gender)} ${statusBadge(user.role)} ${statusBadge(user.status)} ·
+        ${user.sido||'-'} · 가입 ${timeAgo(user.created_at)}
+    </div>`;
+
+    // ── 먼저 유저 관련 데이터 집계 (API 테스트에서 사용) ──
+    const userDiaries = allDiaries.filter(d => d.user_id === userId);
+    const userMatchings = allMatchings.filter(m => m.from_user_id === userId || m.to_user_id === userId);
+    const userExRooms = allExRooms.filter(r => r.user_a_id === userId || r.user_b_id === userId);
+    const userChatRooms = allChatRooms.filter(c => c.user_a_id === userId || c.user_b_id === userId);
+    const userCouples = allCouples.filter(c => c.user_a_id === userId || c.user_b_id === userId);
+    const userNotifs = allNotifications.filter(n => n.user_id === userId);
+    const userDiaryId = userDiaries.length > 0 ? userDiaries[0].id : 0;
+
+    // ── API 테스트 섹션 (맨 위) ──
+    const exRoomId = userExRooms.length > 0 ? userExRooms[0].id : 0;
+    const chatRoomId = userChatRooms.length > 0 ? userChatRooms[0].id : 0;
+
+    html += `<div class="section-card" style="border:2px solid #58a6ff;">
+        <h3 style="color:#58a6ff;">API 테스트 (이 유저로 로그인) <span style="font-size:0.7rem;color:#8b949e;">결과는 하단에 유지됩니다</span></h3>
+
+        <div style="font-size:0.72rem;color:#d2a8ff;margin-bottom:8px;">탐색 / 매칭</div>
+        <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center;">
+            <span style="font-size:0.7rem;color:#8b949e;">필터:</span>
+            <select id="filterSido" style="background:#0d1117;border:1px solid #30363d;color:#58a6ff;padding:4px 8px;border-radius:6px;font-size:0.72rem;">
+                <option value="">지역 전체</option>
+                <option value="서울특별시">서울</option>
+                <option value="경기도">경기</option>
+                <option value="부산광역시">부산</option>
+                <option value="대전광역시">대전</option>
+                <option value="인천광역시">인천</option>
+            </select>
+            <select id="filterAge" style="background:#0d1117;border:1px solid #30363d;color:#58a6ff;padding:4px 8px;border-radius:6px;font-size:0.72rem;">
+                <option value="">연령 전체</option>
+                <option value="20대">20대</option>
+                <option value="30대">30대</option>
+            </select>
+            <span id="filterInfo" style="font-size:0.68rem;color:#484f58;"></span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px;">
+            <button onclick="apiTestExplore(${userId})" class="api-btn">탐색 (필터 적용)</button>
+            <button onclick="apiTest('explore-recommended',${userId})" class="api-btn" style="border-color:#d2a8ff;color:#d2a8ff;">추천순 탐색</button>
+            <button onclick="apiTest('recommendations',${userId})" class="api-btn">AI 추천 (점수)</button>
+            <button onclick="apiTest('matching-requests',${userId})" class="api-btn">받은 매칭 요청</button>
+            <button onclick="apiTest('lifestyle-report',${userId})" class="api-btn">라이프스타일 리포트</button>
+            <button onclick="apiTest('today',${userId})" class="api-btn">오늘 일기 여부</button>
+            <button onclick="apiTestExploreCompare(${userId})" class="api-btn">필터별 비교</button>
+        </div>
+
+        <div style="font-size:0.72rem;color:#d2a8ff;margin-bottom:8px;">일기 / AI 분석</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px;">
+            <button onclick="apiTest('my-diaries',${userId})" class="api-btn">내 일기 목록</button>
+            <button onclick="apiTest('diary-detail',${userId},${userDiaryId})" class="api-btn">탐색 상세 (#${userDiaryId})</button>
+            <button onclick="apiTest('diary-mine',${userId},${userDiaryId})" class="api-btn">내 일기 상세 (#${userDiaryId})</button>
+            <button onclick="apiTest('ai-profile',${userId})" class="api-btn">AI 성격 프로필</button>
+            <button onclick="apiTest('weekly-topic',${userId})" class="api-btn">주간 주제</button>
+            <button onclick="apiTest('drafts',${userId})" class="api-btn">임시저장 목록</button>
+            <button onclick="apiTest('keyword-list',${userId})" class="api-btn">이상형 키워드 목록</button>
+            <button onclick="apiTest('my-ideal',${userId})" class="api-btn">내 이상형</button>
+            <span></span>
+        </div>
+
+        <div style="font-size:0.72rem;color:#d2a8ff;margin-bottom:8px;">교환일기</div>
+        <div style="background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:10px;margin-bottom:10px;">
+            <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
+                <button onclick="apiTest('exchange-rooms',${userId})" class="api-btn" style="flex-shrink:0;">교환방 목록</button>
+                <select id="exRoomSelect" style="flex:1;background:#161b22;border:1px solid #30363d;color:#58a6ff;padding:6px;border-radius:6px;font-size:0.75rem;">
+                    ${userExRooms.map(r => `<option value="${r.id}">방#${r.id} — ${getUserName(r.user_a_id === userId ? r.user_b_id : r.user_a_id).replace(/[<>]/g,'')} (${r.status})</option>`).join('')}
+                    ${userExRooms.length === 0 ? '<option value="0">교환방 없음</option>' : ''}
+                </select>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+                <button onclick="apiTest('exchange-detail',${userId},getSelectedExRoom())" class="api-btn">상세 조회</button>
+                <button onclick="apiTest('exchange-report',${userId},getSelectedExRoom())" class="api-btn">AI 리포트</button>
+                <button onclick="apiTest('next-step-status',${userId},getSelectedExRoom())" class="api-btn">관계확장 상태</button>
+            </div>
+        </div>
+
+        <div style="font-size:0.72rem;color:#d2a8ff;margin-bottom:8px;">채팅</div>
+        <div style="background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:10px;margin-bottom:10px;">
+            <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
+                <button onclick="apiTest('chat-rooms',${userId})" class="api-btn" style="flex-shrink:0;">채팅방 목록</button>
+                <select id="chatRoomSelect" style="flex:1;background:#161b22;border:1px solid #30363d;color:#58a6ff;padding:6px;border-radius:6px;font-size:0.75rem;">
+                    ${userChatRooms.map(c => `<option value="${c.id}">채팅#${c.id} — ${getUserName(c.user_a_id === userId ? c.user_b_id : c.user_a_id).replace(/[<>]/g,'')} (${c.status})</option>`).join('')}
+                    ${userChatRooms.length === 0 ? '<option value="0">채팅방 없음</option>' : ''}
+                </select>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                <button onclick="apiTest('chat-messages',${userId},getSelectedChatRoom())" class="api-btn">메시지 조회</button>
+                <button onclick="apiTest('chat-profile',${userId},getSelectedChatRoom())" class="api-btn">상대 프로필</button>
+            </div>
+        </div>
+
+        <div style="font-size:0.72rem;color:#d2a8ff;margin-bottom:8px;">프로필 / 설정 / 알림 / 지원</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px;">
+            <button onclick="apiTest('my-profile',${userId})" class="api-btn">내 프로필</button>
+            <button onclick="apiTest('notifications',${userId})" class="api-btn">알림 목록</button>
+            <button onclick="apiTest('noti-settings',${userId})" class="api-btn">알림 설정</button>
+            <button onclick="apiTest('block-list',${userId})" class="api-btn">차단 목록</button>
+            <button onclick="apiTest('history-exchange',${userId})" class="api-btn">교환 히스토리</button>
+            <button onclick="apiTest('history-chat',${userId})" class="api-btn">채팅 히스토리</button>
+            <button onclick="apiTest('inquiries',${userId})" class="api-btn">내 문의 목록</button>
+            <button onclick="apiTest('unread-notices',${userId})" class="api-btn">미읽음 공지 수</button>
+            <span></span>
+        </div>
+
+        <div style="font-size:0.72rem;color:#d2a8ff;margin-bottom:8px;">시스템 (인증 불필요)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px;">
+            <button onclick="apiTest('health',${userId})" class="api-btn">헬스체크</button>
+            <button onclick="apiTest('version',${userId})" class="api-btn">앱 버전</button>
+            <button onclick="apiTest('notices',${userId})" class="api-btn">공지사항</button>
+            <button onclick="apiTest('faq',${userId})" class="api-btn">FAQ</button>
+            <button onclick="apiTest('banners',${userId})" class="api-btn">배너</button>
+            <button onclick="apiTest('tutorials',${userId})" class="api-btn">튜토리얼</button>
+        </div>
+
+        <div id="apiResult" style="background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:12px;max-height:500px;overflow-y:auto;font-size:0.78rem;font-family:monospace;white-space:pre-wrap;color:${lastApiResult.color};">
+${lastApiResult.text}
+        </div>
+    </div>`;
+
+    // ── 일기 (DB 데이터) ──
+    html += `<div class="section-card"><h3>일기 <span class="count">${userDiaries.length}개</span></h3>`;
+    if (userDiaries.length === 0) html += '<div style="color:#484f58;font-size:0.82rem;">작성한 일기 없음</div>';
+    userDiaries.forEach(d => {
+        html += `<div class="diary-item">
+            <div class="meta"><span>#${d.id} · ${statusBadge(d.analysis_status)} ${statusBadge(d.visibility)}</span><span>${timeAgo(d.created_at)}</span></div>
+            <div class="content">${truncate(d.content, 100)}</div>
+        </div>`;
+    });
+    html += '</div>';
+
+    // ── 매칭 ──
+    html += `<div class="section-card"><h3>매칭 <span class="count">${userMatchings.length}건</span></h3>`;
+    if (userMatchings.length === 0) html += '<div style="color:#484f58;font-size:0.82rem;">매칭 이력 없음</div>';
+    userMatchings.forEach(m => {
+        const isSender = m.from_user_id === userId;
+        const other = isSender ? m.to_user_id : m.from_user_id;
+        html += `<div class="match-item">
+            ${isSender ? `<span>${getUserName(userId)}</span> <span class="match-arrow">→</span> <span>${getUserName(other)}</span>`
+                       : `<span>${getUserName(other)}</span> <span class="match-arrow">→</span> <span>${getUserName(userId)}</span>`}
+            &nbsp;${statusBadge(m.status)} <span style="font-size:0.7rem;color:#8b949e;margin-left:auto;">${timeAgo(m.created_at)}</span>
+        </div>`;
+    });
+    html += '</div>';
+
+    // ── 교환일기 방 ──
+    html += `<div class="section-card"><h3>교환일기 방 <span class="count">${userExRooms.length}개</span></h3>`;
+    userExRooms.forEach(room => {
+        const partner = room.user_a_id === userId ? room.user_b_id : room.user_a_id;
+        const isMyTurn = room.current_turn_user_id === userId;
+        html += `<div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <span style="font-size:0.85rem;font-weight:600;color:#fff;">with ${getUserName(partner)}</span>
+                ${statusBadge(room.status)}
+            </div>
+            <div style="font-size:0.78rem;color:#8b949e;">
+                턴: ${room.turn_count}/4 · 라운드: ${room.round_count} ·
+                ${isMyTurn ? '<span style="color:#3fb950;">내 차례</span>' : '<span style="color:#d29922;">상대 차례</span>'}
+                ${room.deadline_at ? ' · 마감: '+timeAgo(room.deadline_at) : ''}
+            </div>`;
+
+        // 해당 방의 교환일기들
+        const roomDiaries = allExDiaries.filter(d => d.room_id === room.id).sort((a,b) => a.turn_number - b.turn_number);
+        if (roomDiaries.length > 0) {
+            html += '<div style="margin-top:10px;">';
+            roomDiaries.forEach(d => {
+                const isMe = d.author_id === userId;
+                html += `<div class="turn-item">
+                    <div class="turn-num">${d.turn_number||'?'}</div>
+                    <div class="turn-content">
+                        <div class="writer">${isMe ? '나' : getUserName(d.author_id)}</div>
+                        <div class="text">${truncate(d.content, 80)}</div>
+                        ${d.reaction ? `<div class="reaction">${d.reaction}</div>` : ''}
+                    </div>
+                </div>`;
+            });
+            html += '</div>';
+        }
+        html += '</div>';
+    });
+    if (userExRooms.length === 0) html += '<div style="color:#484f58;font-size:0.82rem;">교환일기 없음</div>';
+    html += '</div>';
+
+    // ── 채팅 ──
+    html += `<div class="section-card"><h3>채팅 <span class="count">${userChatRooms.length}개</span></h3>`;
+    userChatRooms.forEach(room => {
+        const partner = room.user_a_id === userId ? room.user_b_id : room.user_a_id;
+        const roomMsgs = allMessages.filter(m => m.chat_room_id === room.id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+
+        html += `<div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <span style="font-size:0.85rem;font-weight:600;color:#fff;">with ${getUserName(partner)}</span>
+                ${statusBadge(room.status)} <span style="font-size:0.7rem;color:#8b949e;">${roomMsgs.length}건</span>
+            </div>
+            <div class="chat-container">`;
+
+        if (roomMsgs.length === 0) {
+            html += '<div style="color:#484f58;font-size:0.8rem;text-align:center;padding:16px;">메시지 없음</div>';
+        }
+        roomMsgs.forEach(msg => {
+            const isMe = msg.sender_id === userId;
+            html += `<div class="chat-bubble ${isMe ? 'me' : 'other'}">
+                ${!isMe ? `<div class="sender">${getUserName(msg.sender_id)}</div>` : ''}
+                ${msg.content || '(시스템 메시지)'}
+                <div class="time">${timeAgo(msg.created_at)}</div>
+            </div>`;
+        });
+        html += '</div></div>';
+    });
+    if (userChatRooms.length === 0) html += '<div style="color:#484f58;font-size:0.82rem;">채팅 없음</div>';
+    html += '</div>';
+
+    // ── 커플 ──
+    if (userCouples.length > 0) {
+        html += `<div class="section-card"><h3>커플 <span class="count">${userCouples.length}건</span></h3>`;
+        userCouples.forEach(c => {
+            const partner = c.user_a_id === userId ? c.user_b_id : c.user_a_id;
+            html += `<div class="match-item">${getUserName(userId)} <span class="match-arrow" style="color:#f778ba;">♥</span> ${getUserName(partner)} ${statusBadge(c.status)}</div>`;
+        });
+        html += '</div>';
+    }
+
+    // ── 알림 ──
+    if (userNotifs.length > 0) {
+        html += `<div class="section-card"><h3>알림 <span class="count">${userNotifs.length}건</span></h3>`;
+        html += '<div style="max-height:200px;overflow-y:auto;">';
+        userNotifs.slice(0, 10).forEach(n => {
+            html += `<div style="padding:6px 0;border-bottom:1px solid #21262d;font-size:0.8rem;">
+                ${statusBadge(n.type)} ${truncate(n.body || n.title, 50)}
+                <span style="font-size:0.7rem;color:#8b949e;float:right;">${n.is_read?'읽음':''} ${timeAgo(n.sent_at)}</span>
+            </div>`;
+        });
+        html += '</div></div>';
+    }
+
+    // (API 테스트 섹션은 위에서 렌더링됨)
+
+    panel.innerHTML = html;
+}
+
+// ── API 테스트 ──
+const API_BASE = 'https://ember-app.duckdns.org';
+let cachedTokens = {};
+
+async function getToken(userId) {
+    if (cachedTokens[userId]) return cachedTokens[userId];
+    const res = await fetch(`${API_BASE}/api/dev/token?userId=${userId}`);
+    const data = await res.json();
+    const token = data.data?.accessToken || data.accessToken;
+    cachedTokens[userId] = token;
+    return token;
+}
+
+async function apiTestExplore(userId) {
+    const sido = document.getElementById('filterSido').value;
+    const ageGroup = document.getElementById('filterAge').value;
+    const params = new URLSearchParams();
+    if (sido) params.set('sido', sido);
+    if (ageGroup) params.set('ageGroup', ageGroup);
+    const filterLabel = [sido || '전체지역', ageGroup || '전체연령'].join(' + ');
+    document.getElementById('filterInfo').textContent = `→ ${filterLabel}`;
+
+    const resultEl = document.getElementById('apiResult');
+    resultEl.textContent = '로딩 중...';
+    resultEl.style.color = '#d29922';
+    try {
+        const token = await getToken(userId);
+        const url = `${API_BASE}/api/diaries/explore${params.toString() ? '?' + params.toString() : ''}`;
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } });
+        const data = await res.json();
+        const count = data.data?.diaries?.length || 0;
+        if (res.ok) {
+            setResult(`✓ ${res.status} OK — 탐색 [${filterLabel}] → ${count}건\n\n` + JSON.stringify(data, null, 2), '#3fb950');
+        } else {
+            setResult(`✗ ${res.status} ERROR — 탐색 [${filterLabel}]\n\n` + JSON.stringify(data, null, 2), '#f85149');
+        }
+    } catch(e) { setResult('요청 실패: ' + e.message, '#f85149'); }
+}
+
+async function apiTestExploreCompare(userId) {
+    const resultEl = document.getElementById('apiResult');
+    resultEl.textContent = '필터 조합별 비교 로딩 중...';
+    resultEl.style.color = '#d29922';
+    try {
+        const token = await getToken(userId);
+        const h = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+        const combos = [
+            { label: '전체', params: '' },
+            { label: '서울', params: '?sido=서울특별시' },
+            { label: '경기', params: '?sido=경기도' },
+            { label: '부산', params: '?sido=부산광역시' },
+            { label: '20대', params: '?ageGroup=20대' },
+            { label: '30대', params: '?ageGroup=30대' },
+            { label: '서울+20대', params: '?sido=서울특별시&ageGroup=20대' },
+            { label: '서울+30대', params: '?sido=서울특별시&ageGroup=30대' },
+            { label: '경기+20대', params: '?sido=경기도&ageGroup=20대' },
+            { label: '부산+20대', params: '?sido=부산광역시&ageGroup=20대' },
+        ];
+        let output = `필터 조합별 탐색 결과 (유저 #${userId})\n${'═'.repeat(50)}\n\n`;
+        for (const c of combos) {
+            const res = await fetch(`${API_BASE}/api/diaries/explore${c.params}`, { headers: h });
+            const data = await res.json();
+            const count = data.data?.diaries?.length || 0;
+            const status = res.ok ? '✓' : '✗';
+            const names = (data.data?.diaries || []).map(d => {
+                const u = allUsers.find(u => u.id === d.authorId);
+                return u ? (u.nickname || '?') : `유저${d.authorId}`;
+            }).slice(0, 5).join(', ');
+            output += `${status} [${c.label.padEnd(10)}] → ${String(count).padStart(2)}건  ${names ? '(' + names + (count > 5 ? '...' : '') + ')' : ''}\n`;
+        }
+        setResult(output, '#3fb950');
+    } catch(e) { setResult('요청 실패: ' + e.message, '#f85149'); }
+}
+
+function getSelectedExRoom() {
+    const el = document.getElementById('exRoomSelect');
+    return el ? parseInt(el.value) : 0;
+}
+function getSelectedChatRoom() {
+    const el = document.getElementById('chatRoomSelect');
+    return el ? parseInt(el.value) : 0;
+}
+
+async function apiTest(type, userId, extraId) {
+    const resultEl = document.getElementById('apiResult');
+    resultEl.textContent = '로딩 중...';
+    resultEl.style.color = '#d29922';
+
+    try {
+        const token = await getToken(userId);
+        if (!token) { setResult('토큰 발급 실패', '#f85149'); return; }
+
+        let url = '';
+        const h = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+        switch(type) {
+            // 탐색/매칭
+            case 'explore': url = `${API_BASE}/api/diaries/explore`; break;
+            case 'explore-filter': url = `${API_BASE}/api/diaries/explore?sido=${encodeURIComponent('서울특별시')}`; break;
+            case 'explore-recommended': url = `${API_BASE}/api/diaries/explore?sort=recommended`; break;
+            case 'recommendations': url = `${API_BASE}/api/matching/recommendations`; break;
+            case 'matching-requests': url = `${API_BASE}/api/matching/requests`; break;
+            case 'lifestyle-report': url = `${API_BASE}/api/matching/lifestyle-report`; break;
+            case 'today': url = `${API_BASE}/api/diaries/today`; break;
+            // 일기/AI
+            case 'my-diaries': url = `${API_BASE}/api/diaries`; break;
+            case 'diary-detail': url = `${API_BASE}/api/diaries/${extraId}/detail`; break;
+            case 'ai-profile': url = `${API_BASE}/api/users/me/ai-profile`; break;
+            case 'weekly-topic': url = `${API_BASE}/api/diaries/weekly-topic`; break;
+            case 'drafts': url = `${API_BASE}/api/diaries/drafts`; break;
+            case 'keyword-list': url = `${API_BASE}/api/users/ideal-type/keyword-list`; break;
+            // 교환/채팅
+            case 'exchange-rooms': url = `${API_BASE}/api/exchange-rooms`; break;
+            case 'exchange-detail': url = `${API_BASE}/api/exchange-rooms/${extraId}`; break;
+            case 'exchange-report': url = `${API_BASE}/api/exchange-rooms/${extraId}/report`; break;
+            case 'next-step-status': url = `${API_BASE}/api/exchange-rooms/${extraId}/next-step/status`; break;
+            case 'chat-rooms': url = `${API_BASE}/api/chat-rooms`; break;
+            case 'chat-messages': url = `${API_BASE}/api/chat-rooms/${extraId}/messages`; break;
+            case 'chat-profile': url = `${API_BASE}/api/chat-rooms/${extraId}/profile`; break;
+            // 프로필/설정/알림
+            case 'my-profile': url = `${API_BASE}/api/users/me`; break;
+            case 'my-ideal': url = `${API_BASE}/api/users/me/ideal-type`; break;
+            case 'notifications': url = `${API_BASE}/api/notifications`; break;
+            case 'noti-settings': url = `${API_BASE}/api/users/me/notification-settings`; break;
+            case 'block-list': url = `${API_BASE}/api/users/me/block-list`; break;
+            case 'history-exchange': url = `${API_BASE}/api/users/me/history/exchange-rooms`; break;
+            case 'history-chat': url = `${API_BASE}/api/users/me/history/chat-rooms`; break;
+            case 'inquiries': url = `${API_BASE}/api/support/inquiries`; break;
+            case 'unread-notices': url = `${API_BASE}/api/notices/unread-count`; break;
+            case 'diary-mine': url = `${API_BASE}/api/diaries/${extraId}`; break;
+            // 시스템
+            case 'health': url = `${API_BASE}/api/health`; break;
+            case 'version': url = `${API_BASE}/api/system/version`; break;
+            case 'notices': url = `${API_BASE}/api/notices`; break;
+            case 'faq': url = `${API_BASE}/api/faq`; break;
+            case 'banners': url = `${API_BASE}/api/notices/banners`; break;
+            case 'tutorials': url = `${API_BASE}/api/tutorials/pages`; break;
+        }
+
+        const apiLabel = `${type.toUpperCase()} → ${url.replace(API_BASE, '')}`;
+        const res = await fetch(url, { headers: h });
+        const data = await res.json();
+
+        if (res.ok) {
+            setResult(`✓ ${res.status} OK — ${apiLabel}\n\n` + JSON.stringify(data, null, 2), '#3fb950');
+        } else {
+            setResult(`✗ ${res.status} ERROR — ${apiLabel}\n\n` + JSON.stringify(data, null, 2), '#f85149');
+        }
+    } catch(e) {
+        setResult('요청 실패: ' + e.message, '#f85149');
+    }
+}
+
+function setResult(text, color) {
+    lastApiResult = { text, color };
+    const el = document.getElementById('apiResult');
+    if (el) { el.textContent = text; el.style.color = color; }
+}
+
+// ── 시드 일기 생성 ──
+const SEED_DIARIES = [
+  '오늘은 정말 기분 좋은 하루였다. 아침에 일어나자마자 창문을 열었는데 날씨가 너무 좋았다. 산책을 하면서 동네 카페에 들러 아메리카노 한 잔을 마셨다. 카페 테라스에서 따뜻한 햇살을 받으며 책을 읽었는데, 이런 여유가 정말 오랜만이었다. 바쁜 일상 속에서 이렇게 나만의 시간을 갖는 것이 얼마나 소중한지 다시 한번 깨달았다. 내일도 이렇게 좋은 날이 되었으면 좋겠다.',
+  '회사에서 힘든 일이 있었다. 프로젝트 마감이 코앞인데 갑자기 요구사항이 바뀌었다. 팀원들 모두 야근을 했지만 분위기가 무거웠다. 그래도 서로 격려하면서 버텼고, 결국 밤 11시에 겨우 마무리했다. 퇴근길에 편의점에서 맥주 한 캔을 사서 마시면서 걸었는데, 차가운 바람이 불어와서 기분이 조금 나아졌다. 힘들지만 이런 경험이 나를 성장시키는 거라고 생각하려고 노력했다.',
+  '주말에 부모님 댁에 다녀왔다. 엄마가 해주신 된장찌개가 정말 맛있었다. 오랜만에 가족들과 함께 식사를 하니까 마음이 따뜻해졌다. 아버지는 여전히 텃밭을 가꾸고 계셨는데, 토마토가 빨갛게 익어가고 있었다. 함께 텃밭에서 이야기를 나누다 보니 시간이 금방 지나갔다. 자주 와야겠다고 다짐했지만, 항상 바쁘다는 핑계로 미루게 된다. 다음에는 꼭 더 자주 찾아뵙겠다.',
+  '오늘 처음으로 볼더링을 해봤다. 친구가 추천해줘서 갔는데 생각보다 훨씬 어려웠다. 처음에는 팔이 떨리고 높은 곳이 무서웠지만, 한 루트를 완등했을 때의 성취감은 정말 대단했다. 온몸이 아프지만 기분은 최고였다. 새로운 것을 도전하는 것이 이렇게 설레는 일인 줄 몰랐다. 다음 주에도 가기로 했는데 벌써부터 기대된다. 운동을 통해 스트레스도 풀리고 자신감도 생기는 것 같다.',
+  '비가 오는 날이면 항상 감성적이 된다. 오늘도 창밖을 보면서 커피를 마셨다. 빗소리를 들으며 좋아하는 음악을 틀었다. 요즘 듣고 있는 재즈 플레이리스트가 비 오는 날과 정말 잘 어울린다. 이런 날은 아무것도 하고 싶지 않고 그냥 멍하니 있고 싶다. 가끔은 이렇게 아무것도 안 하는 시간이 필요하다고 생각한다. 내일은 다시 바쁜 하루가 시작되겠지만, 오늘만큼은 이 여유를 즐기고 싶다.',
+  '운동을 시작한 지 한 달이 됐다. 처음에는 5분도 못 뛰었는데 이제는 30분을 달릴 수 있게 됐다. 몸이 가벼워진 느낌이고 잠도 잘 온다. 무엇보다 아침에 일어나는 것이 덜 힘들어졌다. 같이 운동하는 사람들과도 친해져서 서로 응원해주는 것이 큰 힘이 된다. 건강한 습관을 만들어가고 있다는 것 자체가 뿌듯하다. 꾸준히 이어가는 것이 중요하다는 걸 몸소 느끼고 있다.',
+  '오랜만에 혼자 영화관에 갔다. 보고 싶었던 영화가 마침 개봉해서 바로 예매했다. 혼자 영화 보는 것을 좋아하는데, 아무 눈치 안 보고 내가 먹고 싶은 것 사서 편하게 볼 수 있어서 좋다. 영화가 생각보다 감동적이어서 눈물이 좀 났다. 끝나고 나와서 저녁을 먹으면서 영화 내용을 곱씹어봤다. 가끔은 이렇게 혼자만의 시간을 보내는 것도 나쁘지 않다.',
+  '요즘 새로 시작한 독서 모임이 정말 재미있다. 한 달에 한 권씩 책을 읽고 모여서 토론하는 형식인데, 다양한 관점을 들을 수 있어서 시야가 넓어지는 느낌이다. 이번 달 책은 심리학 관련 도서였는데, 읽으면서 나 자신에 대해 많이 생각하게 됐다. 모임 사람들도 좋은 사람들이라 대화가 즐겁다. 이런 활동을 더 일찍 시작할 걸 그랬다는 생각이 든다.',
+  '친구의 결혼식에 다녀왔다. 대학교 때부터 알고 지낸 친구인데 벌써 결혼을 하다니 시간이 정말 빠르다. 식장에서 다른 동기들도 만났는데, 다들 각자의 삶을 열심히 살고 있었다. 축하하면서도 한편으로는 나도 이런 날이 올까 하는 생각이 들었다. 소중한 사람들과 함께하는 시간이 가장 행복하다는 것을 느꼈다.',
+  '새벽에 잠이 안 와서 산책을 나갔다. 조용한 거리를 걸으면서 별을 봤다. 도시에서는 별이 잘 안 보이는데 오늘따라 유난히 맑아서 몇 개가 보였다. 걸으면서 이런저런 생각을 했다. 앞으로 어떻게 살아야 할지, 지금 하고 있는 일이 맞는 건지. 답은 안 나왔지만 걷고 나니 마음이 한결 편안해졌다. 가끔은 이렇게 멈춰서 생각하는 시간이 필요하다.',
+  '요리를 해봤다. 유튜브에서 본 파스타 레시피를 따라 했는데 생각보다 잘 됐다. 직접 만든 음식을 먹으니까 뿌듯하고 맛도 좋았다. 앞으로 배달 대신 직접 요리를 좀 더 자주 해봐야겠다. 건강에도 좋고 돈도 절약되고 일석이조다. 다음에는 한식에도 도전해봐야겠다. 엄마한테 된장찌개 레시피를 물어봐야지. 혼자 살면서 이런 소소한 즐거움을 찾아가는 것도 나쁘지 않다.',
+  '오늘 봉사활동을 다녀왔다. 노인 복지관에서 어르신들과 함께 점심을 준비하고 대화를 나눴다. 할머니 한 분이 손을 잡으시며 고맙다고 하셨는데, 그 따뜻한 손길이 오래 기억에 남을 것 같다. 바쁜 일상에서 누군가를 위해 시간을 쓰는 것이 이렇게 보람찬 일인 줄 몰랐다. 작은 것이라도 나눌 수 있다는 것에 감사하다.',
+];
+
+function formatDateStr(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+async function seedDiaries(userId) {
+    const days = parseInt(document.getElementById('seedDays').value) || 7;
+    const delay = parseInt(document.getElementById('seedDelay').value) || 500;
+    const prog = document.getElementById('seedProgress');
+    const today = new Date();
+
+    let success = 0, skipped = 0, failed = 0;
+    prog.innerHTML = `<span style="color:#d29922;">생성 중... (유저 #${userId}, ${days}일)</span>`;
+
+    for (let d = days - 1; d >= 0; d--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - d);
+        const dateStr = formatDateStr(date);
+        const content = SEED_DIARIES[(userId * 7 + d) % SEED_DIARIES.length];
+
+        try {
+            const res = await fetch(`${API_BASE}/api/dev/diaries`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, content, date: dateStr }),
+            });
+            const data = await res.json();
+            if (data.error === 'DUPLICATE') { skipped++; }
+            else if (data.diaryId) { success++; }
+            else { failed++; }
+        } catch { failed++; }
+
+        prog.innerHTML = `<span style="color:#d29922;">유저 #${userId}: ${days - d}/${days} (성공:${success} 스킵:${skipped} 실패:${failed})</span>`;
+        await new Promise(r => setTimeout(r, delay));
+    }
+
+    prog.innerHTML = `<span style="color:#3fb950;">완료! 유저 #${userId} — 성공:${success} 스킵:${skipped} 실패:${failed} (AI 분석 5~10초 후 반영)</span>`;
+    setTimeout(loadAll, 3000);
+}
+
+async function deleteUserDiaries(userId) {
+    if (!confirm(`유저 #${userId}의 일기를 전부 삭제합니다. 계속?`)) return;
+    const prog = document.getElementById('seedProgress');
+    prog.innerHTML = '<span style="color:#d29922;">일기 삭제 중...</span>';
+    try {
+        const res = await fetch(`${API_BASE}/api/dev/users/${userId}/diaries`, { method: 'DELETE' });
+        const data = await res.json();
+        if (res.ok) {
+            prog.innerHTML = `<span style="color:#3fb950;">유저 #${userId} 일기 삭제 완료 (${data.deletedRows}건)</span>`;
+        } else {
+            prog.innerHTML = `<span style="color:#f85149;">삭제 실패: ${JSON.stringify(data)}</span>`;
+        }
+    } catch(e) { prog.innerHTML = `<span style="color:#f85149;">삭제 실패: ${e.message}</span>`; }
+    setTimeout(loadAll, 1000);
+}
+
+async function deleteUser(userId) {
+    const user = allUsers.find(u => u.id === userId);
+    const name = user ? (user.nickname || user.real_name || `유저${userId}`) : `유저${userId}`;
+    if (!confirm(`유저 "${name}" (#${userId})를 완전 삭제합니다. 관련 데이터도 모두 삭제됩니다. 계속?`)) return;
+    const prog = document.getElementById('seedProgress');
+    prog.innerHTML = '<span style="color:#d29922;">유저 삭제 중...</span>';
+    try {
+        const res = await fetch(`${API_BASE}/api/dev/users/${userId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (res.ok) {
+            selectedUserId = null;
+            prog.innerHTML = `<span style="color:#3fb950;">유저 "${name}" (#${userId}) 완전 삭제 완료</span>`;
+        } else {
+            prog.innerHTML = `<span style="color:#f85149;">삭제 실패: ${JSON.stringify(data)}</span>`;
+        }
+    } catch(e) { prog.innerHTML = `<span style="color:#f85149;">삭제 실패: ${e.message}</span>`; }
+    setTimeout(loadAll, 1000);
+}
+
+async function createTestUser() {
+    const prog = document.getElementById('seedProgress');
+    prog.innerHTML = '<span style="color:#d29922;">유저 생성 중...</span>';
+    try {
+        const res = await fetch(`${API_BASE}/api/dev/register`, { method: 'POST' });
+        const data = await res.json();
+        prog.innerHTML = `<span style="color:#3fb950;">유저 생성 완료! userId=${data.userId} (ROLE_GUEST — 온보딩 필요)</span>`;
+        setTimeout(loadAll, 1000);
+    } catch(e) { prog.innerHTML = `<span style="color:#f85149;">생성 실패: ${e.message}</span>`; }
+}
+
+const NICKNAMES = ['따뜻한햇살','밝은달빛','푸른바람','고요한숲','빛나는강','잔잔한호수','맑은이슬','깊은바다','은은한꽃','단단한바위','부드러운구름','시원한폭포'];
+const REAL_NAMES_M = ['김민수','이준호','박서준','최동현','강민수','정우진','한지훈','윤성호','조현우','임태현'];
+const REAL_NAMES_F = ['김서연','이하은','박지우','최수빈','강예린','정하은','한소영','윤서진','조은비','임채원'];
+const REGIONS = [{sido:'서울특별시',sigungu:'강남구'},{sido:'서울특별시',sigungu:'마포구'},{sido:'경기도',sigungu:'성남시'},{sido:'경기도',sigungu:'수원시'},{sido:'부산광역시',sigungu:'해운대구'},{sido:'대전광역시',sigungu:'유성구'},{sido:'인천광역시',sigungu:'연수구'}];
+
+async function createTestUserFull() {
+    const prog = document.getElementById('seedProgress');
+    prog.innerHTML = '<span style="color:#d29922;">유저 생성 + 온보딩 진행 중...</span>';
+    try {
+        // 1. 유저 생성
+        const regRes = await fetch(`${API_BASE}/api/dev/register`, { method: 'POST' });
+        const regData = await regRes.json();
+        const userId = regData.userId;
+        const token = regData.accessToken;
+        const h = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+        // 2. 약관 동의
+        await fetch(`${API_BASE}/api/consent`, { method: 'POST', headers: h, body: JSON.stringify({type:'USER_TERMS'}) });
+        await fetch(`${API_BASE}/api/consent`, { method: 'POST', headers: h, body: JSON.stringify({type:'AI_TERMS'}) });
+
+        // 3. 프로필 등록
+        const nick = NICKNAMES[Math.floor(Math.random()*NICKNAMES.length)] + Math.floor(Math.random()*100);
+        const region = REGIONS[Math.floor(Math.random()*REGIONS.length)];
+        const gender = Math.random() > 0.5 ? 'MALE' : 'FEMALE';
+        const realName = gender === 'MALE' ? REAL_NAMES_M[Math.floor(Math.random()*REAL_NAMES_M.length)] : REAL_NAMES_F[Math.floor(Math.random()*REAL_NAMES_F.length)];
+        const birthYear = 1995 + Math.floor(Math.random()*8);
+        await fetch(`${API_BASE}/api/users/profile`, { method: 'POST', headers: h, body: JSON.stringify({
+            nickname: nick, realName, birthDate: `${birthYear}-06-15`,
+            gender, sido: region.sido, sigungu: region.sigungu
+        })});
+
+        // 4. 이상형 키워드 (ROLE_USER 승격)
+        const kwRes = await fetch(`${API_BASE}/api/users/ideal-type/keyword-list`, { headers: h });
+        const kwData = await kwRes.json();
+        const kwList = kwData.data || [];
+        const picked = kwList.sort(() => Math.random()-0.5).slice(0,3).map(k => k.id);
+        const newToken = (await (await fetch(`${API_BASE}/api/dev/token?userId=${userId}`)).json()).accessToken;
+        const h2 = { 'Authorization': `Bearer ${newToken}`, 'Content-Type': 'application/json' };
+        await fetch(`${API_BASE}/api/users/ideal-type/keywords`, { method: 'POST', headers: h2, body: JSON.stringify({keywordIds: picked}) });
+
+        prog.innerHTML = `<span style="color:#3fb950;">유저 생성+온보딩 완료! userId=${userId}, 닉네임="${nick}", ${gender}, ${region.sido} (ROLE_USER)</span>`;
+        cachedTokens = {};
+        setTimeout(loadAll, 1000);
+    } catch(e) {
+        prog.innerHTML = `<span style="color:#f85149;">생성 실패: ${e.message}</span>`;
+    }
+}
+
+async function seedDiariesAll() {
+    const days = parseInt(document.getElementById('seedDays').value) || 7;
+    const delay = parseInt(document.getElementById('seedDelay').value) || 500;
+    const prog = document.getElementById('seedProgress');
+
+    const userIds = allUsers.filter(u => u.status === 'ACTIVE' && u.role === 'ROLE_USER').map(u => u.id);
+    if (userIds.length === 0) { prog.innerHTML = '<span style="color:#f85149;">활성 유저 없음</span>'; return; }
+
+    let totalSuccess = 0, totalSkipped = 0, totalFailed = 0;
+    prog.innerHTML = `<span style="color:#d29922;">전체 시드 생성 시작 (${userIds.length}명, ${days}일)</span>`;
+
+    for (const userId of userIds) {
+        const today = new Date();
+        for (let d = days - 1; d >= 0; d--) {
+            const date = new Date(today);
+            date.setDate(date.getDate() - d);
+            const dateStr = formatDateStr(date);
+            const content = SEED_DIARIES[(userId * 7 + d) % SEED_DIARIES.length];
+
+            try {
+                const res = await fetch(`${API_BASE}/api/dev/diaries`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, content, date: dateStr }),
+                });
+                const data = await res.json();
+                if (data.error === 'DUPLICATE') { totalSkipped++; }
+                else if (data.diaryId) { totalSuccess++; }
+                else { totalFailed++; }
+            } catch { totalFailed++; }
+
+            await new Promise(r => setTimeout(r, delay));
+        }
+        prog.innerHTML = `<span style="color:#d29922;">진행 중... 유저 #${userId} 완료 (성공:${totalSuccess} 스킵:${totalSkipped} 실패:${totalFailed})</span>`;
+    }
+
+    prog.innerHTML = `<span style="color:#3fb950;">전체 완료! ${userIds.length}명 — 성공:${totalSuccess} 스킵:${totalSkipped} 실패:${totalFailed}</span>`;
+    setTimeout(loadAll, 3000);
+}
+
+// ── Realtime ──
+function setupRealtime() {
+    ['users','diaries','matchings','exchange_rooms','exchange_diaries','chat_rooms','messages','couples','notifications'].forEach(table => {
+        sb.channel('rt-'+table).on('postgres_changes',{event:'*',schema:'public',table},()=>loadAll()).subscribe();
+    });
+}
+
+// ── Init ──
+loadAll();
+setupRealtime();
+setInterval(loadAll, 5000);
+</script>
+</body>
+</html>
