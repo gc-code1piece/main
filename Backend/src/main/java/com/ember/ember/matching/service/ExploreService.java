@@ -72,7 +72,7 @@ public class ExploreService {
 
         // sort=recommended 분기: AI 추천순
         if ("recommended".equalsIgnoreCase(sort)) {
-            return exploreRecommended(userId);
+            return exploreRecommended(userId, sido, sigungu, ageGroup);
         }
 
         // 제외 대상: 7일 이내 skip한 사용자
@@ -143,7 +143,7 @@ public class ExploreService {
     private static final String RECO_CACHE_FRESH = "MATCHING:RECO:%d";
     private static final String RECO_CACHE_STALE = "MATCHING:RECO:stale:%d";
 
-    private ExploreResponse exploreRecommended(Long userId) {
+    private ExploreResponse exploreRecommended(Long userId, String sido, String sigungu, String ageGroup) {
         try {
             // 캐시에서 직접 읽기 (MatchingService 트랜잭션 충돌 회피)
             String freshKey = String.format(RECO_CACHE_FRESH, userId);
@@ -217,6 +217,17 @@ public class ExploreService {
                                 .build();
                     })
                     .collect(Collectors.toList());
+
+            // 지역/연령대 필터 적용
+            if (sido != null && !sido.isBlank()) {
+                items = items.stream().filter(i -> sido.equals(i.getSido())).collect(Collectors.toList());
+            }
+            if (sigungu != null && !sigungu.isBlank()) {
+                items = items.stream().filter(i -> sigungu.equals(i.getSigungu())).collect(Collectors.toList());
+            }
+            if (ageGroup != null && !ageGroup.isBlank()) {
+                items = items.stream().filter(i -> i.getAgeGroupLabel() != null && i.getAgeGroupLabel().contains(ageGroup)).collect(Collectors.toList());
+            }
 
             return new ExploreResponse(items, null, false, null, "recommended");
 
