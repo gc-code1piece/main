@@ -38,9 +38,10 @@ public interface ExchangeDiaryRepository extends JpaRepository<ExchangeDiary, Lo
            "AND ed.status = 'SUBMITTED' ORDER BY ed.turnNumber ASC")
     List<ExchangeDiary> findSubmittedByRoomId(@Param("roomId") Long roomId);
 
-    /** 이전 턴 일기 조회 */
+    /** 이전 턴 일기 조회 (같은 턴 번호가 여러 라운드에 존재할 수 있으므로 가장 최근 것) */
     @Query("SELECT ed FROM ExchangeDiary ed WHERE ed.room.id = :roomId " +
-           "AND ed.turnNumber = :turnNumber AND ed.status = 'SUBMITTED'")
+           "AND ed.turnNumber = :turnNumber AND ed.status = 'SUBMITTED' " +
+           "ORDER BY ed.submittedAt DESC LIMIT 1")
     java.util.Optional<ExchangeDiary> findByRoomIdAndTurnNumber(
             @Param("roomId") Long roomId, @Param("turnNumber") int turnNumber);
 
