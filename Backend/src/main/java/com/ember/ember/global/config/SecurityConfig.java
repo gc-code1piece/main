@@ -99,7 +99,15 @@ public class SecurityConfig {
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", config);
-        source.registerCorsConfiguration("/ws/**", config);
+
+        // WebSocket은 모든 Origin 허용 (JWT 인증 인터셉터가 보안 담당)
+        CorsConfiguration wsConfig = new CorsConfiguration();
+        wsConfig.addAllowedOriginPattern("*");
+        wsConfig.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
+        wsConfig.setAllowedHeaders(List.of("*"));
+        wsConfig.setAllowCredentials(true);
+        source.registerCorsConfiguration("/ws/**", wsConfig);
+
         return source;
     }
 }
