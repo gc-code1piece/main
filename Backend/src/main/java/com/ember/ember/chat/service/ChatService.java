@@ -193,9 +193,12 @@ public class ChatService {
         return ChatPartnerProfileResponse.builder()
                 .userId(partner.getId())
                 .nickname(partner.getNickname())
+                .realName(partner.getRealName())
                 .birthDate(partner.getBirthDate() != null ? partner.getBirthDate().toString() : null)
                 .gender(partner.getGender() != null ? partner.getGender().name() : null)
                 .sido(partner.getSido())
+                .sigungu(partner.getSigungu())
+                .school(partner.getSchool())
                 .personalityTags(personalityTags)
                 .build();
     }

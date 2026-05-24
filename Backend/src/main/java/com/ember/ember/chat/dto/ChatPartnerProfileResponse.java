@@ -10,8 +10,11 @@ import java.util.List;
 public record ChatPartnerProfileResponse(
         Long userId,
         String nickname,
+        String realName,
         String birthDate,
         String gender,
         String sido,
+        String sigungu,
+        String school,
         List<String> personalityTags
 ) {}
