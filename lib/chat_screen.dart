@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
+import 'package:stomp_dart_client/stomp.dart';
+import 'package:stomp_dart_client/stomp_handler.dart';
 import 'api_service.dart';
+import 'websocket_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final String name;
@@ -19,6 +22,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isLoading = true;
   int? _myUserId;
   Map<String, dynamic>? _partnerProfile;
+  StompUnsubscribe? _wsSub;
 
   String _partnerName() {
     return _profileText(_partnerProfile, [
@@ -119,39 +123,34 @@ class _ChatScreenState extends State<ChatScreen> {
     return _myUserId != null && senderId == _myUserId;
   }
 
-  void _sendMessage() async {
+  void _sendMessage() {
     if (_controller.text.trim().isEmpty) return;
     final text = _controller.text.trim();
     _controller.clear();
-    final tempMessage = {
-      'content': text,
-      'isMe': true,
-      'createdAt': DateTime.now().toIso8601String(),
-    };
-    setState(() {
-      _messages.add(tempMessage);
-    });
-    try {
-      final result = await ApiService.sendChatMessage(widget.roomId, text);
-      final data = result['data'];
-      if (!mounted) return;
-      if (data is Map) {
-        setState(() {
-          final index = _messages.indexOf(tempMessage);
-          final sent = Map<String, dynamic>.from(data);
-          sent['isMe'] = true;
-          if (index >= 0) {
-            _messages[index] = sent;
-          }
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('메시지 전송 실패: $e')));
-      }
+
+    // WebSocket으로 전송 (서버가 브로드캐스트하면 구독에서 수신)
+    final ws = WebSocketService.instance;
+    if (ws.isConnected) {
+      ws.send(widget.roomId, text);
+    } else {
+      // WebSocket 미연결 시 REST fallback
+      ApiService.sendChatMessage(widget.roomId, text).catchError((e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text('메시지 전송 실패: $e')));
+        }
+      });
     }
+
+    // 낙관적 UI 업데이트
+    setState(() {
+      _messages.add({
+        'content': text,
+        'senderId': _myUserId,
+        'createdAt': DateTime.now().toIso8601String(),
+      });
+    });
+
     Future.delayed(const Duration(milliseconds: 100), () {
       if (!mounted || !_scrollController.hasClients) return;
       _scrollController.animateTo(
@@ -322,6 +321,28 @@ class _ChatScreenState extends State<ChatScreen> {
     _loadMe();
     _loadPartnerProfile();
     _loadMessages();
+    _connectWebSocket();
+  }
+
+  Future<void> _connectWebSocket() async {
+    final ws = WebSocketService.instance;
+    await ws.connect();
+    _wsSub = ws.subscribe(widget.roomId, (msg) {
+      // 자기가 보낸 메시지는 낙관적 UI로 이미 추가했으므로 스킵
+      final senderId = msg['senderId'];
+      if (senderId == _myUserId) return;
+      if (!mounted) return;
+      setState(() => _messages.add(msg));
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (!mounted || !_scrollController.hasClients) return;
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      });
+    });
+    ws.sendRead(widget.roomId);
   }
 
   Future<void> _loadMe() async {
@@ -361,6 +382,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _wsSub?.call();
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();

@@ -20,17 +20,23 @@ void main() async {
 
   runApp(const MyApp());
 
-  initFcmToken();
+  // 알림 권한 팝업 (로그인 전에 띄움)
+  _requestNotificationPermission();
 }
 
-Future<void> initFcmToken() async {
+Future<void> _requestNotificationPermission() async {
   try {
     await FirebaseMessaging.instance.requestPermission();
+  } catch (e) {
+    print('알림 권한 요청 실패: $e');
+  }
+}
 
+/// FCM 토큰을 서버에 등록 (로그인 후 호출)
+Future<void> registerFcmTokenToServer() async {
+  try {
     if (Platform.isIOS) {
       final apnsToken = await FirebaseMessaging.instance.getAPNSToken();
-      print('APNS token: $apnsToken');
-
       if (apnsToken == null) {
         print('APNS token 아직 준비 안 됨');
         return;
@@ -44,7 +50,7 @@ Future<void> initFcmToken() async {
       await ApiService.registerFcmToken(token);
     }
   } catch (e) {
-    print('FCM error: $e');
+    print('FCM 등록 실패: $e');
   }
 }
 
