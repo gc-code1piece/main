@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 
 import 'api_service.dart';
+import 'main.dart' show registerFcmTokenToServer;
 import 'signup.dart';
 
 class SocialLogin extends StatefulWidget {
@@ -114,6 +115,9 @@ class _SocialLoginState extends State<SocialLogin> {
       if (savedToken == null || savedToken.isEmpty) {
         throw Exception('로그인 토큰 저장에 실패했어요. 다시 로그인해주세요.\n서버 응답: $result');
       }
+
+      // 로그인 성공 후 FCM 토큰 서버 등록
+      registerFcmTokenToServer();
 
       if (onboardingCompleted != true) {
         Navigator.push(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'api_service.dart';
+import 'main.dart' show registerFcmTokenToServer;
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -24,6 +25,24 @@ class _SplashScreenState extends State<SplashScreen> {
     final canContinue = await _checkVersion();
     if (!mounted || !canContinue) return;
 
+    // 저장된 토큰으로 자동 로그인 시도
+    final savedToken = await ApiService.getAccessToken();
+    if (savedToken != null && savedToken.isNotEmpty) {
+      try {
+        final profile = await ApiService.getMyProfile();
+        if (!mounted) return;
+        if (profile != null) {
+          // 토큰 유효 → FCM 서버 등록 + 홈으로
+          registerFcmTokenToServer();
+          Navigator.pushReplacementNamed(context, '/home');
+          return;
+        }
+      } catch (_) {
+        // 토큰 만료/무효 → 로그인 화면으로
+      }
+    }
+
+    if (!mounted) return;
     Navigator.pushReplacementNamed(context, '/socialLogin');
   }
 
