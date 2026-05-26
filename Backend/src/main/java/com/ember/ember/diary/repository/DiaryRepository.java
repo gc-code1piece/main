@@ -64,6 +64,7 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
             SELECT d FROM Diary d JOIN FETCH d.user u
             WHERE d.user.id != :userId
               AND d.user.id NOT IN :excludeUserIds
+              AND d.user.gender != (SELECT u2.gender FROM User u2 WHERE u2.id = :userId)
               AND d.id < :cursor
               AND d.id = (SELECT MAX(d2.id) FROM Diary d2 WHERE d2.user = d.user)
             ORDER BY d.id DESC
@@ -81,6 +82,7 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
             SELECT d FROM Diary d JOIN FETCH d.user u
             WHERE d.user.id != :userId
               AND d.user.id NOT IN :excludeUserIds
+              AND d.user.gender != (SELECT u2.gender FROM User u2 WHERE u2.id = :userId)
               AND d.id = (SELECT MAX(d2.id) FROM Diary d2 WHERE d2.user = d.user)
             ORDER BY d.id DESC
             """)
