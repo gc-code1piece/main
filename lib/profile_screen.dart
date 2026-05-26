@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'profile_edit_screen.dart';
 import 'api_service.dart';
+import 'exchange_room_detail_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -215,17 +216,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _MenuItem(
               label: 'FAQ',
               onTap: () => _openExtraScreen(
-                _ApiListScreen(title: 'FAQ', loader: ApiService.getFaq),
+                const _FaqScreen(),
               ),
             ),
             const Divider(color: Color(0xFFE5E5E5), thickness: 1),
             _MenuItem(
               label: '교환일기 히스토리',
               onTap: () => _openExtraScreen(
-                _ApiListScreen(
-                  title: '교환일기 히스토리',
-                  loader: ApiService.getExchangeRoomHistory,
-                ),
+                const _ExchangeHistoryScreen(),
               ),
             ),
             const Divider(color: Color(0xFFE5E5E5), thickness: 1),
@@ -1075,6 +1073,188 @@ class _NotificationSettingsScreenState
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FaqScreen extends StatefulWidget {
+  const _FaqScreen();
+
+  @override
+  State<_FaqScreen> createState() => _FaqScreenState();
+}
+
+class _FaqScreenState extends State<_FaqScreen> {
+  late Future<List<Map<String, dynamic>>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _loadFaq();
+  }
+
+  Future<List<Map<String, dynamic>>> _loadFaq() async {
+    final response = await ApiService.getFaq();
+    final data = response['data'] ?? response;
+    final list = data is List ? data : (data is Map ? (data['faq'] ?? data['faqs'] ?? data['items'] ?? []) : []);
+    return list.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        leading: IconButton(
+          icon: const Icon(Icons.chevron_left, color: Colors.black, size: 28),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'FAQ',
+          style: TextStyle(color: Colors.black, fontSize: 16, fontFamily: 'Pretendard', fontWeight: FontWeight.w600),
+        ),
+        centerTitle: true,
+      ),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator(color: Color(0xFFE37474)));
+          }
+          final items = snapshot.data ?? [];
+          if (items.isEmpty) {
+            return const Center(
+              child: Text('FAQ가 없어요', style: TextStyle(color: Color(0xFF391713), fontSize: 15, fontFamily: 'Pretendard')),
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: items.length,
+            itemBuilder: (context, index) {
+              final item = items[index];
+              final question = (item['question'] ?? item['title'] ?? '질문 ${index + 1}').toString();
+              final answer = (item['answer'] ?? item['content'] ?? '').toString();
+              return ExpansionTile(
+                tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                iconColor: const Color(0xFFE37474),
+                collapsedIconColor: const Color(0xFF9CA3AF),
+                title: Text(
+                  question,
+                  style: const TextStyle(color: Color(0xFF391713), fontSize: 15, fontFamily: 'Pretendard', fontWeight: FontWeight.w600),
+                ),
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      answer,
+                      style: const TextStyle(color: Color(0xFF6B7280), fontSize: 14, fontFamily: 'Pretendard', height: 1.5),
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ExchangeHistoryScreen extends StatefulWidget {
+  const _ExchangeHistoryScreen();
+
+  @override
+  State<_ExchangeHistoryScreen> createState() => _ExchangeHistoryScreenState();
+}
+
+class _ExchangeHistoryScreenState extends State<_ExchangeHistoryScreen> {
+  late Future<List<Map<String, dynamic>>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _loadHistory();
+  }
+
+  Future<List<Map<String, dynamic>>> _loadHistory() async {
+    final response = await ApiService.getExchangeRoomHistory();
+    final data = response['data'] ?? response;
+    final list = data is List ? data : (data is Map ? (data['rooms'] ?? data['exchangeRooms'] ?? data['histories'] ?? data['history'] ?? []) : []);
+    return list.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        leading: IconButton(
+          icon: const Icon(Icons.chevron_left, color: Colors.black, size: 28),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          '교환일기 히스토리',
+          style: TextStyle(color: Colors.black, fontSize: 16, fontFamily: 'Pretendard', fontWeight: FontWeight.w600),
+        ),
+        centerTitle: true,
+      ),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator(color: Color(0xFFE37474)));
+          }
+          final items = snapshot.data ?? [];
+          if (items.isEmpty) {
+            return const Center(
+              child: Text('교환일기 히스토리가 없어요', style: TextStyle(color: Color(0xFF391713), fontSize: 15, fontFamily: 'Pretendard')),
+            );
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFE5E5E5)),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              final roomId = item['roomId'] is int ? item['roomId'] as int : int.tryParse(item['roomId']?.toString() ?? '') ?? 0;
+              final partner = (item['partnerNickname'] ?? item['nickname'] ?? '상대방').toString();
+              final status = (item['status'] ?? '').toString();
+              final turnCount = item['turnCount'] ?? item['currentTurn'] ?? 0;
+              return ListTile(
+                onTap: () {
+                  if (roomId == 0) return;
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ExchangeRoomDetailScreen(
+                        roomId: roomId,
+                        partnerNickname: partner,
+                      ),
+                    ),
+                  );
+                },
+                title: Text(
+                  partner,
+                  style: const TextStyle(color: Color(0xFF391713), fontSize: 15, fontFamily: 'Pretendard', fontWeight: FontWeight.w600),
+                ),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    '$status · ${turnCount}턴',
+                    style: const TextStyle(color: Color(0xFF6B7280), fontSize: 13, fontFamily: 'Pretendard'),
+                  ),
+                ),
+                trailing: const Icon(Icons.chevron_right, color: Color(0xFF9CA3AF)),
+              );
+            },
+          );
+        },
       ),
     );
   }
