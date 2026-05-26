@@ -768,7 +768,7 @@ class ApiService {
   static Future<bool> submitInquiry(
     String content, {
     String category = 'ACCOUNT',
-    String title = '앱 문의',
+    String title = '앱 내 문의사항',
   }) async {
     final headers = await _authHeaders();
     final response = await http.post(
