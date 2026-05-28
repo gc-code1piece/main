@@ -97,6 +97,8 @@ class _HomeBodyState extends State<_HomeBody> {
   int _tabIndex = 0; // 0: 최근, 1: 추천, 2: 내 일기
   List<Map<String, dynamic>> _diaries = [];
   bool _isLoading = true;
+  String _guidanceMessage = '';
+  bool _hasLoadError = false;
   bool _filterRegion = false;
   bool _filterAge = false;
   String? _mySido;
@@ -191,6 +193,11 @@ class _HomeBodyState extends State<_HomeBody> {
         print('explore 응답: ${diaries.isNotEmpty ? diaries.first : null}');
         setState(() {
           _diaries = List<Map<String, dynamic>>.from(diaries);
+          _guidanceMessage = _extractGuidanceMessage(
+            data,
+            fallback: '조건에 맞는 일기가 아직 없어요.',
+          );
+          _hasLoadError = false;
           _isLoading = false;
         });
       } else if (_tabIndex == 1) {
@@ -199,6 +206,11 @@ class _HomeBodyState extends State<_HomeBody> {
           _diaries = List<Map<String, dynamic>>.from(
             data['data']?['diaries'] ?? [],
           );
+          _guidanceMessage = _extractGuidanceMessage(
+            data,
+            fallback: '아직 추천할 상대가 없어요. 일기를 더 작성해보세요!',
+          );
+          _hasLoadError = false;
           _isLoading = false;
         });
       } else {
@@ -207,13 +219,75 @@ class _HomeBodyState extends State<_HomeBody> {
           _diaries = List<Map<String, dynamic>>.from(
             data['data']?['diaries'] ?? [],
           );
+          _guidanceMessage = _extractGuidanceMessage(
+            data,
+            fallback: '아직 작성한 일기가 없어요.',
+          );
+          _hasLoadError = false;
           _isLoading = false;
         });
       }
     } catch (e) {
       print('일기 로드 오류: $e');
-      setState(() => _isLoading = false);
+      if (!mounted) return;
+      setState(() {
+        _diaries = [];
+        _guidanceMessage = _friendlyLoadError(e);
+        _hasLoadError = true;
+        _isLoading = false;
+      });
     }
+  }
+
+  Future<void> _retryLoadDiaries() async {
+    setState(() {
+      _isLoading = true;
+      _hasLoadError = false;
+      _guidanceMessage = '';
+    });
+    await _loadDiaries();
+  }
+
+  String _friendlyLoadError(Object error) {
+    final message = error.toString();
+    if (message.contains('다시 로그인') ||
+        message.contains('401') ||
+        message.contains('A00')) {
+      return '로그인 시간이 만료됐어요. 다시 로그인한 뒤 이용해주세요.';
+    }
+    if (message.contains('429')) {
+      return '요청이 잠시 많아요. 조금 뒤에 다시 시도해주세요.';
+    }
+    if (message.contains('503') ||
+        message.contains('500') ||
+        message.contains('서버')) {
+      return '서버 응답이 불안정해요. 잠시 후 다시 시도해주세요.';
+    }
+    if (message.contains('TimeoutException') ||
+        message.contains('지연') ||
+        message.contains('timed out')) {
+      return '응답이 지연되고 있어요. 네트워크 상태를 확인하고 다시 시도해주세요.';
+    }
+    if (message.contains('SocketException') ||
+        message.contains('네트워크') ||
+        message.contains('Failed host lookup')) {
+      return '네트워크 연결을 확인한 뒤 다시 시도해주세요.';
+    }
+    return '일기를 불러오지 못했어요. 잠시 후 다시 시도해주세요.';
+  }
+
+  String _extractGuidanceMessage(
+    Map<String, dynamic> response, {
+    required String fallback,
+  }) {
+    final payload = response['data'];
+    final message = payload is Map
+        ? payload['guidanceMessage'] ??
+              payload['message'] ??
+              response['guidanceMessage']
+        : response['guidanceMessage'];
+    final text = message?.toString().trim();
+    return text == null || text.isEmpty ? fallback : text;
   }
 
   Future<Map<String, dynamic>> _loadRecommendedDiaries() async {
@@ -243,7 +317,7 @@ class _HomeBodyState extends State<_HomeBody> {
       }
       if (previews.isNotEmpty) {
         return {
-          'data': {'diaries': previews},
+          'data': {'diaries': previews, 'guidanceMessage': null},
         };
       }
     }
@@ -677,80 +751,124 @@ class _HomeBodyState extends State<_HomeBody> {
                             ),
                           )
                         : _diaries.isEmpty
-                        ? const Center(
-                            child: Text(
-                              '일기가 없어요',
-                              style: TextStyle(
-                                color: Color(0xFF391713),
-                                fontFamily: 'Pretendard',
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 32,
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    _guidanceMessage.isEmpty
+                                        ? '일기가 없어요'
+                                        : _guidanceMessage,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: Color(0xFF391713),
+                                      fontSize: 14,
+                                      height: 1.5,
+                                      fontFamily: 'Pretendard',
+                                    ),
+                                  ),
+                                  if (_hasLoadError) ...[
+                                    const SizedBox(height: 16),
+                                    OutlinedButton(
+                                      onPressed: _retryLoadDiaries,
+                                      style: OutlinedButton.styleFrom(
+                                        side: const BorderSide(
+                                          color: Color(0xFFE37474),
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        '다시 시도',
+                                        style: TextStyle(
+                                          color: Color(0xFFE37474),
+                                          fontFamily: 'Pretendard',
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
                           )
-                        : ListView.builder(
-                            padding: EdgeInsets.fromLTRB(
-                              24,
-                              8,
-                              24,
-                              _tabIndex == 2 ? 92 : 24,
-                            ),
-                            itemCount: _diaries.length,
-                            itemBuilder: (context, index) {
-                              final diary = _diaries[index];
-                              return _DiaryItem(
-                                title: () {
-                                  if (_tabIndex == 2) {
-                                    return decodeHtmlEntities(
-                                      diary['summary'] ??
-                                          diary['contentPreview'] ??
-                                          '내용 없음',
-                                    );
-                                  }
-                                  final content =
-                                      (diary['previewContent'] ??
-                                              diary['preview'] ??
-                                              diary['summary'])
-                                          ?.toString();
-                                  if (content != null) {
-                                    final decoded = decodeHtmlEntities(content);
-                                    return decoded.length > 30
-                                        ? '${decoded.substring(0, 30)}...'
-                                        : decoded;
-                                  }
-                                  return '내용 없음';
-                                }(),
-                                time: _tabIndex == 2
-                                    ? diary['createdAt']?.toString().substring(
-                                            0,
-                                            10,
-                                          ) ??
-                                          ''
-                                    : '${diary['ageGroupLabel'] ?? ''} · ${diary['sido'] ?? ''} ${diary['sigungu'] ?? ''}',
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => DiaryDetailScreen(
-                                        title: decodeHtmlEntities(
-                                          diary['previewContent'] ??
-                                              diary['summary'] ??
-                                              diary['contentPreview'] ??
+                        : RefreshIndicator(
+                            color: const Color(0xFFE37474),
+                            onRefresh: _retryLoadDiaries,
+                            child: ListView.builder(
+                              padding: EdgeInsets.fromLTRB(
+                                24,
+                                8,
+                                24,
+                                _tabIndex == 2 ? 92 : 24,
+                              ),
+                              itemCount: _diaries.length,
+                              itemBuilder: (context, index) {
+                                final diary = _diaries[index];
+                                return _DiaryItem(
+                                  title: () {
+                                    if (_tabIndex == 2) {
+                                      return decodeHtmlEntities(
+                                        diary['summary'] ??
+                                            diary['contentPreview'] ??
+                                            '내용 없음',
+                                      );
+                                    }
+                                    final content =
+                                        (diary['previewContent'] ??
+                                                diary['preview'] ??
+                                                diary['summary'])
+                                            ?.toString();
+                                    if (content != null) {
+                                      final decoded = decodeHtmlEntities(
+                                        content,
+                                      );
+                                      return decoded.length > 30
+                                          ? '${decoded.substring(0, 30)}...'
+                                          : decoded;
+                                    }
+                                    return '내용 없음';
+                                  }(),
+                                  time: _tabIndex == 2
+                                      ? diary['createdAt']
+                                                ?.toString()
+                                                .substring(0, 10) ??
+                                            ''
+                                      : '${diary['ageGroupLabel'] ?? ''} · ${diary['sido'] ?? ''} ${diary['sigungu'] ?? ''}',
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => DiaryDetailScreen(
+                                          title: decodeHtmlEntities(
+                                            diary['previewContent'] ??
+                                                diary['summary'] ??
+                                                diary['contentPreview'] ??
+                                                '',
+                                          ),
+                                          time:
+                                              diary['nickname'] ??
+                                              diary['createdAt'] ??
                                               '',
+                                          diaryId:
+                                              diary['diaryId'] ??
+                                              diary['id'] ??
+                                              0,
+                                          showDecisionButtons: _tabIndex != 2,
                                         ),
-                                        time:
-                                            diary['nickname'] ??
-                                            diary['createdAt'] ??
-                                            '',
-                                        diaryId:
-                                            diary['diaryId'] ??
-                                            diary['id'] ??
-                                            0,
-                                        showDecisionButtons: _tabIndex != 2,
                                       ),
-                                    ),
-                                  );
-                                },
-                              );
-                            },
+                                    );
+                                  },
+                                );
+                              },
+                            ),
                           ),
                   ),
                   if (_tabIndex == 2)
@@ -850,6 +968,68 @@ class _DiaryItem extends StatelessWidget {
   }
 }
 
+class _ListStatus extends StatelessWidget {
+  final bool isLoading;
+  final String message;
+  final bool canRetry;
+  final VoidCallback onRetry;
+
+  const _ListStatus({
+    required this.isLoading,
+    required this.message,
+    required this.canRetry,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 80),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isLoading)
+              const CircularProgressIndicator(color: Color(0xFFE37474))
+            else ...[
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF391713),
+                  fontSize: 14,
+                  height: 1.5,
+                  fontFamily: 'Pretendard',
+                ),
+              ),
+              if (canRetry) ...[
+                const SizedBox(height: 16),
+                OutlinedButton(
+                  onPressed: onRetry,
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFE37474)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    '다시 시도',
+                    style: TextStyle(
+                      color: Color(0xFFE37474),
+                      fontFamily: 'Pretendard',
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ────────────────────────────────────────────
 // Friends Body
 // ────────────────────────────────────────────
@@ -868,12 +1048,18 @@ class _FriendsBodyState extends State<_FriendsBody> {
 
   List<Map<String, dynamic>> _friends = [];
   bool _isLoadingFriends = true;
+  String _friendsMessage = '진행 중인 교환일기가 없어요.';
+  bool _friendsLoadFailed = false;
 
   List<Map<String, dynamic>> _messages = [];
   bool _isLoadingMessages = true;
+  String _messagesMessage = '열려 있는 채팅방이 없어요.';
+  bool _messagesLoadFailed = false;
 
   List<Map<String, dynamic>> _requests = [];
   bool _isLoadingRequests = true;
+  String _requestsMessage = '받은 교환일기 신청이 없어요.';
+  bool _requestsLoadFailed = false;
 
   @override
   void initState() {
@@ -889,10 +1075,18 @@ class _FriendsBodyState extends State<_FriendsBody> {
         _friends = List<Map<String, dynamic>>.from(
           data['data']?['rooms'] ?? [],
         );
+        _friendsMessage = '진행 중인 교환일기가 없어요.';
+        _friendsLoadFailed = false;
         _isLoadingFriends = false;
       });
     } catch (e) {
-      setState(() => _isLoadingFriends = false);
+      if (!mounted) return;
+      setState(() {
+        _friends = [];
+        _friendsMessage = _friendlyLoadError(e);
+        _friendsLoadFailed = true;
+        _isLoadingFriends = false;
+      });
     }
 
     try {
@@ -901,10 +1095,18 @@ class _FriendsBodyState extends State<_FriendsBody> {
         _messages = List<Map<String, dynamic>>.from(
           data['data']?['chatRooms'] ?? [],
         );
+        _messagesMessage = '열려 있는 채팅방이 없어요.';
+        _messagesLoadFailed = false;
         _isLoadingMessages = false;
       });
     } catch (e) {
-      setState(() => _isLoadingMessages = false);
+      if (!mounted) return;
+      setState(() {
+        _messages = [];
+        _messagesMessage = _friendlyLoadError(e);
+        _messagesLoadFailed = true;
+        _isLoadingMessages = false;
+      });
     }
 
     try {
@@ -917,11 +1119,59 @@ class _FriendsBodyState extends State<_FriendsBody> {
           : [];
       setState(() {
         _requests = List<Map<String, dynamic>>.from(rawRequests);
+        _requestsMessage = '받은 교환일기 신청이 없어요.';
+        _requestsLoadFailed = false;
         _isLoadingRequests = false;
       });
     } catch (e) {
-      setState(() => _isLoadingRequests = false);
+      if (!mounted) return;
+      setState(() {
+        _requests = [];
+        _requestsMessage = _friendlyLoadError(e);
+        _requestsLoadFailed = true;
+        _isLoadingRequests = false;
+      });
     }
+  }
+
+  Future<void> _retryExchangeRooms() async {
+    setState(() {
+      _isLoadingFriends = true;
+      _isLoadingMessages = true;
+      _isLoadingRequests = true;
+      _friendsLoadFailed = false;
+      _messagesLoadFailed = false;
+      _requestsLoadFailed = false;
+    });
+    await _loadExchangeRooms();
+  }
+
+  String _friendlyLoadError(Object error) {
+    final message = error.toString();
+    if (message.contains('다시 로그인') ||
+        message.contains('401') ||
+        message.contains('A00')) {
+      return '로그인 시간이 만료됐어요. 다시 로그인해주세요.';
+    }
+    if (message.contains('429')) {
+      return '요청이 잠시 많아요. 조금 뒤에 다시 시도해주세요.';
+    }
+    if (message.contains('503') ||
+        message.contains('500') ||
+        message.contains('서버')) {
+      return '서버 응답이 불안정해요. 잠시 후 다시 시도해주세요.';
+    }
+    if (message.contains('TimeoutException') ||
+        message.contains('지연') ||
+        message.contains('timed out')) {
+      return '응답이 지연되고 있어요. 네트워크 상태를 확인하고 다시 시도해주세요.';
+    }
+    if (message.contains('SocketException') ||
+        message.contains('네트워크') ||
+        message.contains('Failed host lookup')) {
+      return '네트워크 연결을 확인한 뒤 다시 시도해주세요.';
+    }
+    return '목록을 불러오지 못했어요. 잠시 후 다시 시도해주세요.';
   }
 
   Future<void> _endExchangeRoom(Map<String, dynamic> room) async {
@@ -1037,14 +1287,22 @@ class _FriendsBodyState extends State<_FriendsBody> {
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 20,
                               ),
-                              itemCount: _isLoadingFriends
-                                  ? 0
+                              itemCount: _isLoadingFriends || _friends.isEmpty
+                                  ? 1
                                   : _friends.length,
                               separatorBuilder: (_, __) => const Divider(
                                 color: Color(0xFFE37474),
                                 thickness: 1,
                               ),
                               itemBuilder: (context, index) {
+                                if (_isLoadingFriends || _friends.isEmpty) {
+                                  return _ListStatus(
+                                    isLoading: _isLoadingFriends,
+                                    message: _friendsMessage,
+                                    canRetry: _friendsLoadFailed,
+                                    onRetry: _retryExchangeRooms,
+                                  );
+                                }
                                 final f = _friends[index];
                                 final roomId = f['roomId'] is int
                                     ? f['roomId'] as int
@@ -1143,13 +1401,23 @@ class _FriendsBodyState extends State<_FriendsBody> {
                                 horizontal: 20,
                               ),
                               itemCount: _isLoadingMessages
-                                  ? 0
+                                  ? 1
+                                  : _messages.isEmpty
+                                  ? 1
                                   : _messages.length,
                               separatorBuilder: (_, __) => const Divider(
                                 color: Color(0xFFE37474),
                                 thickness: 1,
                               ),
                               itemBuilder: (context, index) {
+                                if (_isLoadingMessages || _messages.isEmpty) {
+                                  return _ListStatus(
+                                    isLoading: _isLoadingMessages,
+                                    message: _messagesMessage,
+                                    canRetry: _messagesLoadFailed,
+                                    onRetry: _retryExchangeRooms,
+                                  );
+                                }
                                 final msg = _messages[index];
                                 return _MessageItem(
                                   name: msg['partnerNickname'] ?? '알 수 없음',
@@ -1176,13 +1444,23 @@ class _FriendsBodyState extends State<_FriendsBody> {
                                 horizontal: 20,
                               ),
                               itemCount: _isLoadingRequests
-                                  ? 0
+                                  ? 1
+                                  : _requests.isEmpty
+                                  ? 1
                                   : _requests.length,
                               separatorBuilder: (_, __) => const Divider(
                                 color: Color(0xFFE37474),
                                 thickness: 1,
                               ),
                               itemBuilder: (context, index) {
+                                if (_isLoadingRequests || _requests.isEmpty) {
+                                  return _ListStatus(
+                                    isLoading: _isLoadingRequests,
+                                    message: _requestsMessage,
+                                    canRetry: _requestsLoadFailed,
+                                    onRetry: _retryExchangeRooms,
+                                  );
+                                }
                                 final request = _requests[index];
                                 final preview =
                                     request['diaryPreview'] ??

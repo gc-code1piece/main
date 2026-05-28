@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'splash_screen.dart';
 import 'social_login.dart';
 import 'main_screen.dart';
+import 'tutorial_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'api_service.dart';
@@ -74,6 +75,7 @@ class MyApp extends StatelessWidget {
       home: const SplashScreen(),
       routes: {
         '/socialLogin': (context) => const SocialLogin(),
+        '/tutorial': (context) => const TutorialScreen(),
         '/home': (context) {
           final args = ModalRoute.of(context)?.settings.arguments;
           if (args is Map) {

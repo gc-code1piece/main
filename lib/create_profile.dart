@@ -23,9 +23,17 @@ class _CreateProfileState extends State<CreateProfile> {
   String _selectedGender = 'MALE';
   DateTime? _selectedBirthDate;
 
+  List<String> get _locationParts => _locationController.text
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((part) => part.isNotEmpty)
+      .toList();
+
+  bool get _hasCompleteLocation => _locationParts.length >= 2;
+
   bool get _isFirstPageComplete =>
       _realNameController.text.trim().isNotEmpty &&
-      _locationController.text.trim().isNotEmpty &&
+      _hasCompleteLocation &&
       _occupationController.text.trim().isNotEmpty &&
       _selectedBirthDate != null;
 
@@ -89,7 +97,8 @@ class _CreateProfileState extends State<CreateProfile> {
 
   @override
   Widget build(BuildContext context) {
-    final cardHeight = MediaQuery.of(context).size.height * 0.50;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final cardHeight = (screenHeight * 0.34).clamp(250.0, 320.0).toDouble();
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -164,6 +173,19 @@ class _CreateProfileState extends State<CreateProfile> {
                               ),
                               const SizedBox(height: 10),
                               CitySearchField(controller: _locationController),
+                              const SizedBox(height: 6),
+                              Text(
+                                '시/도와 시/군/구까지 선택해주세요. 예: 서울특별시 강남구',
+                                style: TextStyle(
+                                  color:
+                                      _locationController.text.trim().isEmpty ||
+                                          _hasCompleteLocation
+                                      ? const Color(0xFF8F8888)
+                                      : const Color(0xFFE37474),
+                                  fontSize: 12,
+                                  fontFamily: 'Pretendard',
+                                ),
+                              ),
                               const SizedBox(height: 20),
                               const Text(
                                 'What do you do?',
@@ -331,8 +353,8 @@ class _CreateProfileState extends State<CreateProfile> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Container(
-                              width: 92,
-                              height: 92,
+                              width: 56,
+                              height: 56,
                               decoration: const BoxDecoration(
                                 color: Color(0xFFFFEFE7),
                                 shape: BoxShape.circle,
@@ -340,25 +362,25 @@ class _CreateProfileState extends State<CreateProfile> {
                               child: const Icon(
                                 Icons.person_outline,
                                 color: Color(0xFFE37474),
-                                size: 46,
+                                size: 30,
                               ),
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 10),
                             const Text(
                               '자신의 프로필 작성하기',
                               style: TextStyle(
                                 color: Color(0xFFE37474),
-                                fontSize: 22,
+                                fontSize: 18,
                                 fontFamily: 'Pretendard',
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 4),
                             const Text(
                               '자신을 소개하여 주세요!',
                               style: TextStyle(
                                 color: Color(0xFF391713),
-                                fontSize: 13,
+                                fontSize: 12,
                                 fontFamily: 'Pretendard',
                                 fontWeight: FontWeight.w500,
                               ),
@@ -381,21 +403,14 @@ class _CreateProfileState extends State<CreateProfile> {
                                   await ApiService.generateNickname();
                               final nickname =
                                   nicknameData['data']?['nickname'] ?? 'user';
-                              final location = _locationController.text.trim();
-                              final locationParts = location.split(' ');
-                              String sido = '';
-                              String sigungu = '';
-
-                              if (locationParts.length == 1) {
-                                // "서울특별시"처럼 시/도만 선택한 경우 구/군은 비워둔다.
-                                sido = locationParts[0];
-                                sigungu = '';
-                              } else if (locationParts.length >= 2) {
-                                // "경상남도 김해시" → sido: 경상남도, sigungu: 김해시
-                                // "제주특별자치도 제주시" → sido: 제주특별자치도, sigungu: 제주시
-                                sido = locationParts[0];
-                                sigungu = locationParts.sublist(1).join(' ');
+                              final locationParts = _locationParts;
+                              if (locationParts.length < 2) {
+                                throw Exception('사는 지역은 시/도와 시/군/구까지 선택해주세요.');
                               }
+                              final sido = locationParts.first;
+                              final sigungu = locationParts
+                                  .sublist(1)
+                                  .join(' ');
                               final birthDate =
                                   '${_selectedBirthDate!.year}-${_selectedBirthDate!.month.toString().padLeft(2, '0')}-${_selectedBirthDate!.day.toString().padLeft(2, '0')}';
 
@@ -409,12 +424,18 @@ class _CreateProfileState extends State<CreateProfile> {
                               );
                               final code = profileRes['code']?.toString() ?? '';
                               if (code != '200' && code != '201') {
-                                throw Exception(profileRes['message'] ?? '프로필 등록에 실패했어요.');
+                                throw Exception(
+                                  profileRes['message'] ?? '프로필 등록에 실패했어요.',
+                                );
                               }
-                              await ApiService.updateProfile(
-                                realName: _realNameController.text.trim(),
-                                school: _occupationController.text.trim(),
-                              );
+                              final schoolSaved =
+                                  await ApiService.updateProfile(
+                                    realName: _realNameController.text.trim(),
+                                    school: _occupationController.text.trim(),
+                                  );
+                              if (!schoolSaved) {
+                                throw Exception('직업 정보 저장에 실패했어요.');
+                              }
                               _nextPage();
                             } catch (e) {
                               if (context.mounted) {
@@ -575,7 +596,9 @@ class _CreateProfileState extends State<CreateProfile> {
                               onTap: () => Navigator.pushAndRemoveUntil(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const DiaryScreen(),
+                                  builder: (_) => const DiaryScreen(
+                                    requiredForSignup: true,
+                                  ),
                                 ),
                                 (route) => false,
                               ),

@@ -2,11 +2,17 @@ import 'package:flutter/material.dart';
 import 'api_service.dart';
 import 'ai_report_screen.dart';
 import 'text_utils.dart';
+import 'tutorial_screen.dart';
 
 class DiaryAnalysisScreen extends StatefulWidget {
   final int? diaryId;
+  final bool requiredForSignup;
 
-  const DiaryAnalysisScreen({super.key, this.diaryId});
+  const DiaryAnalysisScreen({
+    super.key,
+    this.diaryId,
+    this.requiredForSignup = false,
+  });
 
   @override
   State<DiaryAnalysisScreen> createState() => _DiaryAnalysisScreenState();
@@ -60,6 +66,19 @@ class _DiaryAnalysisScreenState extends State<DiaryAnalysisScreen> {
         .map((e) => e.toString())
         .where((e) => e.isNotEmpty)
         .toList();
+  }
+
+  void _goNext() {
+    if (widget.requiredForSignup) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const TutorialScreen(requiredForSignup: true),
+        ),
+      );
+      return;
+    }
+    Navigator.pushReplacementNamed(context, '/home');
   }
 
   @override
@@ -147,9 +166,7 @@ class _DiaryAnalysisScreenState extends State<DiaryAnalysisScreen> {
                       children: [
                         Expanded(
                           child: OutlinedButton(
-                            onPressed: () {
-                              Navigator.pushReplacementNamed(context, '/home');
-                            },
+                            onPressed: _goNext,
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               side: const BorderSide(color: Color(0xFFE37474)),
@@ -157,8 +174,8 @@ class _DiaryAnalysisScreenState extends State<DiaryAnalysisScreen> {
                                 borderRadius: BorderRadius.circular(10),
                               ),
                             ),
-                            child: const Text(
-                              '홈으로',
+                            child: Text(
+                              widget.requiredForSignup ? '튜토리얼' : '홈으로',
                               style: TextStyle(color: Color(0xFFE37474)),
                             ),
                           ),
@@ -167,6 +184,10 @@ class _DiaryAnalysisScreenState extends State<DiaryAnalysisScreen> {
                         Expanded(
                           child: ElevatedButton(
                             onPressed: () {
+                              if (widget.requiredForSignup) {
+                                _goNext();
+                                return;
+                              }
                               Navigator.pushReplacement(
                                 context,
                                 MaterialPageRoute(
@@ -182,9 +203,9 @@ class _DiaryAnalysisScreenState extends State<DiaryAnalysisScreen> {
                               ),
                               elevation: 0,
                             ),
-                            child: const Text(
-                              'AI 리포트',
-                              style: TextStyle(color: Colors.white),
+                            child: Text(
+                              widget.requiredForSignup ? '시작하기' : 'AI 리포트',
+                              style: const TextStyle(color: Colors.white),
                             ),
                           ),
                         ),

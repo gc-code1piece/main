@@ -3,8 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 
 import 'api_service.dart';
+import 'create_profile.dart';
+import 'diary_screen.dart';
 import 'main.dart' show registerFcmTokenToServer;
 import 'signup.dart';
+import 'tutorial_screen.dart';
 
 class SocialLogin extends StatefulWidget {
   const SocialLogin({super.key});
@@ -43,6 +46,69 @@ class _SocialLoginState extends State<SocialLogin> {
     return result ?? false;
   }
 
+  bool _hasCompletedProfile(Map<String, dynamic> profile) {
+    bool filled(String key) =>
+        profile[key]?.toString().trim().isNotEmpty == true;
+    return filled('realName') &&
+        filled('gender') &&
+        filled('birthDate') &&
+        filled('sido') &&
+        filled('sigungu');
+  }
+
+  bool _hasAnyDiary(Map<String, dynamic> response) {
+    final payload = response['data'];
+    final data = payload is Map ? Map<String, dynamic>.from(payload) : response;
+    final diaries = data['diaries'];
+    return diaries is List && diaries.isNotEmpty;
+  }
+
+  bool _hasCompletedTutorial(Map<String, dynamic> profile) {
+    if (!profile.containsKey('tutorialCompleted') &&
+        !profile.containsKey('tutorialCompletedAt')) {
+      return true;
+    }
+    if (profile['tutorialCompleted'] == true) return true;
+    final completedAt = profile['tutorialCompletedAt']?.toString().trim();
+    return completedAt != null && completedAt.isNotEmpty;
+  }
+
+  Future<void> _routeBySignupProgress() async {
+    final profile = await ApiService.getMyProfile();
+    if (!mounted) return;
+    if (!_hasCompletedProfile(profile)) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const CreateProfile(realName: '')),
+      );
+      return;
+    }
+
+    final diaries = await ApiService.getMyDiaries();
+    if (!mounted) return;
+    if (!_hasAnyDiary(diaries)) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const DiaryScreen(requiredForSignup: true),
+        ),
+      );
+      return;
+    }
+
+    if (!_hasCompletedTutorial(profile)) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const TutorialScreen(requiredForSignup: true),
+        ),
+      );
+      return;
+    }
+
+    Navigator.pushReplacementNamed(context, '/home');
+  }
+
   Future<OAuthToken> _loginWithKakao() async {
     if (!await isKakaoTalkInstalled()) {
       return UserApi.instance.loginWithKakaoAccount();
@@ -71,13 +137,10 @@ class _SocialLoginState extends State<SocialLogin> {
 
       if (!mounted) return;
       final data = result['data'] is Map ? result['data'] as Map : {};
-      final role = data['role'] ?? result['role'];
       final accountStatus = data['accountStatus'] ?? result['accountStatus'];
       final restoreToken = data['restoreToken'] ?? result['restoreToken'];
       final onboardingCompleted =
-          data['onboardingCompleted'] ??
-          result['onboardingCompleted'] ??
-          false;
+          data['onboardingCompleted'] ?? result['onboardingCompleted'] ?? false;
 
       if (restoreToken != null) {
         await ApiService.clearTokens();
@@ -97,7 +160,7 @@ class _SocialLoginState extends State<SocialLogin> {
             MaterialPageRoute(builder: (_) => const SignUp(realName: '')),
           );
         } else {
-          Navigator.pushReplacementNamed(context, '/home');
+          await _routeBySignupProgress();
         }
         return;
       }
@@ -125,7 +188,7 @@ class _SocialLoginState extends State<SocialLogin> {
           MaterialPageRoute(builder: (_) => const SignUp(realName: '')),
         );
       } else {
-        Navigator.pushReplacementNamed(context, '/home');
+        await _routeBySignupProgress();
       }
     } catch (e, s) {
       debugPrint('카카오 로그인 오류: $e');
