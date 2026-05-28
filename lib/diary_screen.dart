@@ -1,12 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'diary_analysis_screen.dart';
 import 'api_service.dart';
 
 class DiaryScreen extends StatefulWidget {
-  const DiaryScreen({super.key});
+  final bool requiredForSignup;
+
+  const DiaryScreen({super.key, this.requiredForSignup = false});
 
   @override
   State<DiaryScreen> createState() => _DiaryScreenState();
@@ -14,7 +15,7 @@ class DiaryScreen extends StatefulWidget {
 
 class _DiaryScreenState extends State<DiaryScreen> with WidgetsBindingObserver {
   static const int _wednesday = DateTime.wednesday;
-  DateTime _selectedDate = DateTime.now();
+  final DateTime _selectedDate = DateTime.now();
   final _titleController = TextEditingController();
   final _bodyController = TextEditingController();
   int _bodyLength = 0;
@@ -34,7 +35,7 @@ class _DiaryScreenState extends State<DiaryScreen> with WidgetsBindingObserver {
   bool get _canUseWeeklyTopic {
     final topic = _weeklyTopic;
     if (topic == null) return false;
-    return _selectedDate.weekday == _wednesday &&
+    return DateTime.now().weekday == _wednesday &&
         topic['isActive'] == true &&
         topic['topicId'] != null &&
         topic['title'] != null;
@@ -44,57 +45,6 @@ class _DiaryScreenState extends State<DiaryScreen> with WidgetsBindingObserver {
     if (!_useWeeklyTopic || !_canUseWeeklyTopic) return null;
     final id = _weeklyTopic?['topicId'];
     return id is int ? id : int.tryParse(id?.toString() ?? '');
-  }
-
-  bool _isSameDay(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
-  }
-
-  void _changeDate(int days) {
-    setState(() {
-      _selectedDate = _selectedDate.add(Duration(days: days));
-      if (!_canUseWeeklyTopic) _useWeeklyTopic = false;
-    });
-  }
-
-  Future<void> _pickDate() async {
-    if (Theme.of(context).platform == TargetPlatform.iOS) {
-      showCupertinoModalPopup(
-        context: context,
-        builder: (_) => Container(
-          height: 280,
-          color: Colors.white,
-          child: CupertinoDatePicker(
-            mode: CupertinoDatePickerMode.date,
-            initialDateTime: _selectedDate,
-            onDateTimeChanged: (date) {
-              setState(() => _selectedDate = date);
-            },
-          ),
-        ),
-      );
-    } else {
-      final picked = await showDatePicker(
-        context: context,
-        initialDate: _selectedDate,
-        firstDate: DateTime(2000),
-        lastDate: DateTime(2100),
-        builder: (context, child) {
-          return Theme(
-            data: Theme.of(context).copyWith(
-              colorScheme: const ColorScheme.light(primary: Color(0xFFE37474)),
-            ),
-            child: child!,
-          );
-        },
-      );
-      if (picked != null) {
-        setState(() {
-          _selectedDate = picked;
-          if (!_canUseWeeklyTopic) _useWeeklyTopic = false;
-        });
-      }
-    }
   }
 
   @override
@@ -253,10 +203,6 @@ class _DiaryScreenState extends State<DiaryScreen> with WidgetsBindingObserver {
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
-  String _headerDateLabel(DateTime date) {
-    return _isSameDay(date, DateTime.now()) ? 'Today' : _formatDate(date);
-  }
-
   @override
   void dispose() {
     unawaited(_saveDraftIfNeeded());
@@ -305,42 +251,27 @@ class _DiaryScreenState extends State<DiaryScreen> with WidgetsBindingObserver {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      IconButton(
-                        onPressed: () => _changeDate(-1),
-                        icon: const Icon(
-                          Icons.chevron_left,
-                          color: Colors.black54,
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: _pickDate,
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.calendar_today,
-                              size: 18,
-                              color: Colors.black87,
+                      const SizedBox(width: 48, height: 48),
+                      Row(
+                        children: const [
+                          Icon(
+                            Icons.calendar_today,
+                            size: 18,
+                            color: Colors.black87,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Today',
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 18,
+                              fontFamily: 'Pretendard',
+                              fontWeight: FontWeight.w400,
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              _headerDateLabel(_selectedDate),
-                              style: const TextStyle(
-                                color: Colors.black,
-                                fontSize: 18,
-                                fontFamily: 'Pretendard',
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                      IconButton(
-                        onPressed: () => _changeDate(1),
-                        icon: const Icon(
-                          Icons.chevron_right,
-                          color: Colors.black54,
-                        ),
-                      ),
+                      const SizedBox(width: 48, height: 48),
                     ],
                   ),
                 ),
@@ -366,35 +297,32 @@ class _DiaryScreenState extends State<DiaryScreen> with WidgetsBindingObserver {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          GestureDetector(
-                            onTap: _pickDate,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFE37474),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.access_time,
-                                    size: 12,
-                                    color: Colors.white,
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE37474),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.access_time,
+                                  size: 12,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _formatDate(_selectedDate),
+                                  style: const TextStyle(
+                                    color: Color(0xFFFFFDFD),
+                                    fontSize: 13,
+                                    fontFamily: 'Pretendard',
                                   ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    _formatDate(_selectedDate),
-                                    style: const TextStyle(
-                                      color: Color(0xFFFFFDFD),
-                                      fontSize: 13,
-                                      fontFamily: 'Pretendard',
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ),
                           const Icon(
@@ -644,14 +572,21 @@ class _DiaryScreenState extends State<DiaryScreen> with WidgetsBindingObserver {
                                         );
                                       }
                                       if (context.mounted) {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) => DiaryAnalysisScreen(
-                                              diaryId: parsedDiaryId,
-                                            ),
+                                        final route = MaterialPageRoute(
+                                          builder: (_) => DiaryAnalysisScreen(
+                                            diaryId: parsedDiaryId,
+                                            requiredForSignup:
+                                                widget.requiredForSignup,
                                           ),
                                         );
+                                        if (widget.requiredForSignup) {
+                                          Navigator.pushReplacement(
+                                            context,
+                                            route,
+                                          );
+                                        } else {
+                                          Navigator.push(context, route);
+                                        }
                                       }
                                     } catch (e) {
                                       if (context.mounted) {

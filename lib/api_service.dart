@@ -182,7 +182,11 @@ class ApiService {
   // 공통 헤더
   // ────────────────────────────────────────────
   static Future<Map<String, String>> _authHeaders() async {
-    final token = await getAccessToken();
+    var token = await getAccessToken();
+    if (token == null || token.isEmpty) {
+      final refreshed = await refreshAccessToken();
+      if (refreshed) token = await getAccessToken();
+    }
     return {
       'Content-Type': 'application/json',
       if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
@@ -226,6 +230,97 @@ class ApiService {
       return true;
     }
     return false;
+  }
+
+  static bool _isAccessTokenExpired(
+    http.Response response,
+    Map<String, dynamic> decoded,
+  ) {
+    return response.statusCode == 401 && decoded['code']?.toString() == 'A002';
+  }
+
+  static Future<http.Response> _sendWithAuthRetry(
+    Future<http.Response> Function(Map<String, String> headers) request, {
+    bool requireAuth = false,
+  }) async {
+    Future<Map<String, String>> headers() =>
+        requireAuth ? _requiredAuthHeaders() : _authHeaders();
+
+    var response = await request(await headers()).timeout(requestTimeout);
+    var decoded = _decodeMap(response);
+
+    if (_isAccessTokenExpired(response, decoded)) {
+      final refreshed = await refreshAccessToken();
+      if (refreshed) {
+        response = await request(
+          await _requiredAuthHeaders(),
+        ).timeout(requestTimeout);
+        decoded = _decodeMap(response);
+      } else {
+        await clearTokens();
+      }
+    }
+
+    final code = decoded['code']?.toString();
+    if (response.statusCode == 401 &&
+        (code == 'A003' || code == 'A006' || code == 'A007')) {
+      await clearTokens();
+    }
+
+    return response;
+  }
+
+  static Future<http.Response> _getWithAuth(
+    Uri uri, {
+    bool requireAuth = false,
+  }) {
+    return _sendWithAuthRetry(
+      (headers) => http.get(uri, headers: headers),
+      requireAuth: requireAuth,
+    );
+  }
+
+  static Future<http.Response> _postWithAuth(
+    Uri uri, {
+    Object? body,
+    bool requireAuth = false,
+  }) {
+    return _sendWithAuthRetry(
+      (headers) => http.post(uri, headers: headers, body: body),
+      requireAuth: requireAuth,
+    );
+  }
+
+  static Future<http.Response> _patchWithAuth(
+    Uri uri, {
+    Object? body,
+    bool requireAuth = false,
+  }) {
+    return _sendWithAuthRetry(
+      (headers) => http.patch(uri, headers: headers, body: body),
+      requireAuth: requireAuth,
+    );
+  }
+
+  static Future<http.Response> _putWithAuth(
+    Uri uri, {
+    Object? body,
+    bool requireAuth = false,
+  }) {
+    return _sendWithAuthRetry(
+      (headers) => http.put(uri, headers: headers, body: body),
+      requireAuth: requireAuth,
+    );
+  }
+
+  static Future<http.Response> _deleteWithAuth(
+    Uri uri, {
+    bool requireAuth = false,
+  }) {
+    return _sendWithAuthRetry(
+      (headers) => http.delete(uri, headers: headers),
+      requireAuth: requireAuth,
+    );
   }
 
   // ────────────────────────────────────────────
@@ -374,11 +469,10 @@ class ApiService {
   // ────────────────────────────────────────────
 
   static Future<bool> postConsent(String consentType) async {
-    final headers = await _requiredAuthHeaders();
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/consent'),
-      headers: headers,
       body: jsonEncode({'consentType': consentType}),
+      requireAuth: true,
     );
     if (response.statusCode == 200 || response.statusCode == 201) return true;
     final data = _decodeMap(response);
@@ -397,11 +491,8 @@ class ApiService {
     required String sido,
     required String sigungu,
   }) async {
-    final headers = await _requiredAuthHeaders();
-
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/users/profile'),
-      headers: headers,
       body: jsonEncode({
         'nickname': nickname,
         'realName': realName,
@@ -410,6 +501,7 @@ class ApiService {
         'sido': sido,
         'sigungu': sigungu,
       }),
+      requireAuth: true,
     );
 
     print('프로필 status: ${response.statusCode}');
@@ -430,10 +522,8 @@ class ApiService {
   // ────────────────────────────────────────────
 
   static Future<List<Map<String, dynamic>>> getIdealTypeKeywordOptions() async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/users/ideal-type/keyword-list'),
-      headers: headers,
     );
 
     if (response.statusCode == 200) {
@@ -465,11 +555,8 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> generateNickname() async {
-    final headers = await _authHeaders();
-
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/users/nickname/generate'),
-      headers: headers,
     );
 
     print('닉네임 status: ${response.statusCode}');
@@ -490,11 +577,10 @@ class ApiService {
   // ────────────────────────────────────────────
 
   static Future<bool> postIdealTypeKeywords(List<int> keywords) async {
-    final headers = await _requiredAuthHeaders();
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/users/ideal-type/keywords'),
-      headers: headers,
       body: jsonEncode({'keywordIds': keywords}),
+      requireAuth: true,
     );
     if (response.statusCode == 200 || response.statusCode == 201) return true;
     throw Exception(
@@ -519,29 +605,14 @@ class ApiService {
       if (topicId != null) 'topicId': topicId,
     };
 
-    Future<http.Response> send() async {
-      final headers = await _requiredAuthHeaders();
-      return http.post(
-        Uri.parse('$baseUrl/api/diaries'),
-        headers: headers,
-        body: jsonEncode(body),
-      );
-    }
-
-    var response = await send();
-    var decoded = response.body.isEmpty
+    final response = await _postWithAuth(
+      Uri.parse('$baseUrl/api/diaries'),
+      body: jsonEncode(body),
+      requireAuth: true,
+    );
+    final decoded = response.body.isEmpty
         ? <String, dynamic>{}
         : _decodeMap(response);
-
-    if (response.statusCode == 401 && decoded['code'] == 'A002') {
-      final refreshed = await refreshAccessToken();
-      if (refreshed) {
-        response = await send();
-        decoded = response.body.isEmpty
-            ? <String, dynamic>{}
-            : _decodeMap(response);
-      }
-    }
 
     print('일기 status: ${response.statusCode}');
     print('일기 body: ${response.body}');
@@ -567,11 +638,10 @@ class ApiService {
     required int diaryId,
     required String content,
   }) async {
-    final headers = await _requiredAuthHeaders();
-    final response = await http.patch(
+    final response = await _patchWithAuth(
       Uri.parse('$baseUrl/api/diaries/$diaryId'),
-      headers: headers,
       body: jsonEncode({'content': content}),
+      requireAuth: true,
     );
     final data = _decodeMap(response);
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -581,20 +651,14 @@ class ApiService {
   }
 
   static Future<bool> selectMatching(int diaryId) async {
-    final headers = await _authHeaders();
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/matching/$diaryId/select'),
-      headers: headers,
     );
     return response.statusCode == 200 || response.statusCode == 201;
   }
 
   static Future<Map<String, dynamic>> getMyProfile() async {
-    final headers = await _authHeaders();
-    final response = await http.get(
-      Uri.parse('$baseUrl/api/users/me'),
-      headers: headers,
-    );
+    final response = await _getWithAuth(Uri.parse('$baseUrl/api/users/me'));
     final data = _payload(_decodeMap(response));
     final localImagePath = await getLocalProfileImagePath();
     if (localImagePath != null && localImagePath.isNotEmpty) {
@@ -604,10 +668,8 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> getMyIdealType() async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/users/me/ideal-type'),
-      headers: headers,
     );
     return _payload(_decodeMap(response));
   }
@@ -619,7 +681,6 @@ class ApiService {
     String? sigungu,
     String? school,
   }) async {
-    final headers = await _authHeaders();
     final normalizedSido = _normalizeSido(sido);
     final normalizedSigungu = _normalizeSigungu(sigungu, normalizedSido);
     final body = <String, dynamic>{};
@@ -629,19 +690,16 @@ class ApiService {
     if (sigungu != null) body['sigungu'] = normalizedSigungu ?? '';
     if (school != null) body['school'] = school;
 
-    final response = await http.patch(
+    final response = await _patchWithAuth(
       Uri.parse('$baseUrl/api/users/me/profile'),
-      headers: headers,
       body: jsonEncode(body),
     );
     return response.statusCode == 200 || response.statusCode == 201;
   }
 
   static Future<Map<String, dynamic>> getRecommendations() async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/matching/recommendations'),
-      headers: headers,
     );
     print('추천 status: ${response.statusCode}');
     print('추천 body: ${response.body}');
@@ -651,49 +709,37 @@ class ApiService {
   static Future<Map<String, dynamic>> getRecommendationPreview(
     int diaryId,
   ) async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/matching/recommendations/$diaryId/preview'),
-      headers: headers,
     );
     return _decodeMap(response);
   }
 
   static Future<Map<String, dynamic>> getMyDiaries() async {
-    final headers = await _authHeaders();
-    final response = await http.get(
-      Uri.parse('$baseUrl/api/diaries'),
-      headers: headers,
-    );
+    final response = await _getWithAuth(Uri.parse('$baseUrl/api/diaries'));
     print('내 일기 status: ${response.statusCode}');
     print('내 일기 body: ${response.body}');
     return _decodeMap(response);
   }
 
   static Future<bool> updateIdealType(List<int> keywords) async {
-    final headers = await _authHeaders();
-    final response = await http.put(
+    final response = await _putWithAuth(
       Uri.parse('$baseUrl/api/users/me/ideal-type'),
-      headers: headers,
       body: jsonEncode({'keywordIds': keywords}),
     );
     return response.statusCode == 200 || response.statusCode == 201;
   }
 
   static Future<Map<String, dynamic>> getExchangeRooms() async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/exchange-rooms'),
-      headers: headers,
     );
     return _decodeMap(response);
   }
 
   static Future<Map<String, dynamic>> getChatMessages(int roomId) async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/chat-rooms/$roomId/messages'),
-      headers: headers,
     );
     return _payload(_decodeMap(response));
   }
@@ -702,29 +748,23 @@ class ApiService {
     int roomId,
     String content,
   ) async {
-    final headers = await _authHeaders();
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/chat-rooms/$roomId/messages'),
-      headers: headers,
       body: jsonEncode({'content': content, 'type': 'TEXT'}),
     );
     return _decodeMap(response);
   }
 
   static Future<bool> leaveChatRoom(int roomId) async {
-    final headers = await _authHeaders();
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/chat-rooms/$roomId/leave'),
-      headers: headers,
     );
     return response.statusCode == 200 || response.statusCode == 201;
   }
 
   static Future<Map<String, dynamic>> getNotifications() async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/notifications'),
-      headers: headers,
     );
     return _payload(_decodeMap(response));
   }
@@ -734,20 +774,16 @@ class ApiService {
     required String content,
     String? date,
   }) async {
-    final headers = await _authHeaders();
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/exchange-rooms/$roomId/diaries'),
-      headers: headers,
       body: jsonEncode({'content': content}),
     );
     return response.statusCode == 200 || response.statusCode == 201;
   }
 
   static Future<bool> endExchangeRoom(int roomId) async {
-    final headers = await _authHeaders();
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/exchange-rooms/$roomId/next-step'),
-      headers: headers,
       body: jsonEncode({'choice': 'CONTINUE'}),
     );
     return response.statusCode == 200 || response.statusCode == 201;
@@ -757,10 +793,8 @@ class ApiService {
     required int roomId,
     required int diaryId,
   }) async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/exchange-rooms/$roomId/diaries/$diaryId'),
-      headers: headers,
     );
     return _payload(_decodeMap(response));
   }
@@ -770,10 +804,8 @@ class ApiService {
     String category = 'ACCOUNT',
     String title = '앱 내 문의사항',
   }) async {
-    final headers = await _authHeaders();
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/support/inquiry'),
-      headers: headers,
       body: jsonEncode({
         'category': category,
         'title': title,
@@ -785,10 +817,8 @@ class ApiService {
 
   // 4턴 완료 후 관계 확장
   static Future<bool> postNextStep(int roomId, String choice) async {
-    final headers = await _authHeaders();
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/exchange-rooms/$roomId/next-step'),
-      headers: headers,
       body: jsonEncode({'choice': choice}), // 'CHAT' or 'CONTINUE'
     );
     return response.statusCode == 200 || response.statusCode == 201;
@@ -796,11 +826,9 @@ class ApiService {
 
   // FCM 토큰 등록
   static Future<bool> registerFcmToken(String token) async {
-    final headers = await _authHeaders();
     final deviceType = Platform.isAndroid ? 'AOS' : 'IOS';
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/users/me/fcm-token'),
-      headers: headers,
       body: jsonEncode({'fcmToken': token, 'deviceType': deviceType}),
     );
     return response.statusCode == 200 || response.statusCode == 201;
@@ -808,10 +836,8 @@ class ApiService {
 
   // 신고
   static Future<bool> reportUser(int targetUserId, String reason) async {
-    final headers = await _authHeaders();
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/users/$targetUserId/report'),
-      headers: headers,
       body: jsonEncode({'reason': reason}),
     );
     return response.statusCode == 200 || response.statusCode == 201;
@@ -819,10 +845,8 @@ class ApiService {
 
   // 차단
   static Future<bool> blockUser(int targetUserId) async {
-    final headers = await _authHeaders();
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/users/$targetUserId/block'),
-      headers: headers,
     );
     return response.statusCode == 200 || response.statusCode == 201;
   }
@@ -832,31 +856,23 @@ class ApiService {
     required int diaryId,
     required String reaction,
   }) async {
-    final headers = await _authHeaders();
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse(
         '$baseUrl/api/exchange-rooms/$roomId/diaries/$diaryId/reaction',
       ),
-      headers: headers,
       body: jsonEncode({'reaction': reaction}),
     );
     return response.statusCode == 200 || response.statusCode == 201;
   }
 
   static Future<Map<String, dynamic>> getChatRooms() async {
-    final headers = await _authHeaders();
-    final response = await http.get(
-      Uri.parse('$baseUrl/api/chat-rooms'),
-      headers: headers,
-    );
+    final response = await _getWithAuth(Uri.parse('$baseUrl/api/chat-rooms'));
     return _decodeMap(response);
   }
 
   static Future<bool> acceptMatching(int matchingId) async {
-    final headers = await _authHeaders();
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/matching/requests/$matchingId/accept'),
-      headers: headers,
     );
     return response.statusCode == 200 || response.statusCode == 201;
   }
@@ -864,63 +880,55 @@ class ApiService {
   static Future<Map<String, dynamic>> acceptMatchingResponse(
     int matchingId,
   ) async {
-    final headers = await _authHeaders();
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/matching/requests/$matchingId/accept'),
-      headers: headers,
     );
     return _decodeMap(response);
   }
 
   static Future<bool> markNotificationRead(int id) async {
-    final headers = await _authHeaders();
-    final response = await http.patch(
+    final response = await _patchWithAuth(
       Uri.parse('$baseUrl/api/notifications/$id/read'),
-      headers: headers,
     );
     return response.statusCode == 200 || response.statusCode == 201;
   }
 
   static Future<bool> markAllNotificationsRead() async {
-    final headers = await _authHeaders();
-    final response = await http.patch(
+    final response = await _patchWithAuth(
       Uri.parse('$baseUrl/api/notifications/read-all'),
-      headers: headers,
     );
     return response.statusCode == 200 || response.statusCode == 201;
   }
 
   static Future<bool> skipMatching(int diaryId) async {
-    final headers = await _authHeaders();
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/matching/$diaryId/skip'),
-      headers: headers,
     );
     return response.statusCode == 200 || response.statusCode == 201;
   }
 
   static Future<Map<String, dynamic>> getWeeklyTopic() async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/api/diaries/weekly-topic'),
-      headers: {'Content-Type': 'application/json'},
-    );
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl/api/diaries/weekly-topic'),
+          headers: {'Content-Type': 'application/json'},
+        )
+        .timeout(requestTimeout);
     return _decodeMap(response);
   }
 
   static Future<Map<String, dynamic>> getTodayDiary() async {
-    final headers = await _requiredAuthHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/diaries/today'),
-      headers: headers,
+      requireAuth: true,
     );
     return _decodeMap(response);
   }
 
   static Future<Map<String, dynamic>> getDrafts() async {
-    final headers = await _requiredAuthHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/diaries/drafts'),
-      headers: headers,
+      requireAuth: true,
     );
     return _decodeMap(response);
   }
@@ -929,23 +937,21 @@ class ApiService {
     required String content,
     int? topicId,
   }) async {
-    final headers = await _requiredAuthHeaders();
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/diaries/draft'),
-      headers: headers,
       body: jsonEncode({
         'content': content,
         if (topicId != null) 'topicId': topicId,
       }),
+      requireAuth: true,
     );
     return _decodeMap(response);
   }
 
   static Future<bool> deleteDraft(int draftId) async {
-    final headers = await _requiredAuthHeaders();
-    final response = await http.delete(
+    final response = await _deleteWithAuth(
       Uri.parse('$baseUrl/api/diaries/draft/$draftId'),
-      headers: headers,
+      requireAuth: true,
     );
     return response.statusCode == 200 || response.statusCode == 204;
   }
@@ -957,7 +963,7 @@ class ApiService {
     final uri = Uri.parse('$baseUrl/api/system/version').replace(
       queryParameters: {'platform': platform, 'currentVersion': currentVersion},
     );
-    final response = await http.get(uri);
+    final response = await http.get(uri).timeout(requestTimeout);
     return _decodeMap(response);
   }
 
@@ -973,7 +979,6 @@ class ApiService {
     String? ageGroup,
     bool keywordFilter = false,
   }) async {
-    final headers = await _authHeaders();
     final normalizedSido = _normalizeSido(sido);
     final normalizedSigungu = _normalizeSigungu(sigungu, normalizedSido);
     final params = <String, String>{
@@ -987,168 +992,129 @@ class ApiService {
     final uri = Uri.parse(
       '$baseUrl/api/diaries/explore',
     ).replace(queryParameters: params);
-    final response = await http.get(uri, headers: headers);
+    final response = await _getWithAuth(uri);
     return _decodeMap(response);
   }
 
   static Future<Map<String, dynamic>> getDiaryDetail(int diaryId) async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/diaries/$diaryId/detail'),
-      headers: headers,
     );
     return _decodeMap(response);
   }
 
   static Future<Map<String, dynamic>> getDiary(int diaryId) async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/diaries/$diaryId'),
-      headers: headers,
     );
     return _payload(_decodeMap(response));
   }
 
   static Future<Map<String, dynamic>> getMyAiProfile() async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/users/me/ai-profile'),
-      headers: headers,
     );
     return _payload(_decodeMap(response));
   }
 
   static Future<Map<String, dynamic>> getLifestyleReport() async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/matching/lifestyle-report'),
-      headers: headers,
     );
     return _payload(_decodeMap(response));
   }
 
   static Future<Map<String, dynamic>> getTutorialPages() async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/tutorials/pages'),
-      headers: headers,
     );
     return _decodeMap(response);
   }
 
   static Future<bool> completeTutorial() async {
-    final headers = await _authHeaders();
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/users/tutorial/complete'),
-      headers: headers,
     );
+    final decoded = _decodeMap(response);
+    final data = decoded['data'];
+    if (data is Map && data['success'] == false) return false;
     return response.statusCode == 200 || response.statusCode == 201;
   }
 
   static Future<Map<String, dynamic>> getExchangeRoomDetail(int roomId) async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/exchange-rooms/$roomId'),
-      headers: headers,
     );
     return _payload(_decodeMap(response));
   }
 
   static Future<Map<String, dynamic>> getNextStepStatus(int roomId) async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/exchange-rooms/$roomId/next-step/status'),
-      headers: headers,
     );
     return _payload(_decodeMap(response));
   }
 
   static Future<Map<String, dynamic>> getExchangeRoomReport(int roomId) async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/exchange-rooms/$roomId/report'),
-      headers: headers,
     );
     return _payload(_decodeMap(response));
   }
 
   static Future<Map<String, dynamic>> getChatProfile(int roomId) async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/chat-rooms/$roomId/profile'),
-      headers: headers,
     );
     return _payload(_decodeMap(response));
   }
 
   static Future<bool> postCoupleRequest(int roomId) async {
-    final headers = await _authHeaders();
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/chat-rooms/$roomId/couple-request'),
-      headers: headers,
     );
     return response.statusCode == 200 || response.statusCode == 201;
   }
 
   static Future<bool> acceptCouple(int roomId) async {
-    final headers = await _authHeaders();
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/chat-rooms/$roomId/couple-accept'),
-      headers: headers,
     );
     return response.statusCode == 200 || response.statusCode == 201;
   }
 
   static Future<bool> rejectCouple(int roomId) async {
-    final headers = await _authHeaders();
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/chat-rooms/$roomId/couple-reject'),
-      headers: headers,
     );
     return response.statusCode == 200 || response.statusCode == 201;
   }
 
   static Future<Map<String, dynamic>> getNotices() async {
-    final headers = await _authHeaders();
-    final response = await http.get(
-      Uri.parse('$baseUrl/api/notices'),
-      headers: headers,
-    );
+    final response = await _getWithAuth(Uri.parse('$baseUrl/api/notices'));
     return _decodeMap(response);
   }
 
   static Future<Map<String, dynamic>> getNoticeDetail(int id) async {
-    final headers = await _authHeaders();
-    final response = await http.get(
-      Uri.parse('$baseUrl/api/notices/$id'),
-      headers: headers,
-    );
+    final response = await _getWithAuth(Uri.parse('$baseUrl/api/notices/$id'));
     return _payload(_decodeMap(response));
   }
 
   static Future<Map<String, dynamic>> getFaq() async {
-    final headers = await _authHeaders();
-    final response = await http.get(
-      Uri.parse('$baseUrl/api/faq'),
-      headers: headers,
-    );
+    final response = await _getWithAuth(Uri.parse('$baseUrl/api/faq'));
     return _decodeMap(response);
   }
 
   static Future<Map<String, dynamic>> getSupportInquiries() async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/support/inquiries'),
-      headers: headers,
     );
     return _decodeMap(response);
   }
 
   static Future<Map<String, dynamic>> getSupportInquiryDetail(int id) async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/support/inquiries/$id'),
-      headers: headers,
     );
     return _payload(_decodeMap(response));
   }
@@ -1157,49 +1123,40 @@ class ApiService {
     String? cursor,
     int size = 20,
   }) async {
-    final headers = await _authHeaders();
     final uri = Uri.parse('$baseUrl/api/users/me/block-list').replace(
       queryParameters: {
         if (cursor != null) 'cursor': cursor,
         'size': size.toString(),
       },
     );
-    final response = await http.get(uri, headers: headers);
+    final response = await _getWithAuth(uri);
     return _decodeMap(response);
   }
 
   static Future<bool> unblockUser(int targetUserId) async {
-    final headers = await _authHeaders();
-    final response = await http.delete(
+    final response = await _deleteWithAuth(
       Uri.parse('$baseUrl/api/users/$targetUserId/block'),
-      headers: headers,
     );
     return response.statusCode == 200 || response.statusCode == 204;
   }
 
   static Future<Map<String, dynamic>> getExchangeRoomHistory() async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/users/me/history/exchange-rooms'),
-      headers: headers,
     );
     return _decodeMap(response);
   }
 
   static Future<Map<String, dynamic>> getChatRoomHistory() async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/users/me/history/chat-rooms'),
-      headers: headers,
     );
     return _decodeMap(response);
   }
 
   static Future<bool> updateSettings(Map<String, dynamic> settings) async {
-    final headers = await _authHeaders();
-    final response = await http.patch(
+    final response = await _patchWithAuth(
       Uri.parse('$baseUrl/api/users/me/settings'),
-      headers: headers,
       body: jsonEncode(settings),
     );
     return response.statusCode == 200 || response.statusCode == 201;
@@ -1208,10 +1165,8 @@ class ApiService {
   static Future<bool> updateNotificationSettings(
     Map<String, dynamic> settings,
   ) async {
-    final headers = await _authHeaders();
-    final response = await http.patch(
+    final response = await _patchWithAuth(
       Uri.parse('$baseUrl/api/users/me/notification-settings'),
-      headers: headers,
       body: jsonEncode(settings),
     );
     return response.statusCode == 200 || response.statusCode == 201;
@@ -1221,8 +1176,7 @@ class ApiService {
   // ────────────────────────────────────────────
 
   static Future<void> logout() async {
-    final headers = await _authHeaders();
-    await http.post(Uri.parse('$baseUrl/api/auth/logout'), headers: headers);
+    await _postWithAuth(Uri.parse('$baseUrl/api/auth/logout'));
     await clearTokens();
   }
 
@@ -1230,19 +1184,15 @@ class ApiService {
   // 회원 탈퇴
   // ────────────────────────────────────────────
   static Future<Map<String, dynamic>> getReceivedRequests() async {
-    final headers = await _authHeaders();
-    final response = await http.get(
+    final response = await _getWithAuth(
       Uri.parse('$baseUrl/api/matching/requests'),
-      headers: headers,
     );
     return _decodeMap(response);
   }
 
   static Future<bool> deactivate() async {
-    final headers = await _authHeaders();
-    final response = await http.post(
+    final response = await _postWithAuth(
       Uri.parse('$baseUrl/api/users/me/deactivate'),
-      headers: headers,
     );
     if (response.statusCode == 200 || response.statusCode == 201) {
       await clearTokens();

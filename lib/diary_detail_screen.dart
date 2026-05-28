@@ -73,14 +73,9 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
                       false))
             'content': fallbackContent,
         };
-        _keywords = List<String>.from(
-          (detail is Map
-                  ? detail['keywords'] ??
-                        detail['personalityKeywords'] ??
-                        detail['moodTags']
-                  : null) ??
-              widget.initialKeywords,
-        );
+        _keywords = detail is Map
+            ? _parseKeywords(Map<dynamic, dynamic>.from(detail))
+            : widget.initialKeywords;
         _aiComment = detail is Map
             ? detail['aiComment'] ?? detail['summary'] ?? ''
             : '';
@@ -89,6 +84,44 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  List<String> _parseKeywords(Map<dynamic, dynamic> detail) {
+    final keywords = <String>[];
+
+    void addValue(dynamic value) {
+      if (value == null) return;
+      if (value is List) {
+        for (final item in value) {
+          addValue(item);
+        }
+        return;
+      }
+      if (value is Map) {
+        addValue(
+          value['label'] ?? value['name'] ?? value['tag'] ?? value['keyword'],
+        );
+        return;
+      }
+      final text = decodeHtmlEntities(value.toString()).trim();
+      if (text.isNotEmpty && !keywords.contains(text)) {
+        keywords.add(text);
+      }
+    }
+
+    for (final key in const [
+      'keywords',
+      'personalityKeywords',
+      'moodTags',
+      'emotionTags',
+      'lifestyleTags',
+      'toneTags',
+    ]) {
+      addValue(detail[key]);
+    }
+
+    if (keywords.isEmpty) return widget.initialKeywords;
+    return keywords;
   }
 
   Future<void> _selectMatching() async {

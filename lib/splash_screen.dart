@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'api_service.dart';
+import 'create_profile.dart';
+import 'diary_screen.dart';
 import 'main.dart' show registerFcmTokenToServer;
+import 'tutorial_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -31,12 +34,9 @@ class _SplashScreenState extends State<SplashScreen> {
       try {
         final profile = await ApiService.getMyProfile();
         if (!mounted) return;
-        if (profile != null) {
-          // 토큰 유효 → FCM 서버 등록 + 홈으로
-          registerFcmTokenToServer();
-          Navigator.pushReplacementNamed(context, '/home');
-          return;
-        }
+        registerFcmTokenToServer();
+        await _routeBySignupProgress(profile);
+        return;
       } catch (_) {
         // 토큰 만료/무효 → 로그인 화면으로
       }
@@ -44,6 +44,67 @@ class _SplashScreenState extends State<SplashScreen> {
 
     if (!mounted) return;
     Navigator.pushReplacementNamed(context, '/socialLogin');
+  }
+
+  bool _hasCompletedProfile(Map<String, dynamic> profile) {
+    bool filled(String key) =>
+        profile[key]?.toString().trim().isNotEmpty == true;
+    return filled('realName') &&
+        filled('gender') &&
+        filled('birthDate') &&
+        filled('sido') &&
+        filled('sigungu');
+  }
+
+  bool _hasAnyDiary(Map<String, dynamic> response) {
+    final payload = response['data'];
+    final data = payload is Map ? Map<String, dynamic>.from(payload) : response;
+    final diaries = data['diaries'];
+    return diaries is List && diaries.isNotEmpty;
+  }
+
+  bool _hasCompletedTutorial(Map<String, dynamic> profile) {
+    if (!profile.containsKey('tutorialCompleted') &&
+        !profile.containsKey('tutorialCompletedAt')) {
+      return true;
+    }
+    if (profile['tutorialCompleted'] == true) return true;
+    final completedAt = profile['tutorialCompletedAt']?.toString().trim();
+    return completedAt != null && completedAt.isNotEmpty;
+  }
+
+  Future<void> _routeBySignupProgress(Map<String, dynamic> profile) async {
+    if (!_hasCompletedProfile(profile)) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const CreateProfile(realName: '')),
+      );
+      return;
+    }
+
+    final diaries = await ApiService.getMyDiaries();
+    if (!mounted) return;
+    if (!_hasAnyDiary(diaries)) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const DiaryScreen(requiredForSignup: true),
+        ),
+      );
+      return;
+    }
+
+    if (!_hasCompletedTutorial(profile)) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const TutorialScreen(requiredForSignup: true),
+        ),
+      );
+      return;
+    }
+
+    Navigator.pushReplacementNamed(context, '/home');
   }
 
   Future<bool> _checkVersion() async {
