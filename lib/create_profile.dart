@@ -3,6 +3,7 @@ import 'city_search_field.dart';
 import 'keyword_selector.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'diary_screen.dart';
+import 'tutorial_screen.dart';
 import 'api_service.dart';
 
 class CreateProfile extends StatefulWidget {
@@ -596,7 +597,7 @@ class _CreateProfileState extends State<CreateProfile> {
                               onTap: () => Navigator.pushAndRemoveUntil(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const DiaryScreen(
+                                  builder: (_) => const TutorialScreen(
                                     requiredForSignup: true,
                                   ),
                                 ),
