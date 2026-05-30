@@ -131,9 +131,7 @@ async def generate_summary(content: str, max_chars: int = 80) -> str:
             logger.warning("Gemini 응답이 비어있음 — fallback 사용")
             return _fallback_summary(content, max_chars)
 
-        # 50자 초과 시 자르기
-        if len(summary) > max_chars:
-            summary = summary[:max_chars]
+        # 프롬프트에서 길이 제어 — 강제 자르기 안 함
 
         logger.info("Gemini 요약 생성 완료 (len=%d)", len(summary))
         return summary
