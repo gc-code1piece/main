@@ -46,7 +46,7 @@ public class Diary extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private AnalysisStatus analysisStatus = AnalysisStatus.PENDING;
 
-    @Column(length = 100)
+    @Column(length = 200)
     private String summary;
 
     @Column(length = 20)
