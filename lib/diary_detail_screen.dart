@@ -3,6 +3,10 @@ import 'dart:ui';
 import 'bottom_nav_bar.dart';
 import 'api_service.dart';
 import 'text_utils.dart';
+import 'theme/colors.dart';
+import 'theme/typography.dart';
+import 'theme/spacing.dart';
+import 'widgets/ember_card.dart';
 
 class DiaryDetailScreen extends StatefulWidget {
   final String title;
@@ -215,7 +219,7 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
                 Navigator.pop(dialogContext, text);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE37474),
+                backgroundColor: EmberColors.primary,
               ),
               child: const Text('저장', style: TextStyle(color: Colors.white)),
             ),
@@ -249,7 +253,7 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE37474),
+      backgroundColor: EmberColors.primary,
       body: SafeArea(
         child: Column(
           children: [
@@ -263,14 +267,14 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
                     icon: const Icon(
                       Icons.chevron_left,
                       size: 28,
-                      color: Color(0xFF391713),
+                      color: EmberColors.textPrimary,
                     ),
                     onPressed: () => Navigator.pop(context),
                   ),
                   const Text(
                     'Diary',
                     style: TextStyle(
-                      color: Color(0xFFF8F8F8),
+                      color: EmberColors.textOnPrimary,
                       fontSize: 30,
                       fontFamily: 'Pretendard',
                       fontWeight: FontWeight.w700,
@@ -282,7 +286,7 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
                           ? Icons.close
                           : Icons.edit_outlined,
                       size: 24,
-                      color: const Color(0xFF391713),
+                      color: EmberColors.textPrimary,
                     ),
                     onPressed:
                         widget.showDecisionButtons || widget.showMatchingButtons
@@ -307,7 +311,7 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
                 child: _isLoading
                     ? const Center(
                         child: CircularProgressIndicator(
-                          color: Color(0xFFE37474),
+                          color: EmberColors.primary,
                         ),
                       )
                     : _buildCardContent(),
@@ -352,8 +356,8 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
               child: ElevatedButton(
                 onPressed: _isSubmitting ? null : () => Navigator.pop(context),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFA1ACC3),
-                  disabledBackgroundColor: const Color(0xFFD1D5DB),
+                  backgroundColor: EmberColors.buttonSecondary,
+                  disabledBackgroundColor: EmberColors.buttonDisabled,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -375,8 +379,8 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
               child: ElevatedButton(
                 onPressed: _isSubmitting ? null : _acceptMatching,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE37474),
-                  disabledBackgroundColor: const Color(0xFFF0B7B7),
+                  backgroundColor: EmberColors.primary,
+                  disabledBackgroundColor: EmberColors.primaryLight,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -398,8 +402,8 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
               child: ElevatedButton(
                 onPressed: _isSubmitting ? null : _selectMatching,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE37474),
-                  disabledBackgroundColor: const Color(0xFFF0B7B7),
+                  backgroundColor: EmberColors.primary,
+                  disabledBackgroundColor: EmberColors.primaryLight,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -446,8 +450,8 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
             ),
             decoration: BoxDecoration(
               color: shouldBlur
-                  ? const Color(0xFFD7D7D7)
-                  : const Color(0xFFFFFAF6),
+                  ? EmberColors.surfaceGray
+                  : EmberColors.backgroundWarm,
               borderRadius: BorderRadius.circular(20),
             ),
             child: ClipRRect(
@@ -485,77 +489,77 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
             ),
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
 
-          // 키워드 태그
-          Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: _keywords
-                    .take(3)
-                    .toList()
-                    .map(
-                      (tag) => Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFEFE7),
-                            borderRadius: BorderRadius.circular(38),
-                          ),
-                          child: Text(
-                            tag,
-                            style: const TextStyle(
-                              color: Color(0xFFE37474),
-                              fontSize: 12,
-                              fontFamily: 'Pretendard',
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                        ),
-                      ),
-                    )
-                    .toList(),
+          // 카테고리 (독립 섹션, 다른 색)
+          if (_diaryDetail?['category'] != null) ...[
+            Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F4FF),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFBFD4FF), width: 1),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.local_offer_outlined, size: 14, color: Color(0xFF5B7FC7)),
+                    const SizedBox(width: 6),
+                    Text(
+                      _diaryDetail!['category'].toString(),
+                      style: const TextStyle(color: Color(0xFF3D5A99), fontSize: 12, fontFamily: 'Pretendard', fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: _keywords
-                    .skip(3)
-                    .take(3)
-                    .toList()
-                    .map(
-                      (tag) => Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFEFE7),
-                            borderRadius: BorderRadius.circular(38),
-                          ),
-                          child: Text(
-                            tag,
-                            style: const TextStyle(
-                              color: Color(0xFFE37474),
-                              fontSize: 12,
-                              fontFamily: 'Pretendard',
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                        ),
-                      ),
-                    )
-                    .toList(),
+            ),
+            const SizedBox(height: 14),
+          ],
+
+          // 유사도 배지
+          if (_diaryDetail?['similarityBadge'] != null) ...[
+            Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color: EmberColors.backgroundPink,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '♡ ${_diaryDetail!['similarityBadge']}',
+                  style: const TextStyle(color: EmberColors.primary, fontSize: 12, fontFamily: 'Pretendard', fontWeight: FontWeight.w600),
+                ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 14),
+          ],
+
+          // 감정/성격 키워드 태그
+          if (_keywords.isNotEmpty)
+            Center(
+              child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: _keywords.map((tag) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  color: EmberColors.backgroundPeach,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: EmberColors.primary.withValues(alpha: 0.2), width: 0.5),
+                ),
+                child: Text(
+                  tag,
+                  style: const TextStyle(
+                    color: EmberColors.primary,
+                    fontSize: 13,
+                    fontFamily: 'Pretendard',
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              )).toList(),
+            )),
 
           const SizedBox(height: 20),
 

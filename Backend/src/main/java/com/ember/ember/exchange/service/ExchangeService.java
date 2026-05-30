@@ -218,7 +218,8 @@ public class ExchangeService {
         Notification notification = Notification.create(partner, "EXCHANGE_DIARY",
                 title, body, "/exchange-rooms/" + room.getId());
         notificationRepository.save(notification);
-        fcmService.sendPushToUser(partner.getId(), title, body);
+        fcmService.sendPushToUser(partner.getId(), title, body,
+                Map.of("type", "EXCHANGE_DIARY", "screen", "exchange", "roomId", String.valueOf(room.getId())));
 
         log.info("[ExchangeService] 교환일기 작성 — roomId={}, turnNumber={}, isCompleted={}",
                 roomId, turnNumber, isCompleted);

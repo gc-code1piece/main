@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'api_service.dart';
+import 'theme/colors.dart';
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});
@@ -106,7 +107,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
           '알림',
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: Color(0xFF111827),
+            color: EmberColors.textDark,
             fontSize: 18,
             fontFamily: 'Pretendard',
             fontWeight: FontWeight.w500,
@@ -116,7 +117,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFFE37474)),
+              child: CircularProgressIndicator(color: EmberColors.primary),
             )
           : Column(
               children: [
@@ -134,7 +135,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                           const Text(
                             '새 알림',
                             style: TextStyle(
-                              color: Color(0xFF111827),
+                              color: EmberColors.textDark,
                               fontSize: 12,
                               fontFamily: 'Pretendard',
                               fontWeight: FontWeight.w500,
@@ -166,7 +167,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                           child: const Text(
                             '모두 읽기',
                             style: TextStyle(
-                              color: Color(0xFF111827),
+                              color: EmberColors.textDark,
                               fontSize: 10,
                               fontFamily: 'Pretendard',
                               fontWeight: FontWeight.w400,
@@ -185,7 +186,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                           child: Text(
                             '알림이 없어요',
                             style: TextStyle(
-                              color: Color(0xFF9CA3AF),
+                              color: EmberColors.textTertiary,
                               fontSize: 14,
                               fontFamily: 'Pretendard',
                             ),
@@ -195,7 +196,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                           itemCount: _notifications.length,
                           separatorBuilder: (_, __) => const Divider(
                             height: 1,
-                            color: Color(0xFFE5E5E5),
+                            color: EmberColors.borderLight,
                           ),
                           itemBuilder: (context, index) {
                             final n = _notifications[index];
@@ -234,12 +235,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                       width: 36,
                                       height: 36,
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFFFEFE7),
+                                        color: EmberColors.backgroundPeach,
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: const Icon(
                                         Icons.notifications_outlined,
-                                        color: Color(0xFFE37474),
+                                        color: EmberColors.primary,
                                         size: 20,
                                       ),
                                     ),
@@ -253,7 +254,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                           Text(
                                             n['body'] ?? n['message'] ?? '',
                                             style: const TextStyle(
-                                              color: Color(0xFF111827),
+                                              color: EmberColors.textDark,
                                               fontSize: 12,
                                               fontFamily: 'Pretendard',
                                               fontWeight: FontWeight.w400,

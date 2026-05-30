@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'api_service.dart';
+import 'theme/colors.dart';
+import 'theme/spacing.dart';
 
 class ExchangeDiaryDetailScreen extends StatefulWidget {
   final int roomId;
@@ -76,7 +78,7 @@ class _ExchangeDiaryDetailScreenState extends State<ExchangeDiaryDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE37474),
+      backgroundColor: EmberColors.primary,
       body: SafeArea(
         child: Column(
           children: [
@@ -90,14 +92,14 @@ class _ExchangeDiaryDetailScreenState extends State<ExchangeDiaryDetailScreen> {
                     icon: const Icon(
                       Icons.chevron_left,
                       size: 28,
-                      color: Color(0xFF391713),
+                      color: EmberColors.textPrimary,
                     ),
                     onPressed: () => Navigator.pop(context),
                   ),
                   Text(
                     _isMine ? '나의 일기' : '${widget.partnerNickname}의 일기',
                     style: const TextStyle(
-                      color: Color(0xFFF8F8F8),
+                      color: EmberColors.textOnPrimary,
                       fontSize: 22,
                       fontFamily: 'Pretendard',
                       fontWeight: FontWeight.w700,
@@ -119,7 +121,7 @@ class _ExchangeDiaryDetailScreenState extends State<ExchangeDiaryDetailScreen> {
                 child: _isLoading
                     ? const Center(
                         child: CircularProgressIndicator(
-                          color: Color(0xFFE37474),
+                          color: EmberColors.primary,
                         ),
                       )
                     : Column(
@@ -135,7 +137,7 @@ class _ExchangeDiaryDetailScreenState extends State<ExchangeDiaryDetailScreen> {
                                   Text(
                                     _diary?['readAt']?.toString().split('T').first ?? '',
                                     style: const TextStyle(
-                                      color: Color(0xFFE37474),
+                                      color: EmberColors.primary,
                                       fontSize: 13,
                                       fontFamily: 'Pretendard',
                                     ),
@@ -168,8 +170,8 @@ class _ExchangeDiaryDetailScreenState extends State<ExchangeDiaryDetailScreen> {
                             ),
                           ),
 
-                          // 리액션 버튼
-                          Container(
+                          // 리액션 버튼 (내 일기가 아닐 때만)
+                          if (!_isMine) Container(
                             padding: const EdgeInsets.symmetric(
                               vertical: 20,
                               horizontal: 24,
@@ -195,12 +197,12 @@ class _ExchangeDiaryDetailScreenState extends State<ExchangeDiaryDetailScreen> {
                                     height: 60,
                                     decoration: BoxDecoration(
                                       color: isSelected
-                                          ? const Color(0xFFFFEFE7)
-                                          : const Color(0xFFF8F8F8),
+                                          ? EmberColors.backgroundPeach
+                                          : EmberColors.textOnPrimary,
                                       borderRadius: BorderRadius.circular(16),
                                       border: isSelected
                                           ? Border.all(
-                                              color: const Color(0xFFE37474),
+                                              color: EmberColors.primary,
                                               width: 2,
                                             )
                                           : null,

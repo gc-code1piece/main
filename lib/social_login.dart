@@ -8,6 +8,7 @@ import 'diary_screen.dart';
 import 'main.dart' show registerFcmTokenToServer;
 import 'signup.dart';
 import 'tutorial_screen.dart';
+import 'theme/colors.dart';
 
 class SocialLogin extends StatefulWidget {
   const SocialLogin({super.key});
@@ -35,7 +36,7 @@ class _SocialLoginState extends State<SocialLogin> {
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFE37474),
+                backgroundColor: EmberColors.primary,
               ),
               child: const Text('복구하기'),
             ),
@@ -206,7 +207,7 @@ class _SocialLoginState extends State<SocialLogin> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: EmberColors.backgroundGray,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
