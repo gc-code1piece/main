@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'profile_edit_screen.dart';
 import 'api_service.dart';
 import 'exchange_room_detail_screen.dart';
+import 'theme/colors.dart';
+import 'theme/typography.dart';
+import 'theme/spacing.dart';
+import 'widgets/ember_button.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -37,7 +41,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           '로그아웃',
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: Color(0xFF391713),
+            color: EmberColors.textPrimary,
             fontSize: 18,
             fontFamily: 'Pretendard',
             fontWeight: FontWeight.w600,
@@ -47,7 +51,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           '로그아웃 하시겠습니까?',
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: Color(0xFF391713),
+            color: EmberColors.textPrimary,
             fontSize: 14,
             fontFamily: 'Pretendard',
           ),
@@ -69,7 +73,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ).pushNamedAndRemoveUntil('/socialLogin', (route) => false);
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF9CA3AF),
+                    backgroundColor: EmberColors.textTertiary,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -90,7 +94,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(context),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE37474),
+                    backgroundColor: EmberColors.primary,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -136,7 +140,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Text(
                     '$_nickname 님, 안녕하세요',
                     style: TextStyle(
-                      color: Color(0xFF391713),
+                      color: EmberColors.textPrimary,
                       fontSize: 22,
                       fontFamily: 'Pretendard',
                       fontWeight: FontWeight.w600,
@@ -152,7 +156,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       );
                     },
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Color(0xFFD1D5DB)),
+                      side: BorderSide(color: EmberColors.border),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -164,7 +168,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: const Text(
                       '계정정보',
                       style: TextStyle(
-                        color: Color(0xFF391713),
+                        color: EmberColors.textPrimary,
                         fontSize: 14,
                         fontFamily: 'Pretendard',
                       ),
@@ -176,7 +180,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 32),
 
-            const Divider(color: Color(0xFFE5E5E5), thickness: 1),
+            Divider(color: EmberColors.borderLight, thickness: 1),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               child: Row(
@@ -185,7 +189,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Text(
                     '버전',
                     style: TextStyle(
-                      color: Color(0xFF9CA3AF),
+                      color: EmberColors.textTertiary,
                       fontSize: 14,
                       fontFamily: 'Pretendard',
                     ),
@@ -193,7 +197,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Text(
                     '1.0.0',
                     style: TextStyle(
-                      color: Color(0xFF9CA3AF),
+                      color: EmberColors.textTertiary,
                       fontSize: 14,
                       fontFamily: 'Pretendard',
                     ),
@@ -201,7 +205,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
-            const Divider(color: Color(0xFFE5E5E5), thickness: 1),
+            Divider(color: EmberColors.borderLight, thickness: 1),
             _MenuItem(
               label: '공지사항',
               onTap: () => _openExtraScreen(
@@ -212,21 +216,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
-            const Divider(color: Color(0xFFE5E5E5), thickness: 1),
+            Divider(color: EmberColors.borderLight, thickness: 1),
             _MenuItem(
               label: 'FAQ',
               onTap: () => _openExtraScreen(
                 const _FaqScreen(),
               ),
             ),
-            const Divider(color: Color(0xFFE5E5E5), thickness: 1),
+            Divider(color: EmberColors.borderLight, thickness: 1),
             _MenuItem(
               label: '교환일기 히스토리',
               onTap: () => _openExtraScreen(
                 const _ExchangeHistoryScreen(),
               ),
             ),
-            const Divider(color: Color(0xFFE5E5E5), thickness: 1),
+            Divider(color: EmberColors.borderLight, thickness: 1),
             _MenuItem(
               label: '채팅 히스토리',
               onTap: () => _openExtraScreen(
@@ -236,13 +240,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
-            const Divider(color: Color(0xFFE5E5E5), thickness: 1),
+            Divider(color: EmberColors.borderLight, thickness: 1),
             _MenuItem(
               label: '알림 설정',
               onTap: () =>
                   _openExtraScreen(const _NotificationSettingsScreen()),
             ),
-            const Divider(color: Color(0xFFE5E5E5), thickness: 1),
+            Divider(color: EmberColors.borderLight, thickness: 1),
             _MenuItem(
               label: '내 문의 목록',
               onTap: () => _openExtraScreen(
@@ -253,12 +257,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
-            const Divider(color: Color(0xFFE5E5E5), thickness: 1),
+            Divider(color: EmberColors.borderLight, thickness: 1),
             _MenuItem(
               label: '차단 관리',
               onTap: () => _openExtraScreen(const _BlockListScreen()),
             ),
-            const Divider(color: Color(0xFFE5E5E5), thickness: 1),
+            Divider(color: EmberColors.borderLight, thickness: 1),
 
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 80, 24, 40),
@@ -268,7 +272,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   OutlinedButton(
                     onPressed: () => _showLogoutDialog(context),
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Color(0xFFD1D5DB)),
+                      side: BorderSide(color: EmberColors.border),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -280,7 +284,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: const Text(
                       '로그아웃',
                       style: TextStyle(
-                        color: Color(0xFF391713),
+                        color: EmberColors.textPrimary,
                         fontSize: 14,
                         fontFamily: 'Pretendard',
                       ),
@@ -290,7 +294,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   OutlinedButton(
                     onPressed: () => _showWithdrawDialog(context),
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Color(0xFFD1D5DB)),
+                      side: BorderSide(color: EmberColors.border),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -302,7 +306,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: const Text(
                       '회원 탈퇴하기',
                       style: TextStyle(
-                        color: Color(0xFF391713),
+                        color: EmberColors.textPrimary,
                         fontSize: 14,
                         fontFamily: 'Pretendard',
                       ),
@@ -340,7 +344,7 @@ class _WithdrawDialogState extends State<_WithdrawDialog> {
           '회원탈퇴가 완료되었어요',
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: Color(0xFF391713),
+            color: EmberColors.textPrimary,
             fontSize: 18,
             fontFamily: 'Pretendard',
             fontWeight: FontWeight.w600,
@@ -350,7 +354,7 @@ class _WithdrawDialogState extends State<_WithdrawDialog> {
           '그동안 이용해주셔서 감사합니다.',
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: Color(0xFF391713),
+            color: EmberColors.textPrimary,
             fontSize: 14,
             fontFamily: 'Pretendard',
           ),
@@ -369,7 +373,7 @@ class _WithdrawDialogState extends State<_WithdrawDialog> {
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE37474),
+                backgroundColor: EmberColors.primary,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -396,7 +400,7 @@ class _WithdrawDialogState extends State<_WithdrawDialog> {
         '회원탈퇴',
         textAlign: TextAlign.center,
         style: TextStyle(
-          color: Color(0xFF391713),
+          color: EmberColors.textPrimary,
           fontSize: 18,
           fontFamily: 'Pretendard',
           fontWeight: FontWeight.w600,
@@ -409,7 +413,7 @@ class _WithdrawDialogState extends State<_WithdrawDialog> {
             '삭제 후에는 다시 확인할 수 없고\n지금까지의 분석 결과와 리포트가 모두 삭제돼요.\n정말 탈퇴하시겠어요?',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Color(0xFF391713),
+              color: EmberColors.textPrimary,
               fontSize: 13,
               fontFamily: 'Pretendard',
               height: 1.6,
@@ -424,9 +428,9 @@ class _WithdrawDialogState extends State<_WithdrawDialog> {
                   width: 20,
                   height: 20,
                   decoration: BoxDecoration(
-                    border: Border.all(color: const Color(0xFFD1D5DB)),
+                    border: Border.all(color: EmberColors.border),
                     borderRadius: BorderRadius.circular(4),
-                    color: _checked ? const Color(0xFFE37474) : Colors.white,
+                    color: _checked ? EmberColors.primary : Colors.white,
                   ),
                   child: _checked
                       ? const Icon(Icons.check, size: 14, color: Colors.white)
@@ -438,7 +442,7 @@ class _WithdrawDialogState extends State<_WithdrawDialog> {
                 child: Text(
                   '삭제 내용을 확인했고, 회원탈퇴에 동의해요',
                   style: TextStyle(
-                    color: Color(0xFF391713),
+                    color: EmberColors.textPrimary,
                     fontSize: 12,
                     fontFamily: 'Pretendard',
                   ),
@@ -460,8 +464,8 @@ class _WithdrawDialogState extends State<_WithdrawDialog> {
                       }
                     : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF9CA3AF),
-                  disabledBackgroundColor: const Color(0xFFE5E5E5),
+                  backgroundColor: EmberColors.textTertiary,
+                  disabledBackgroundColor: EmberColors.borderLight,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -482,7 +486,7 @@ class _WithdrawDialogState extends State<_WithdrawDialog> {
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(context),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE37474),
+                  backgroundColor: EmberColors.primary,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -523,13 +527,13 @@ class _MenuItem extends StatelessWidget {
             Text(
               label,
               style: const TextStyle(
-                color: Color(0xFF391713),
+                color: EmberColors.textPrimary,
                 fontSize: 16,
                 fontFamily: 'Pretendard',
                 fontWeight: FontWeight.w400,
               ),
             ),
-            const Icon(Icons.chevron_right, color: Color(0xFF9CA3AF)),
+            Icon(Icons.chevron_right, color: EmberColors.textTertiary),
           ],
         ),
       ),
@@ -664,7 +668,7 @@ class _ApiListScreenState extends State<_ApiListScreen> {
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
             return const Center(
-              child: CircularProgressIndicator(color: Color(0xFFE37474)),
+              child: CircularProgressIndicator(color: EmberColors.primary),
             );
           }
           final items = snapshot.data ?? [];
@@ -673,7 +677,7 @@ class _ApiListScreenState extends State<_ApiListScreen> {
               child: Text(
                 '${widget.title}가 없어요',
                 style: const TextStyle(
-                  color: Color(0xFF391713),
+                  color: EmberColors.textPrimary,
                   fontSize: 15,
                   fontFamily: 'Pretendard',
                 ),
@@ -684,7 +688,7 @@ class _ApiListScreenState extends State<_ApiListScreen> {
             padding: const EdgeInsets.symmetric(vertical: 12),
             itemCount: items.length,
             separatorBuilder: (_, __) =>
-                const Divider(height: 1, color: Color(0xFFE5E5E5)),
+                Divider(height: 1, color: EmberColors.borderLight),
             itemBuilder: (context, index) {
               final item = items[index];
               final title = _pick(item, [
@@ -713,7 +717,7 @@ class _ApiListScreenState extends State<_ApiListScreen> {
                 title: Text(
                   title.isEmpty ? '항목 ${index + 1}' : title,
                   style: const TextStyle(
-                    color: Color(0xFF391713),
+                    color: EmberColors.textPrimary,
                     fontSize: 15,
                     fontFamily: 'Pretendard',
                     fontWeight: FontWeight.w600,
@@ -728,7 +732,7 @@ class _ApiListScreenState extends State<_ApiListScreen> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: Color(0xFF6B7280),
+                            color: EmberColors.textSecondary,
                             fontSize: 13,
                             fontFamily: 'Pretendard',
                             height: 1.35,
@@ -793,7 +797,7 @@ class _ApiDetailScreen extends StatelessWidget {
             Text(
               status,
               style: const TextStyle(
-                color: Color(0xFFE37474),
+                color: EmberColors.primary,
                 fontSize: 13,
                 fontFamily: 'Pretendard',
                 fontWeight: FontWeight.w700,
@@ -804,7 +808,7 @@ class _ApiDetailScreen extends StatelessWidget {
             Text(
               date,
               style: const TextStyle(
-                color: Color(0xFF9CA3AF),
+                color: EmberColors.textTertiary,
                 fontSize: 12,
                 fontFamily: 'Pretendard',
               ),
@@ -814,7 +818,7 @@ class _ApiDetailScreen extends StatelessWidget {
           Text(
             content.isEmpty ? '내용이 없어요.' : content,
             style: const TextStyle(
-              color: Color(0xFF391713),
+              color: EmberColors.textPrimary,
               fontSize: 15,
               fontFamily: 'Pretendard',
               height: 1.6,
@@ -900,14 +904,14 @@ class _BlockListScreenState extends State<_BlockListScreen> {
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFFE37474)),
+              child: CircularProgressIndicator(color: EmberColors.primary),
             )
           : _blocks.isEmpty
           ? const Center(
               child: Text(
                 '차단한 사용자가 없어요',
                 style: TextStyle(
-                  color: Color(0xFF391713),
+                  color: EmberColors.textPrimary,
                   fontSize: 15,
                   fontFamily: 'Pretendard',
                 ),
@@ -916,14 +920,14 @@ class _BlockListScreenState extends State<_BlockListScreen> {
           : ListView.separated(
               itemCount: _blocks.length,
               separatorBuilder: (_, __) =>
-                  const Divider(height: 1, color: Color(0xFFE5E5E5)),
+                  Divider(height: 1, color: EmberColors.borderLight),
               itemBuilder: (context, index) {
                 final item = _blocks[index];
                 return ListTile(
                   title: Text(
                     item['nickname']?.toString() ?? '사용자',
                     style: const TextStyle(
-                      color: Color(0xFF391713),
+                      color: EmberColors.textPrimary,
                       fontSize: 15,
                       fontFamily: 'Pretendard',
                       fontWeight: FontWeight.w600,
@@ -932,7 +936,7 @@ class _BlockListScreenState extends State<_BlockListScreen> {
                   subtitle: Text(
                     item['blockedAt']?.toString() ?? '',
                     style: const TextStyle(
-                      color: Color(0xFF9CA3AF),
+                      color: EmberColors.textTertiary,
                       fontSize: 12,
                       fontFamily: 'Pretendard',
                     ),
@@ -941,7 +945,7 @@ class _BlockListScreenState extends State<_BlockListScreen> {
                     onPressed: () => _unblock(item),
                     child: const Text(
                       '차단 해제',
-                      style: TextStyle(color: Color(0xFFE37474)),
+                      style: TextStyle(color: EmberColors.primary),
                     ),
                   ),
                 );
@@ -989,11 +993,11 @@ class _NotificationSettingsScreenState
     return SwitchListTile(
       value: value,
       onChanged: onChanged,
-      activeThumbColor: const Color(0xFFE37474),
+      activeThumbColor: EmberColors.primary,
       title: Text(
         title,
         style: const TextStyle(
-          color: Color(0xFF391713),
+          color: EmberColors.textPrimary,
           fontSize: 15,
           fontFamily: 'Pretendard',
         ),
@@ -1052,8 +1056,8 @@ class _NotificationSettingsScreenState
                 child: ElevatedButton(
                   onPressed: _saving ? null : _save,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE37474),
-                    disabledBackgroundColor: const Color(0xFFE5E7EB),
+                    backgroundColor: EmberColors.primary,
+                    disabledBackgroundColor: EmberColors.buttonDisabledBg,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
@@ -1122,12 +1126,12 @@ class _FaqScreenState extends State<_FaqScreen> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFFE37474)));
+            return Center(child: CircularProgressIndicator(color: EmberColors.primary));
           }
           final items = snapshot.data ?? [];
           if (items.isEmpty) {
             return const Center(
-              child: Text('FAQ가 없어요', style: TextStyle(color: Color(0xFF391713), fontSize: 15, fontFamily: 'Pretendard')),
+              child: Text('FAQ가 없어요', style: TextStyle(color: EmberColors.textPrimary, fontSize: 15, fontFamily: 'Pretendard')),
             );
           }
           return ListView.builder(
@@ -1140,18 +1144,18 @@ class _FaqScreenState extends State<_FaqScreen> {
               return ExpansionTile(
                 tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
                 childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                iconColor: const Color(0xFFE37474),
-                collapsedIconColor: const Color(0xFF9CA3AF),
+                iconColor: EmberColors.primary,
+                collapsedIconColor: EmberColors.textTertiary,
                 title: Text(
                   question,
-                  style: const TextStyle(color: Color(0xFF391713), fontSize: 15, fontFamily: 'Pretendard', fontWeight: FontWeight.w600),
+                  style: TextStyle(color: EmberColors.textPrimary, fontSize: 15, fontFamily: 'Pretendard', fontWeight: FontWeight.w600),
                 ),
                 children: [
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
                       answer,
-                      style: const TextStyle(color: Color(0xFF6B7280), fontSize: 14, fontFamily: 'Pretendard', height: 1.5),
+                      style: TextStyle(color: EmberColors.textSecondary, fontSize: 14, fontFamily: 'Pretendard', height: 1.5),
                     ),
                   ),
                 ],
@@ -1208,18 +1212,18 @@ class _ExchangeHistoryScreenState extends State<_ExchangeHistoryScreen> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFFE37474)));
+            return Center(child: CircularProgressIndicator(color: EmberColors.primary));
           }
           final items = snapshot.data ?? [];
           if (items.isEmpty) {
             return const Center(
-              child: Text('교환일기 히스토리가 없어요', style: TextStyle(color: Color(0xFF391713), fontSize: 15, fontFamily: 'Pretendard')),
+              child: Text('교환일기 히스토리가 없어요', style: TextStyle(color: EmberColors.textPrimary, fontSize: 15, fontFamily: 'Pretendard')),
             );
           }
           return ListView.separated(
             padding: const EdgeInsets.symmetric(vertical: 12),
             itemCount: items.length,
-            separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFE5E5E5)),
+            separatorBuilder: (_, __) => Divider(height: 1, color: EmberColors.borderLight),
             itemBuilder: (context, index) {
               final item = items[index];
               final roomId = item['roomId'] is int ? item['roomId'] as int : int.tryParse(item['roomId']?.toString() ?? '') ?? 0;
@@ -1241,16 +1245,16 @@ class _ExchangeHistoryScreenState extends State<_ExchangeHistoryScreen> {
                 },
                 title: Text(
                   partner,
-                  style: const TextStyle(color: Color(0xFF391713), fontSize: 15, fontFamily: 'Pretendard', fontWeight: FontWeight.w600),
+                  style: TextStyle(color: EmberColors.textPrimary, fontSize: 15, fontFamily: 'Pretendard', fontWeight: FontWeight.w600),
                 ),
                 subtitle: Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
                     '$status · ${turnCount}턴',
-                    style: const TextStyle(color: Color(0xFF6B7280), fontSize: 13, fontFamily: 'Pretendard'),
+                    style: TextStyle(color: EmberColors.textSecondary, fontSize: 13, fontFamily: 'Pretendard'),
                   ),
                 ),
-                trailing: const Icon(Icons.chevron_right, color: Color(0xFF9CA3AF)),
+                trailing: Icon(Icons.chevron_right, color: EmberColors.textTertiary),
               );
             },
           );

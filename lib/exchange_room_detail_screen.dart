@@ -4,6 +4,10 @@ import 'api_service.dart';
 import 'chat_screen.dart';
 import 'exchange_diary_detail_screen.dart';
 import 'exchange_diary_write_screen.dart';
+import 'theme/colors.dart';
+import 'theme/typography.dart';
+import 'theme/spacing.dart';
+import 'widgets/ember_button.dart';
 
 class ExchangeRoomDetailScreen extends StatefulWidget {
   final int roomId;
@@ -185,7 +189,7 @@ class _ExchangeRoomDetailScreenState extends State<ExchangeRoomDetailScreen> {
     final deadline = _formatDate(_room?['deadline']);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFE37474),
+      backgroundColor: EmberColors.primary,
       body: SafeArea(
         child: Column(
           children: [
@@ -196,7 +200,7 @@ class _ExchangeRoomDetailScreenState extends State<ExchangeRoomDetailScreen> {
                   IconButton(
                     icon: const Icon(
                       Icons.chevron_left,
-                      color: Color(0xFF391713),
+                      color: EmberColors.textPrimary,
                       size: 28,
                     ),
                     onPressed: () => Navigator.pop(context),
@@ -206,7 +210,7 @@ class _ExchangeRoomDetailScreenState extends State<ExchangeRoomDetailScreen> {
                       _partnerNickname,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                        color: Color(0xFFF8F8F8),
+                        color: EmberColors.textOnPrimary,
                         fontSize: 24,
                         fontFamily: 'Pretendard',
                         fontWeight: FontWeight.w700,
@@ -227,7 +231,7 @@ class _ExchangeRoomDetailScreenState extends State<ExchangeRoomDetailScreen> {
                 child: _isLoading
                     ? const Center(
                         child: CircularProgressIndicator(
-                          color: Color(0xFFE37474),
+                          color: EmberColors.primary,
                         ),
                       )
                     : Column(
@@ -238,7 +242,7 @@ class _ExchangeRoomDetailScreenState extends State<ExchangeRoomDetailScreen> {
                               width: double.infinity,
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFFFEFE7),
+                                color: EmberColors.backgroundPeach,
                                 borderRadius: BorderRadius.circular(16),
                               ),
                               child: Column(
@@ -247,7 +251,7 @@ class _ExchangeRoomDetailScreenState extends State<ExchangeRoomDetailScreen> {
                                   Text(
                                     isMyTurn ? '내가 쓸 차례예요' : '상대가 쓰는 차례예요',
                                     style: const TextStyle(
-                                      color: Color(0xFFE37474),
+                                      color: EmberColors.primary,
                                       fontSize: 18,
                                       fontFamily: 'Pretendard',
                                       fontWeight: FontWeight.w700,
@@ -267,7 +271,7 @@ class _ExchangeRoomDetailScreenState extends State<ExchangeRoomDetailScreen> {
                                         ),
                                     ].join(' · '),
                                     style: const TextStyle(
-                                      color: Color(0xFF391713),
+                                      color: EmberColors.textPrimary,
                                       fontSize: 13,
                                       fontFamily: 'Pretendard',
                                     ),
@@ -282,7 +286,7 @@ class _ExchangeRoomDetailScreenState extends State<ExchangeRoomDetailScreen> {
                                     child: Text(
                                       '아직 주고받은 교환일기가 없어요',
                                       style: TextStyle(
-                                        color: Color(0xFF391713),
+                                        color: EmberColors.textPrimary,
                                         fontFamily: 'Pretendard',
                                       ),
                                     ),
@@ -341,7 +345,7 @@ class _ExchangeRoomDetailScreenState extends State<ExchangeRoomDetailScreen> {
                                       Expanded(
                                         child: _RoomActionButton(
                                           label: '계속하기',
-                                          color: const Color(0xFFA1ACC3),
+                                          color: EmberColors.buttonSecondary,
                                           onPressed: () =>
                                               _chooseNextStep('CONTINUE'),
                                         ),
@@ -350,7 +354,7 @@ class _ExchangeRoomDetailScreenState extends State<ExchangeRoomDetailScreen> {
                                       Expanded(
                                         child: _RoomActionButton(
                                           label: '채팅하기',
-                                          color: const Color(0xFFE37474),
+                                          color: EmberColors.primary,
                                           onPressed: () =>
                                               _chooseNextStep('CHAT'),
                                         ),
@@ -499,7 +503,7 @@ class _ExchangeReportDialog extends StatelessWidget {
       title: const Text(
         'AI 공통점 리포트',
         style: TextStyle(
-          color: Color(0xFF391713),
+          color: EmberColors.textPrimary,
           fontFamily: 'Pretendard',
           fontWeight: FontWeight.w700,
         ),
@@ -512,7 +516,7 @@ class _ExchangeReportDialog extends StatelessWidget {
             Text(
               summary.toString(),
               style: const TextStyle(
-                color: Color(0xFF391713),
+                color: EmberColors.textPrimary,
                 fontFamily: 'Pretendard',
                 height: 1.5,
               ),
@@ -535,7 +539,7 @@ class _ExchangeReportDialog extends StatelessWidget {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('닫기', style: TextStyle(color: Color(0xFFE37474))),
+          child: const Text('닫기', style: TextStyle(color: EmberColors.primary)),
         ),
       ],
     );
@@ -556,7 +560,7 @@ class _ReportChips extends StatelessWidget {
         Text(
           title,
           style: const TextStyle(
-            color: Color(0xFF391713),
+            color: EmberColors.textPrimary,
             fontFamily: 'Pretendard',
             fontWeight: FontWeight.w700,
           ),
@@ -569,8 +573,8 @@ class _ReportChips extends StatelessWidget {
               .map(
                 (value) => Chip(
                   label: Text(value),
-                  backgroundColor: const Color(0xFFFFEFE7),
-                  labelStyle: const TextStyle(color: Color(0xFFE37474)),
+                  backgroundColor: EmberColors.backgroundPeach,
+                  labelStyle: const TextStyle(color: EmberColors.primary),
                   side: BorderSide.none,
                 ),
               )
@@ -578,6 +582,16 @@ class _ReportChips extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+String _reactionToEmoji(String reaction) {
+  switch (reaction.toUpperCase()) {
+    case 'HEART': return '❤️';
+    case 'SAD': return '😢';
+    case 'HAPPY': return '😊';
+    case 'FIRE': return '🔥';
+    default: return reaction;
   }
 }
 
@@ -604,7 +618,7 @@ class _ExchangeDiaryTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFFF8F8F8),
+          color: EmberColors.textOnPrimary,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
@@ -619,7 +633,7 @@ class _ExchangeDiaryTile extends StatelessWidget {
                         child: Text(
                           title,
                           style: const TextStyle(
-                            color: Color(0xFF391713),
+                            color: EmberColors.textPrimary,
                             fontSize: 16,
                             fontFamily: 'Pretendard',
                             fontWeight: FontWeight.w700,
@@ -630,7 +644,7 @@ class _ExchangeDiaryTile extends StatelessWidget {
                         Text(
                           date,
                           style: const TextStyle(
-                            color: Color(0xFFA1ACC3),
+                            color: EmberColors.buttonSecondary,
                             fontSize: 12,
                             fontFamily: 'Pretendard',
                           ),
@@ -643,7 +657,7 @@ class _ExchangeDiaryTile extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: Color(0xFF391713),
+                      color: EmberColors.textPrimary,
                       fontSize: 13,
                       fontFamily: 'Pretendard',
                       height: 1.5,
@@ -655,16 +669,12 @@ class _ExchangeDiaryTile extends StatelessWidget {
             if (reaction.isNotEmpty) ...[
               const SizedBox(width: 10),
               Text(
-                reaction,
-                style: const TextStyle(
-                  color: Color(0xFFE37474),
-                  fontSize: 12,
-                  fontFamily: 'Pretendard',
-                ),
+                _reactionToEmoji(reaction),
+                style: const TextStyle(fontSize: 20),
               ),
             ],
             const SizedBox(width: 8),
-            const Icon(Icons.chevron_right, color: Color(0xFF391713)),
+            const Icon(Icons.chevron_right, color: EmberColors.textPrimary),
           ],
         ),
       ),

@@ -19,6 +19,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 교환일기 완주 리포트 AI 결과 처리 핸들러
@@ -116,9 +117,11 @@ public class ExchangeReportResultHandler {
 
         // 6. FCM 푸시 알림 — 양측 사용자에게 리포트 완성 알림
         fcmService.sendPushToUser(report.getRoom().getUserA().getId(),
-                "공통점 리포트가 완성됐어요!", "교환일기 리포트를 확인해 보세요.");
+                "공통점 리포트가 완성됐어요!", "교환일기 리포트를 확인해 보세요.",
+                Map.of("type", "EXCHANGE_REPORT", "screen", "exchange", "roomId", String.valueOf(report.getRoom().getId())));
         fcmService.sendPushToUser(report.getRoom().getUserB().getId(),
-                "공통점 리포트가 완성됐어요!", "교환일기 리포트를 확인해 보세요.");
+                "공통점 리포트가 완성됐어요!", "교환일기 리포트를 확인해 보세요.",
+                Map.of("type", "EXCHANGE_REPORT", "screen", "exchange", "roomId", String.valueOf(report.getRoom().getId())));
     }
 
     /**

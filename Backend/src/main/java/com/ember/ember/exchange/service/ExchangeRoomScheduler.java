@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 교환일기 방 만료 처리 스케줄러 (10분 주기)
@@ -56,6 +57,7 @@ public class ExchangeRoomScheduler {
         notificationRepository.save(notification);
         fcmService.sendPushToUser(user.getId(),
                 "교환일기 시간이 종료되었습니다.",
-                "교환일기 작성 기한이 만료되었습니다.");
+                "교환일기 작성 기한이 만료되었습니다.",
+                Map.of("type", "EXCHANGE_EXPIRED", "screen", "exchange", "roomId", String.valueOf(room.getId())));
     }
 }

@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 /**
  * AI 분석 결과 처리 핸들러.
@@ -113,7 +114,8 @@ public class DiaryAnalysisResultHandler {
         lifestyleAnalysisService.triggerIfEligible(userId);
 
         // 7. FCM 푸시 — AI 분석 완료 알림
-        fcmService.sendPushToUser(userId, "AI 분석이 완료됐어요!", "일기의 성격·감정 분석 결과를 확인해 보세요.");
+        fcmService.sendPushToUser(userId, "AI 분석이 완료됐어요!", "일기의 성격·감정 분석 결과를 확인해 보세요.",
+                Map.of("type", "AI_ANALYSIS_COMPLETE", "screen", "ai_report"));
 
         log.info("[DiaryAnalysisResultHandler] 분석 완료 처리 성공 — diaryId={}, userId={}", diaryId, userId);
     }

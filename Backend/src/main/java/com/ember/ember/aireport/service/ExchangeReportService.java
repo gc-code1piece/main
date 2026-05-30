@@ -28,6 +28,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -107,11 +108,13 @@ public class ExchangeReportService {
             // 미동의 사용자에게 AI 동의 요청 FCM 발송
             if (!consentA) {
                 fcmService.sendPushToUser(userAId,
-                        "AI 분석 동의가 필요해요", "교환일기 공통점 리포트를 받으려면 AI 분석에 동의해 주세요.");
+                        "AI 분석 동의가 필요해요", "교환일기 공통점 리포트를 받으려면 AI 분석에 동의해 주세요.",
+                        Map.of("type", "AI_CONSENT_REQUEST", "screen", "settings"));
             }
             if (!consentB) {
                 fcmService.sendPushToUser(userBId,
-                        "AI 분석 동의가 필요해요", "교환일기 공통점 리포트를 받으려면 AI 분석에 동의해 주세요.");
+                        "AI 분석 동의가 필요해요", "교환일기 공통점 리포트를 받으려면 AI 분석에 동의해 주세요.",
+                        Map.of("type", "AI_CONSENT_REQUEST", "screen", "settings"));
             }
             return;
         }

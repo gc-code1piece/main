@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'api_service.dart';
+import 'theme/colors.dart';
+import 'theme/spacing.dart';
+import 'widgets/ember_card.dart';
 
 class AiReportScreen extends StatefulWidget {
   const AiReportScreen({super.key});
@@ -51,13 +54,13 @@ class _AiReportScreenState extends State<AiReportScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.chevron_left, color: Color(0xFF391713)),
+          icon: const Icon(Icons.chevron_left, color: EmberColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'AI Report',
           style: TextStyle(
-            color: Color(0xFF391713),
+            color: EmberColors.textPrimary,
             fontSize: 18,
             fontFamily: 'Pretendard',
             fontWeight: FontWeight.w700,
@@ -67,7 +70,7 @@ class _AiReportScreenState extends State<AiReportScreen> {
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFFE37474)),
+              child: CircularProgressIndicator(color: EmberColors.primary),
             )
           : ListView(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
@@ -75,7 +78,7 @@ class _AiReportScreenState extends State<AiReportScreen> {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF4F1),
+                    color: EmberColors.backgroundCard,
                     borderRadius: BorderRadius.circular(18),
                   ),
                   child: Text(
@@ -83,7 +86,7 @@ class _AiReportScreenState extends State<AiReportScreen> {
                         ? '지금까지의 일기를 바탕으로 분석한 나의 성향이에요.'
                         : 'AI 분석은 일기 3편 이상부터 열려요.\n조금만 더 기록하면 성향 리포트를 볼 수 있어요.',
                     style: const TextStyle(
-                      color: Color(0xFF391713),
+                      color: EmberColors.textPrimary,
                       fontSize: 15,
                       fontFamily: 'Pretendard',
                       height: 1.5,
@@ -132,7 +135,7 @@ class _ReportSection extends StatelessWidget {
           Text(
             title,
             style: const TextStyle(
-              color: Color(0xFF391713),
+              color: EmberColors.textPrimary,
               fontSize: 16,
               fontFamily: 'Pretendard',
               fontWeight: FontWeight.w700,
@@ -150,13 +153,13 @@ class _ReportSection extends StatelessWidget {
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFEFE7),
+                      color: EmberColors.backgroundPeach,
                       borderRadius: BorderRadius.circular(99),
                     ),
                     child: Text(
                       tag,
                       style: const TextStyle(
-                        color: Color(0xFFE37474),
+                        color: EmberColors.primary,
                         fontSize: 13,
                         fontFamily: 'Pretendard',
                         fontWeight: FontWeight.w600,
@@ -183,7 +186,7 @@ class _InfoTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F8F8),
+        color: EmberColors.textOnPrimary,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -192,7 +195,7 @@ class _InfoTile extends StatelessWidget {
           Text(
             title,
             style: const TextStyle(
-              color: Color(0xFF391713),
+              color: EmberColors.textPrimary,
               fontSize: 14,
               fontFamily: 'Pretendard',
               fontWeight: FontWeight.w700,
@@ -202,7 +205,7 @@ class _InfoTile extends StatelessWidget {
           Text(
             value,
             style: const TextStyle(
-              color: Color(0xFF6B7280),
+              color: EmberColors.textSecondary,
               fontSize: 13,
               fontFamily: 'Pretendard',
               height: 1.4,

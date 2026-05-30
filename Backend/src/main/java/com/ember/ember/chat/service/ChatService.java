@@ -251,7 +251,8 @@ public class ChatService {
         User partner = room.getPartner(userId);
         fcmService.sendPushToUser(partner.getId(),
                 sender.getNickname() + "님의 메시지",
-                sanitizedContent.length() > 50 ? sanitizedContent.substring(0, 50) + "..." : sanitizedContent);
+                sanitizedContent.length() > 50 ? sanitizedContent.substring(0, 50) + "..." : sanitizedContent,
+                Map.of("type", "CHAT_MESSAGE", "screen", "chat", "chatRoomId", String.valueOf(roomId)));
 
         log.debug("[ChatService] 메시지 전송 — roomId={}, seqId={}", roomId, sequenceId);
 
