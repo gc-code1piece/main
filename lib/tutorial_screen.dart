@@ -72,7 +72,9 @@ class _TutorialScreenState extends State<TutorialScreen> {
       if (widget.requiredForSignup) {
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (_) => const DiaryScreen(requiredForSignup: true)),
+          MaterialPageRoute(
+            builder: (_) => const DiaryScreen(requiredForSignup: true),
+          ),
           (route) => false,
         );
       } else {
@@ -120,15 +122,21 @@ class _TutorialScreenState extends State<TutorialScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final systemBottomInset = MediaQuery.of(context).viewPadding.bottom;
+    final bottomActionPadding = systemBottomInset > 0
+        ? systemBottomInset + 28
+        : 30.0;
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
+        bottom: false,
         child: _isLoading
             ? const Center(
                 child: CircularProgressIndicator(color: Color(0xFFE37474)),
               )
             : Padding(
-                padding: const EdgeInsets.fromLTRB(28, 28, 28, 30),
+                padding: const EdgeInsets.fromLTRB(28, 28, 28, 0),
                 child: Column(
                   children: [
                     Row(
@@ -166,56 +174,70 @@ class _TutorialScreenState extends State<TutorialScreen> {
                         },
                       ),
                     ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(_pages.length, (index) {
-                        final selected = index == _currentIndex;
-                        return AnimatedContainer(
-                          duration: const Duration(milliseconds: 180),
-                          width: selected ? 34 : 18,
-                          height: 7,
-                          margin: const EdgeInsets.symmetric(horizontal: 4),
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? const Color(0xFFE37474)
-                                : const Color(0xFFEAEAEA),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                        );
-                      }),
-                    ),
-                    const SizedBox(height: 28),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isCompleting ? null : _next,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFE37474),
-                          disabledBackgroundColor: const Color(0xFFE8B4B4),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: _isCompleting
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2.4,
+                    Padding(
+                      padding: EdgeInsets.only(bottom: bottomActionPadding),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: List.generate(_pages.length, (index) {
+                              final selected = index == _currentIndex;
+                              return AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                width: selected ? 34 : 18,
+                                height: 7,
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 4,
                                 ),
-                              )
-                            : Text(
-                                _isLast ? '시작하기' : '다음',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 17,
-                                  fontFamily: 'Pretendard',
-                                  fontWeight: FontWeight.w800,
+                                decoration: BoxDecoration(
+                                  color: selected
+                                      ? const Color(0xFFE37474)
+                                      : const Color(0xFFEAEAEA),
+                                  borderRadius: BorderRadius.circular(20),
                                 ),
+                              );
+                            }),
+                          ),
+                          const SizedBox(height: 28),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _isCompleting ? null : _next,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFE37474),
+                                disabledBackgroundColor: const Color(
+                                  0xFFE8B4B4,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                elevation: 0,
                               ),
+                              child: _isCompleting
+                                  ? const SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2.4,
+                                      ),
+                                    )
+                                  : Text(
+                                      _isLast ? '시작하기' : '다음',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 17,
+                                        fontFamily: 'Pretendard',
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],

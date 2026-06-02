@@ -216,6 +216,10 @@ class _DiaryScreenState extends State<DiaryScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final bool isOverLimit = _bodyLength >= 1000;
+    final systemBottomInset = MediaQuery.of(context).viewPadding.bottom;
+    final actionBottomPadding = systemBottomInset > 0
+        ? systemBottomInset + 28
+        : 28.0;
 
     return GestureDetector(
       onTap: () {
@@ -499,7 +503,12 @@ class _DiaryScreenState extends State<DiaryScreen> with WidgetsBindingObserver {
 
                       // Done 버튼
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(0, 12, 0, 16),
+                        padding: EdgeInsets.fromLTRB(
+                          0,
+                          12,
+                          0,
+                          actionBottomPadding,
+                        ),
                         child: Center(
                           child: GestureDetector(
                             onTap: _canSubmit

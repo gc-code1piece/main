@@ -100,6 +100,10 @@ class _CreateProfileState extends State<CreateProfile> {
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
     final cardHeight = (screenHeight * 0.34).clamp(250.0, 320.0).toDouble();
+    final systemBottomInset = MediaQuery.of(context).viewPadding.bottom;
+    final bottomActionPadding = systemBottomInset > 0
+        ? systemBottomInset + 24
+        : 24.0;
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -588,7 +592,7 @@ class _CreateProfileState extends State<CreateProfile> {
                         ),
                       ),
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 20),
+                        padding: EdgeInsets.only(bottom: bottomActionPadding),
                         child: Column(
                           children: [
                             _dots(active: 2),
@@ -685,6 +689,9 @@ class _WhiteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final systemBottomInset = MediaQuery.of(context).viewPadding.bottom;
+    final bottomGap = systemBottomInset > 0 ? systemBottomInset + 18 : 20.0;
+
     return Container(
       width: double.infinity,
       height: height,
@@ -702,7 +709,7 @@ class _WhiteCard extends StatelessWidget {
               dots,
               const SizedBox(height: 16),
               button,
-              const SizedBox(height: 20),
+              SizedBox(height: bottomGap),
             ],
           ),
         ],

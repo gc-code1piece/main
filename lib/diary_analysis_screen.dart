@@ -73,6 +73,10 @@ class _DiaryAnalysisScreenState extends State<DiaryAnalysisScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final systemBottomInset = MediaQuery.of(context).viewPadding.bottom;
+    final bottomActionPadding = systemBottomInset > 0
+        ? systemBottomInset + 28
+        : 32.0;
     final summary = decodeHtmlEntities(_diary?['summary'] ?? '');
     final personality = _tags('personalityTags');
     final emotions = _tags('emotionTags');
@@ -88,12 +92,13 @@ class _DiaryAnalysisScreenState extends State<DiaryAnalysisScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
+        bottom: false,
         child: _isLoading
             ? const Center(
                 child: CircularProgressIndicator(color: Color(0xFFE37474)),
               )
             : Padding(
-                padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+                padding: EdgeInsets.fromLTRB(24, 28, 24, bottomActionPadding),
                 child: Column(
                   children: [
                     Expanded(
@@ -178,8 +183,12 @@ class _DiaryAnalysisScreenState extends State<DiaryAnalysisScreen> {
                             child: OutlinedButton(
                               onPressed: _goNext,
                               style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                side: const BorderSide(color: Color(0xFFE37474)),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                side: const BorderSide(
+                                  color: Color(0xFFE37474),
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
@@ -203,7 +212,9 @@ class _DiaryAnalysisScreenState extends State<DiaryAnalysisScreen> {
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFFE37474),
-                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
