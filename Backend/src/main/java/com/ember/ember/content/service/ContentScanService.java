@@ -74,8 +74,9 @@ public class ContentScanService {
                 return ContentScanResult.blocked(summary, reasons);
             }
 
-            // FastAPI가 허용 판정
-            return ContentScanResult.allowed();
+            // FastAPI가 허용 판정 → 로컬 금칙어 검사 추가 수행
+            // (FastAPI는 외부 연락처만 탐지, 금칙어는 Spring 로컬에서 담당)
+            return localRegexScan(content);
 
         } catch (ContentScanRemoteException e) {
             // ── 2. Silent Fail: 로컬 정규식 검사로 fallback ─────────────────
