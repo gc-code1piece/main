@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:stomp_dart_client/stomp_handler.dart';
 
 import 'api_service.dart';
 import 'chat_screen.dart';
+import 'websocket_service.dart';
 import 'exchange_diary_detail_screen.dart';
 import 'exchange_diary_write_screen.dart';
 import 'theme/colors.dart';
@@ -30,12 +34,34 @@ class _ExchangeRoomDetailScreenState extends State<ExchangeRoomDetailScreen> {
   bool _isLoading = true;
   bool _isReportLoading = false;
   int? _myUserId;
+  Timer? _pollTimer;
+  StompUnsubscribe? _exchangeSub;
 
   @override
   void initState() {
     super.initState();
     _loadMyUserId();
     _loadRoom();
+    _connectExchangeWs();
+    // WebSocket 연결 실패 시 폴링 fallback
+    _pollTimer = Timer.periodic(const Duration(seconds: 15), (_) => _loadRoom());
+  }
+
+  Future<void> _connectExchangeWs() async {
+    final ws = WebSocketService.instance;
+    await ws.connect();
+    _exchangeSub = ws.subscribeExchange(widget.roomId, (event) {
+      if (!mounted) return;
+      // 새 턴 도착 시 화면 갱신
+      _loadRoom();
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    _exchangeSub?.call();
+    super.dispose();
   }
 
   Future<void> _loadMyUserId() async {

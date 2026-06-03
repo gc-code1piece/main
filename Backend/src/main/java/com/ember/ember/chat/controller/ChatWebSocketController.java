@@ -3,6 +3,7 @@ package com.ember.ember.chat.controller;
 import com.ember.ember.chat.dto.ChatMessageRequest;
 import com.ember.ember.chat.dto.ChatMessageResponse;
 import com.ember.ember.chat.service.ChatService;
+import com.ember.ember.global.exception.BusinessException;
 import com.ember.ember.global.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
+import java.util.Map;
 
 /**
  * WebSocket STOMP 채팅 컨트롤러
@@ -32,10 +34,18 @@ public class ChatWebSocketController {
                             @Payload ChatMessageRequest request,
                             Principal principal) {
         Long userId = extractUserId(principal);
-        ChatMessageResponse response = chatService.sendMessage(userId, roomId, request);
-
-        // 구독자에게 브로드캐스트
-        messagingTemplate.convertAndSend("/topic/chat/" + roomId, response);
+        try {
+            ChatMessageResponse response = chatService.sendMessage(userId, roomId, request);
+            messagingTemplate.convertAndSend("/topic/chat/" + roomId, response);
+        } catch (BusinessException e) {
+            // 금칙어 등 비즈니스 에러 → 발신자에게만 에러 메시지 전송
+            messagingTemplate.convertAndSend("/topic/chat/" + roomId,
+                    Map.of("type", "ERROR",
+                           "code", e.getErrorCode().getCode(),
+                           "message", e.getMessage(),
+                           "targetUserId", userId));
+            log.info("[ChatWS] 메시지 차단 — roomId={}, userId={}, code={}", roomId, userId, e.getErrorCode().getCode());
+        }
     }
 
     /** 읽음 처리: /app/chat/{roomId}/read */
