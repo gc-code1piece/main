@@ -66,6 +66,19 @@ class WebSocketService {
     _client!.send(destination: '/app/chat/$roomId/read', body: '');
   }
 
+  StompUnsubscribe? subscribeExchange(
+    int roomId,
+    void Function(Map<String, dynamic>) onEvent,
+  ) {
+    if (_client == null || !_isConnected) return null;
+    return _client!.subscribe(
+      destination: '/topic/exchange/$roomId',
+      callback: (frame) {
+        if (frame.body != null) onEvent(jsonDecode(frame.body!));
+      },
+    );
+  }
+
   void disconnect() {
     _client?.deactivate();
     _isConnected = false;

@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,6 +56,7 @@ public class ExchangeService {
     private final NotificationRepository notificationRepository;
     private final FcmService fcmService;
     private final ApplicationEventPublisher eventPublisher;
+    private final SimpMessagingTemplate messagingTemplate;
     private final ObjectMapper objectMapper;
 
     /** 5.1 교환일기 방 목록 조회 (배치 쿼리로 N+1 방지) */
@@ -223,6 +225,11 @@ public class ExchangeService {
 
         log.info("[ExchangeService] 교환일기 작성 — roomId={}, turnNumber={}, isCompleted={}",
                 roomId, turnNumber, isCompleted);
+
+        // WebSocket으로 실시간 알림 (교환일기 화면 자동 갱신)
+        messagingTemplate.convertAndSend("/topic/exchange/" + roomId,
+                Map.of("type", "NEW_DIARY", "turnNumber", turnNumber,
+                       "authorId", userId, "isCompleted", isCompleted));
 
         return ExchangeDiaryWriteResponse.builder()
                 .diaryId(diary.getId())
